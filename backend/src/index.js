@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const routes = require('./routes');
+const logger = require('./utils/logger');
 
 // ── Vérification des variables critiques au boot ──────────────────────────
 const isProd = process.env.NODE_ENV === 'production';
@@ -63,7 +64,10 @@ app.use((req, res) => {
 
 // ── Erreur globale ────────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
-  console.error('Erreur non gérée:', err.stack);
+  logger.error('Erreur non gérée', {
+    method: req.method, url: req.originalUrl,
+    message: err.message, stack: err.stack,
+  });
   const status = err.status || 500;
   const message = process.env.NODE_ENV === 'production'
     ? 'Erreur serveur interne'
@@ -71,9 +75,27 @@ app.use((err, req, res, next) => {
   res.status(status).json({ success: false, message });
 });
 
+// ── Filets de sécurité process ────────────────────────────────────────────
+// Une promesse rejetée non gérée ou une exception non capturée laisseraient
+// sinon le process dans un état indéterminé sans aucune trace.
+process.on('unhandledRejection', (reason) => {
+  logger.error('Promesse rejetée non gérée', {
+    reason: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+  });
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error('Exception non capturée', { message: err.message, stack: err.stack });
+  // L'état est potentiellement corrompu : on sort proprement, le process
+  // manager (pm2/systemd) redémarre l'application.
+  process.exit(1);
+});
+
 app.listen(PORT, () => {
-  console.log(`🚀 ComptaWest API v2.1 → http://localhost:${PORT}`);
-  console.log(`📊 Mode: ${process.env.NODE_ENV || 'development'}`);
+  logger.info(`ComptaWest API v2.1 démarrée sur le port ${PORT}`, {
+    env: process.env.NODE_ENV || 'development',
+  });
 });
 
 module.exports = app;
