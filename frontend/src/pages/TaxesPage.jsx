@@ -5,6 +5,7 @@ import { formatFCFA, formatDate } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
 import { getC, Modal, Input, StatutBadge } from '../components/UI.jsx';
 import SelecteurAnnee from '../components/SelecteurAnnee.jsx';
+import Onboarding from '../components/Onboarding.jsx';
 import { Plus, AlertTriangle, CheckCircle, Clock, Calculator } from 'lucide-react';
 
 const STATUT_CFG = {
@@ -128,14 +129,14 @@ export default function TaxesPage() {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <SelecteurAnnee annee={annee} setAnnee={setAnnee} couleurActif={C.purple} />
-          <button onClick={() => setShowTvaCalc(true)} style={{
+          <button data-onboarding="btn-calc-tva" onClick={() => setShowTvaCalc(true)} style={{
             display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 10,
             border: `1.5px solid ${C.accent}50`, background: `${C.accent}12`,
             color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer',
           }}>
             <Calculator size={14} /> Calculer TVA
           </button>
-          <button onClick={() => setShowModal(true)} style={{
+          <button data-onboarding="btn-nouveau" onClick={() => setShowModal(true)} style={{
             display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', borderRadius: 10,
             border: 'none', background: C.purple, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
           }}>
@@ -239,7 +240,7 @@ export default function TaxesPage() {
       </div>
 
       {/* Table */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', boxShadow: C.shadow }}>
+      <div data-onboarding="liste-taxes" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', boxShadow: C.shadow }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: dark ? '#0D1220' : C.cardAlt, borderBottom: `1px solid ${C.border}` }}>
@@ -429,6 +430,8 @@ export default function TaxesPage() {
           </div>
         </Modal>
       )}
+
+      <Onboarding pageKey="taxes" />
     </div>
   );
 }

@@ -33,6 +33,14 @@ export const AuthProvider = ({ children }) => {
     return data.data;
   };
 
+  // Acceptation d'une invitation : définit le mot de passe et connecte l'invité
+  const acceptInvitation = async (token, payload) => {
+    const { data } = await api.post(`/auth/invitation/${token}`, payload);
+    localStorage.setItem('cw_token', data.data.token);
+    setUser(data.data.user);
+    return data.data;
+  };
+
   const logout = () => {
     localStorage.removeItem('cw_token');
     localStorage.removeItem('cw_user');
@@ -42,7 +50,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, acceptInvitation, logout }}>
       {children}
     </AuthContext.Provider>
   );

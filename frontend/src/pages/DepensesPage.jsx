@@ -3,10 +3,13 @@ import { useTheme } from '../hooks/useTheme.jsx';
 import api from '../utils/api.jsx';
 import { formatFCFA, formatDate, truncate } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
-import { getC, Input, Modal, StatutBadge } from '../components/UI.jsx';
+import { getC, Input, Modal, StatutBadge, AlerteSolde, evaluerSortie } from '../components/UI.jsx';
 import SelecteurAnnee from '../components/SelecteurAnnee.jsx';
+import Onboarding from '../components/Onboarding.jsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Plus, Search, Trash2, Edit2 } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, Package } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { FournisseurFormModal } from './FournisseursPage.jsx';
 
 const STATUT_CFG = {
   payee:      { label: 'Payée',      bg: '#00D4AA20', color: '#00A882', border: '#00D4AA40' },
@@ -17,18 +20,27 @@ const STATUT_CFG = {
 const MODES = ['virement','cash','cheque','mobile_money','carte'];
 
 const emptyForm = {
-  categorie_id: '', description: '', fournisseur: '', montant_ht: '',
+  categorie_id: '', description: '', fournisseur: '', fournisseur_id: null, montant_ht: '',
   taux_tva: 0, date_depense: new Date().toISOString().split('T')[0],
   statut: 'payee', mode_paiement: 'virement', reference: '', notes: '',
+  compte_tresorerie_id: '',
 };
 
 export default function DepensesPage() {
   const { dark } = useTheme();
   const C = getC(dark);
+  const navigate = useNavigate();
+
+  // Bouton "convertir en immobilisation" pour les dépenses notables (>500 000 FCFA)
+  const [showImmoModal, setShowImmoModal] = useState(null);  // dépense en cours de conversion
 
   const [depenses, setDepenses] = useState([]);
   const [stats, setStats] = useState(null);
   const [categories, setCategories] = useState([]);
+  const [comptesTresorerie, setComptesTresorerie] = useState([]);
+  const [fournisseurs, setFournisseurs] = useState([]);
+  const [showFournForm, setShowFournForm] = useState(false);
+  const [fournPrefilNom, setFournPrefilNom] = useState('');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filtreCategorie, setFiltreCategorie] = useState('');
@@ -58,6 +70,16 @@ export default function DepensesPage() {
   }, [search, filtreCategorie, filtreStatut, page, annee]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    api.get('/tresorerie/comptes').then(r => setComptesTresorerie(r.data.data)).catch(() => {});
+    api.get('/fournisseurs?limit=300').then(r => setFournisseurs(r.data.data)).catch(() => {});
+  }, []);
+
+  const rechargerFournisseurs = async () => {
+    try { const r = await api.get('/fournisseurs?limit=300'); setFournisseurs(r.data.data); }
+    catch {}
+  };
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
   const montantTVA = (parseFloat(form.montant_ht) || 0) * (parseFloat(form.taux_tva) || 0) / 100;
@@ -109,7 +131,7 @@ export default function DepensesPage() {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <SelecteurAnnee annee={annee} setAnnee={setAnnee} couleurActif={C.red} />
-          <button onClick={openCreate} style={{
+          <button data-onboarding="btn-nouveau" onClick={openCreate} style={{
             display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', borderRadius: 10,
             border: 'none', background: C.red, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
           }}>
@@ -160,7 +182,7 @@ export default function DepensesPage() {
       )}
 
       {/* Filtres */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
+      <div data-onboarding="filtres-statut" style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: '0 0 260px' }}>
           <Search size={13} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: C.muted }} />
           <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Rechercher..."
@@ -181,7 +203,7 @@ export default function DepensesPage() {
       </div>
 
       {/* Table */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', boxShadow: C.shadow }}>
+      <div data-onboarding="liste-depenses" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', boxShadow: C.shadow }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: dark ? '#0D1220' : C.cardAlt, borderBottom: `1px solid ${C.border}` }}>
@@ -219,6 +241,13 @@ export default function DepensesPage() {
                       <button onClick={() => openEdit(d)} style={{ padding: '5px 7px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.sub }}>
                         <Edit2 size={12} />
                       </button>
+                      {parseFloat(d.montant_ttc) >= 500000 && !d.notes?.includes('Convertie en immo') && (
+                        <button onClick={() => setShowImmoModal(d)}
+                          title="Convertir en immobilisation"
+                          style={{ padding: '5px 7px', background: `${C.gold}15`, border: `1px solid ${C.gold}40`, borderRadius: 7, cursor: 'pointer', color: C.gold }}>
+                          <Package size={12} />
+                        </button>
+                      )}
                       <button onClick={() => handleDelete(d.id)} style={{ padding: '5px 7px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.muted }}
                         onMouseEnter={e => { e.currentTarget.style.borderColor = C.red; e.currentTarget.style.color = C.red; }}
                         onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; }}>
@@ -260,7 +289,50 @@ export default function DepensesPage() {
               </select>
             </div>
             <Input label="Description" value={form.description} onChange={set('description')} placeholder="Ex: Loyer Bureau - Janvier" required />
-            <Input label="Fournisseur" value={form.fournisseur} onChange={set('fournisseur')} placeholder="Orange CI, Landlord..." />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Fournisseur</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input value={form.fournisseur}
+                    onChange={e => setForm(f => ({ ...f, fournisseur: e.target.value, fournisseur_id: null }))}
+                    onBlur={e => {
+                      // Auto-link si match exact avec un fournisseur du catalogue
+                      const f0 = fournisseurs.find(x => x.nom === e.target.value);
+                      if (f0) setForm(f => ({ ...f, fournisseur_id: f0.id, fournisseur: f0.nom }));
+                    }}
+                    list="fournisseurs-list" placeholder="Orange CI, Landlord, ou taper un nom..."
+                    style={{
+                      width: '100%', background: C.input,
+                      border: `1.5px solid ${form.fournisseur_id ? C.accent : C.border}`,
+                      borderRadius: 9, padding: '10px 13px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit',
+                    }} />
+                  <datalist id="fournisseurs-list">
+                    {fournisseurs.map(f => <option key={f.id} value={f.nom}>{f.code} · {f.code_auxiliaire}</option>)}
+                  </datalist>
+                  {form.fournisseur_id && (
+                    <span style={{
+                      position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                      fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 10,
+                      background: C.accent, color: dark ? '#000' : '#fff',
+                    }}>✓ Fiche</span>
+                  )}
+                </div>
+                <button type="button" onClick={() => { setFournPrefilNom(form.fournisseur); setShowFournForm(true); }}
+                  title="Créer une fiche fournisseur"
+                  style={{
+                    padding: '0 14px', borderRadius: 9, border: `1.5px solid ${C.accent}50`,
+                    background: `${C.accent}15`, color: C.accent, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontSize: 12, fontWeight: 700,
+                  }}>
+                  <Plus size={13} />
+                </button>
+              </div>
+              {form.fournisseur && !form.fournisseur_id && fournisseurs.length > 0 && (
+                <div style={{ fontSize: 10, color: C.muted, fontStyle: 'italic' }}>
+                  Tip : crée une fiche fournisseur avec « + » pour suivre les dettes par tiers (compte 4011).
+                </div>
+              )}
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Input label="Montant HT (FCFA)" type="number" value={form.montant_ht} onChange={set('montant_ht')} placeholder="0" required />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -282,7 +354,9 @@ export default function DepensesPage() {
               <Input label="Date" type="date" value={form.date_depense} onChange={set('date_depense')} required />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Mode paiement</label>
-                <select value={form.mode_paiement} onChange={set('mode_paiement')} style={{ ...inputStyle }}>
+                <select value={form.mode_paiement}
+                  onChange={(e) => setForm(f => ({ ...f, mode_paiement: e.target.value, compte_tresorerie_id: '' }))}
+                  style={{ ...inputStyle }}>
                   {MODES.map(m => <option key={m} value={m}>{m.replace('_', ' ')}</option>)}
                 </select>
               </div>
@@ -297,23 +371,206 @@ export default function DepensesPage() {
               </div>
               <Input label="Référence" value={form.reference} onChange={set('reference')} placeholder="Réf. paiement..." />
             </div>
+            {form.statut === 'payee' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Compte de trésorerie</label>
+                <select value={form.compte_tresorerie_id} onChange={set('compte_tresorerie_id')} style={{ ...inputStyle }}>
+                  <option value="">— Compte par défaut —</option>
+                  {comptesTresorerie
+                    .filter(c => {
+                      const typeAttendu = form.mode_paiement === 'cash' ? 'caisse'
+                        : form.mode_paiement === 'mobile_money' ? 'mobile_money'
+                        : 'banque';
+                      return c.type === typeAttendu;
+                    })
+                    .map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.nom}{c.operateur ? ` (${c.operateur})` : ''}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
+            {/* Contrôle de solde : seulement pour une nouvelle dépense payée avec compte explicite */}
+            {form.statut === 'payee' && !editId && form.compte_tresorerie_id && (
+              <AlerteSolde
+                compte={comptesTresorerie.find(c => c.id === form.compte_tresorerie_id)}
+                montant={montantTTC} />
+            )}
             <Input label="Notes" value={form.notes} onChange={set('notes')} placeholder="Notes complémentaires..." />
-            <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-              <button type="button" onClick={() => setShowModal(false)} style={{
-                flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`,
-                background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              }}>Annuler</button>
-              <button type="submit" disabled={saving} style={{
-                flex: 2, padding: '11px 0', borderRadius: 10, border: 'none',
-                background: saving ? C.border : C.red, color: saving ? C.muted : '#fff',
-                fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer',
-              }}>
-                {saving ? 'Enregistrement...' : editId ? 'Modifier' : 'Enregistrer'}
-              </button>
-            </div>
+            {(() => {
+              // Blocage si dépense payée + compte explicite insuffisant (nouvelle dépense seulement)
+              const compteSel = comptesTresorerie.find(c => c.id === form.compte_tresorerie_id);
+              const bloque = form.statut === 'payee' && !editId && compteSel
+                && evaluerSortie(compteSel, montantTTC).bloquant;
+              return (
+                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                  <button type="button" onClick={() => setShowModal(false)} style={{
+                    flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`,
+                    background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  }}>Annuler</button>
+                  <button type="submit" disabled={saving || bloque} style={{
+                    flex: 2, padding: '11px 0', borderRadius: 10, border: 'none',
+                    background: (saving || bloque) ? C.border : C.red, color: (saving || bloque) ? C.muted : '#fff',
+                    fontSize: 13, fontWeight: 700, cursor: (saving || bloque) ? 'not-allowed' : 'pointer',
+                  }}>
+                    {saving ? 'Enregistrement...' : bloque ? 'Solde insuffisant' : editId ? 'Modifier' : 'Enregistrer'}
+                  </button>
+                </div>
+              );
+            })()}
           </form>
         </Modal>
       )}
+
+      {showFournForm && (
+        <FournisseurFormModal initialNom={fournPrefilNom}
+          onClose={() => setShowFournForm(false)}
+          onSaved={(f) => {
+            setShowFournForm(false);
+            rechargerFournisseurs();
+            setForm(s => ({ ...s, fournisseur: f.nom, fournisseur_id: f.id }));
+            toast.success('Fournisseur créé');
+          }}
+          C={C} dark={dark} />
+      )}
+
+      {showImmoModal && (
+        <ConversionImmoModal depense={showImmoModal}
+          onClose={() => setShowImmoModal(null)}
+          onDone={(immo) => {
+            setShowImmoModal(null);
+            toast.success(`Immobilisation ${immo.numero_inventaire} créée`);
+            fetchData();
+            // Optionnel : naviguer vers l'immo créée
+            navigate(`/immobilisations`);
+          }}
+          C={C} dark={dark} />
+      )}
+
+      <Onboarding pageKey="depenses" />
     </div>
+  );
+}
+
+// ─── Modal : convertir une dépense en immobilisation ────────────────────
+function ConversionImmoModal({ depense, onClose, onDone, C, dark }) {
+  const [categories, setCategories] = useState([]);
+  const [form, setForm] = useState({
+    categorie_id: '',
+    libelle: depense.description,
+    date_acquisition: depense.date_depense?.slice(0, 10) || new Date().toISOString().split('T')[0],
+    duree_annees: '',
+    methode: 'lineaire',
+  });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.get('/immobilisations/categories').then(r => setCategories(r.data.data)).catch(() => {});
+  }, []);
+
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const handleCategorie = (catId) => {
+    setForm(f => {
+      const cat = categories.find(c => c.id === catId);
+      return {
+        ...f,
+        categorie_id: catId,
+        duree_annees: cat?.duree_annees || f.duree_annees,
+        methode: cat?.methode || f.methode,
+      };
+    });
+  };
+
+  const handleSubmit = async () => {
+    if (!form.categorie_id) { toast.error('Catégorie requise'); return; }
+    setSaving(true);
+    try {
+      const res = await api.post(`/immobilisations/depuis-depense/${depense.id}`, form);
+      onDone(res.data.data);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur');
+    } finally { setSaving(false); }
+  };
+
+  const selectStyle = {
+    background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 9,
+    padding: '10px 13px', color: C.text, fontSize: 13, outline: 'none',
+    fontFamily: 'inherit', cursor: 'pointer', width: '100%',
+  };
+
+  const cat = categories.find(c => c.id === form.categorie_id);
+
+  return (
+    <Modal title="Convertir en immobilisation" onClose={onClose} width={520}>
+      <div style={{ background: `${C.gold}10`, border: `1px solid ${C.gold}30`, borderRadius: 10,
+                     padding: '12px 14px', marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>DÉPENSE D'ORIGINE</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{depense.description}</div>
+        <div style={{ fontSize: 12, color: C.sub, marginTop: 3 }}>
+          {depense.fournisseur && `${depense.fournisseur} · `}
+          <span style={{ fontFamily: 'monospace', fontWeight: 700, color: C.gold }}>
+            {new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(depense.montant_ht) || parseFloat(depense.montant_ttc)))} FCFA
+          </span>
+          {' '}sera la valeur d'acquisition
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <Input label="Libellé de l'immobilisation" value={form.libelle} onChange={set('libelle')} />
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Catégorie *</label>
+          <select value={form.categorie_id} onChange={e => handleCategorie(e.target.value)} style={selectStyle} required>
+            <option value="">— Sélectionner —</option>
+            {categories.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.libelle} ({c.duree_annees > 0 ? `${c.duree_annees} ans` : 'non amortissable'}) · {c.compte_actif}
+              </option>
+            ))}
+          </select>
+          {cat && (
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+              Compte d'actif : <strong style={{ color: C.text, fontFamily: 'monospace' }}>{cat.compte_actif}</strong>
+            </div>
+          )}
+        </div>
+
+        <Input label="Date d'acquisition" type="date" value={form.date_acquisition} onChange={set('date_acquisition')} />
+
+        {cat?.amortissable !== false && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Input label="Durée (années)" type="number" value={form.duree_annees} onChange={set('duree_annees')} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Méthode</label>
+              <select value={form.methode} onChange={set('methode')} style={selectStyle}>
+                <option value="lineaire">Linéaire</option>
+                <option value="degressif">Dégressif</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        <div style={{
+          fontSize: 11, color: C.muted, lineHeight: 1.55, padding: '10px 12px',
+          background: dark ? '#0D1220' : C.cardAlt, borderRadius: 8,
+        }}>
+          La dépense restera en l'état mais sera marquée comme convertie. L'immobilisation héritera du montant HT, du fournisseur et de la référence. Les dotations annuelles devront être générées depuis la page Immobilisations.
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+          <button onClick={onClose} style={{
+            flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`,
+            background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          }}>Annuler</button>
+          <button onClick={handleSubmit} disabled={saving} style={{
+            flex: 2, padding: '11px 0', borderRadius: 10, border: 'none',
+            background: saving ? C.border : C.gold, color: saving ? C.muted : '#000',
+            fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer',
+          }}>{saving ? '...' : 'Convertir'}</button>
+        </div>
+      </div>
+    </Modal>
   );
 }

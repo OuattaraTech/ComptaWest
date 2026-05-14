@@ -4,7 +4,7 @@
  * → Ils se mettent à jour automatiquement en dark/light mode
  */
 import { useTheme } from '../hooks/useTheme.jsx';
-import { X } from 'lucide-react';
+import { X, AlertTriangle, AlertCircle, CheckCircle } from 'lucide-react';
 
 // ─── Palette centralisée ──────────────────────────────────────────────────
 export const getC = (dark) => dark ? {
@@ -282,5 +282,75 @@ export const StatutBadge = ({ statut }) => {
       background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
       whiteSpace: 'nowrap',
     }}>{cfg.label}</span>
+  );
+};
+
+// ─── Helper : évalue si une sortie est possible sur un compte ─────────────
+// Renvoie { ok, bloquant, niveau: 'ok'|'avertissement'|'blocage', solde_apres, message }
+export const evaluerSortie = (compte, montant) => {
+  if (!compte) return { ok: true, bloquant: false, niveau: 'ok', solde_apres: null, message: '' };
+  const m = parseFloat(montant) || 0;
+  const solde = parseFloat(compte.solde_actuel) || 0;
+  const soldeApres = Math.round((solde - m) * 100) / 100;
+  const decAutorise = !!compte.decouvert_autorise;
+  const decMax = parseFloat(compte.decouvert_max) || 0;
+  const plancher = decAutorise ? -decMax : 0;
+
+  if (m <= 0) return { ok: true, bloquant: false, niveau: 'ok', solde_apres: soldeApres, message: '' };
+
+  if (soldeApres < plancher - 0.001) {
+    // Dépassement : blocage
+    const manque = Math.round((plancher - soldeApres) * 100) / 100;
+    return {
+      ok: false, bloquant: true, niveau: 'blocage', solde_apres: soldeApres,
+      message: decAutorise && decMax > 0
+        ? `Découvert autorisé (−${new Intl.NumberFormat('fr-FR').format(decMax)}) dépassé. Il manque ${new Intl.NumberFormat('fr-FR').format(manque)} ${compte.devise || 'FCFA'}.`
+        : `Solde insuffisant : ${new Intl.NumberFormat('fr-FR').format(solde)} disponible, ${new Intl.NumberFormat('fr-FR').format(m)} demandé. Il manque ${new Intl.NumberFormat('fr-FR').format(manque)} ${compte.devise || 'FCFA'}.`,
+    };
+  }
+  if (soldeApres < -0.001) {
+    // Découvert autorisé mais le compte passe en négatif : avertissement
+    return {
+      ok: true, bloquant: false, niveau: 'avertissement', solde_apres: soldeApres,
+      message: `Le compte passera à découvert : solde après opération ${new Intl.NumberFormat('fr-FR').format(soldeApres)} ${compte.devise || 'FCFA'}.`,
+    };
+  }
+  return { ok: true, bloquant: false, niveau: 'ok', solde_apres: soldeApres, message: '' };
+};
+
+// ─── Bandeau d'alerte de solde ────────────────────────────────────────────
+// Affiche le solde après opération et un message selon le niveau de risque.
+export const AlerteSolde = ({ compte, montant }) => {
+  const { dark } = useTheme();
+  const C = getC(dark);
+  if (!compte) return null;
+  const ev = evaluerSortie(compte, montant);
+  const m = parseFloat(montant) || 0;
+  if (m <= 0) return null;
+
+  const cfg = {
+    ok:            { color: C.accent, bg: `${C.accent}12`, border: `${C.accent}40`, icon: CheckCircle,   titre: 'Solde suffisant' },
+    avertissement: { color: C.gold,   bg: `${C.gold}15`,   border: `${C.gold}50`,   icon: AlertTriangle, titre: 'Compte à découvert' },
+    blocage:       { color: C.red,    bg: `${C.red}15`,    border: `${C.red}50`,    icon: AlertCircle,   titre: 'Opération impossible' },
+  }[ev.niveau];
+  const Icon = cfg.icon;
+
+  const fmtN = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n));
+
+  return (
+    <div style={{
+      background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 10,
+      padding: '10px 13px', display: 'flex', gap: 10, alignItems: 'flex-start',
+    }}>
+      <Icon size={15} color={cfg.color} style={{ flexShrink: 0, marginTop: 1 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: cfg.color }}>{cfg.titre}</div>
+        <div style={{ fontSize: 11, color: C.sub, marginTop: 2, lineHeight: 1.45 }}>
+          {ev.message || (
+            <>Solde de <strong>{compte.nom}</strong> : {fmtN(compte.solde_actuel)} → <strong>{fmtN(ev.solde_apres)} {compte.devise || 'FCFA'}</strong> après opération</>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };

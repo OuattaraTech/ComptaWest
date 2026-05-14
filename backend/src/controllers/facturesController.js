@@ -1,10 +1,15 @@
 const pool = require('../../config/database');
 const { body } = require('express-validator');
+const { logAudit } = require('../utils/audit');
+const { ecritureFacture, ecriturePaiementFacture } = require('../utils/comptabilite-auto');
+const { appliquerMouvement } = require('./produitsController');
 
 const factureRules = [
   body('client_id').notEmpty().withMessage('Client requis').isUUID().withMessage('Client invalide'),
   body('type').optional().isIn(['facture','devis','avoir','proforma']).withMessage('Type invalide'),
   body('taux_tva').optional().isFloat({ min: 0, max: 100 }).withMessage('TVA invalide'),
+  body('valider_immediatement').optional().isBoolean().withMessage('valider_immediatement doit être un booléen'),
+  body('facture_origine_id').optional({ nullable: true, checkFalsy: true }).isUUID().withMessage('Référence facture origine invalide'),
   body('lignes').isArray({ min: 1 }).withMessage('Au moins une ligne requise'),
   body('lignes.*.description').notEmpty().withMessage('Description ligne requise'),
   body('lignes.*.prix_unitaire').isFloat({ min: 0 }).withMessage('Prix unitaire invalide'),
@@ -15,6 +20,7 @@ const factureRules = [
 const paiementRules = [
   body('montant').isFloat({ min: 0.01 }).withMessage('Montant invalide'),
   body('mode_paiement').optional().isIn(['cash','virement','cheque','mobile_money','carte']),
+  body('compte_tresorerie_id').optional({ nullable: true }).isUUID().withMessage('Compte trésorerie invalide'),
 ];
 
 // GET /api/factures
@@ -22,7 +28,9 @@ const getFactures = async (req, res) => {
   try {
     const { statut, client_id, search, type, page = 1, limit = 20, date_debut, date_fin } = req.query;
     const eid = req.entrepriseId;
-    const offset = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
+    const pageNum  = Math.max(1, parseInt(page));
+    const limitNum = Math.max(1, parseInt(limit));
+    const offset   = (pageNum - 1) * limitNum;
 
     await pool.query(
       `UPDATE factures SET statut='retard', updated_at=NOW()
@@ -30,42 +38,47 @@ const getFactures = async (req, res) => {
       [eid]
     );
 
-    let query = `
-      SELECT f.*, c.nom AS client_nom, c.code AS client_code, c.email AS client_email
-      FROM factures f
-      LEFT JOIN clients c ON c.id = f.client_id
-      WHERE f.entreprise_id = $1
-    `;
-    const params = [eid];
+    const conditions = ['f.entreprise_id = $1'];
+    const params     = [eid];
 
-    if (statut) { params.push(statut); query += ` AND f.statut=$${params.length}`; }
-    if (type) { params.push(type); query += ` AND f.type=$${params.length}`; }
-    if (client_id) { params.push(client_id); query += ` AND f.client_id=$${params.length}`; }
-    if (date_debut) { params.push(date_debut); query += ` AND f.date_emission>=$${params.length}`; }
-    if (date_fin) { params.push(date_fin); query += ` AND f.date_emission<=$${params.length}`; }
+    if (statut)    { params.push(statut);    conditions.push(`f.statut = $${params.length}`); }
+    if (type)      { params.push(type);      conditions.push(`f.type = $${params.length}`); }
+    if (client_id) { params.push(client_id); conditions.push(`f.client_id = $${params.length}`); }
+    if (date_debut){ params.push(date_debut);conditions.push(`f.date_emission >= $${params.length}`); }
+    if (date_fin)  { params.push(date_fin);  conditions.push(`f.date_emission <= $${params.length}`); }
     if (search && search.trim()) {
       params.push(`%${search.trim()}%`);
-      query += ` AND (f.numero ILIKE $${params.length} OR c.nom ILIKE $${params.length})`;
+      conditions.push(`(f.numero ILIKE $${params.length} OR c.nom ILIKE $${params.length})`);
     }
 
-    const countQuery = query.replace(
-      'SELECT f.*, c.nom AS client_nom, c.code AS client_code, c.email AS client_email',
-      'SELECT COUNT(*)'
+    const where = conditions.join(' AND ');
+
+    const countRes = await pool.query(
+      `SELECT COUNT(*) FROM factures f
+       LEFT JOIN clients c ON c.id = f.client_id
+       WHERE ${where}`,
+      params
     );
-    const countRes = await pool.query(countQuery, params);
+    const total = parseInt(countRes.rows[0].count);
 
-    query += ` ORDER BY f.date_emission DESC, f.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-    params.push(parseInt(limit), offset);
+    const dataRes = await pool.query(
+      `SELECT f.*, c.nom AS client_nom, c.code AS client_code, c.email AS client_email
+       FROM factures f
+       LEFT JOIN clients c ON c.id = f.client_id
+       WHERE ${where}
+       ORDER BY f.date_emission DESC, f.created_at DESC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limitNum, offset]
+    );
 
-    const result = await pool.query(query, params);
     res.json({
       success: true,
-      data: result.rows,
+      data: dataRes.rows,
       pagination: {
-        total: parseInt(countRes.rows[0].count),
-        page: parseInt(page),
-        limit: parseInt(limit),
-        pages: Math.ceil(countRes.rows[0].count / parseInt(limit)),
+        total,
+        page:  pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum) || 1,
       },
     });
   } catch (err) {
@@ -110,7 +123,21 @@ const createFacture = async (req, res) => {
     const {
       client_id, type = 'facture', date_emission, date_echeance,
       lignes = [], taux_tva = 18, notes, conditions_paiement,
+      valider_immediatement = false, facture_origine_id = null,
     } = req.body;
+
+    // Avoir : la référence à la facture d'origine est obligatoire (SYSCOHADA)
+    if (type === 'avoir' && !facture_origine_id) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: "Un avoir doit obligatoirement référencer la facture d'origine",
+      });
+    }
+
+    // Devis et proforma ne sont jamais comptabilisés : statut bloqué à 'brouillon'
+    const peutValider = type === 'facture' || type === 'avoir';
+    const statutInitial = (valider_immediatement && peutValider) ? 'envoyee' : 'brouillon';
 
     // Vérifier que le client appartient à cette entreprise
     const clientCheck = await client.query(
@@ -118,6 +145,7 @@ const createFacture = async (req, res) => {
       [client_id, eid]
     );
     if (clientCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ success: false, message: 'Client introuvable ou inactif' });
     }
 
@@ -141,22 +169,28 @@ const createFacture = async (req, res) => {
     const montant_tva = sous_total * (tvaNorm / 100);
     const total_ttc = sous_total + montant_tva;
 
+    // Devis et proforma démarrent leur cycle de vie commercial à "en_attente"
+    const devisStatut = (type === 'devis' || type === 'proforma') ? 'en_attente' : null;
+
     const factureRes = await client.query(
       `INSERT INTO factures (entreprise_id, client_id, cree_par, numero, type, statut,
-        date_emission, date_echeance, sous_total, taux_tva, montant_tva, total_ttc, notes, conditions_paiement)
-       VALUES ($1,$2,$3,$4,$5,'brouillon',$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+        date_emission, date_echeance, sous_total, taux_tva, montant_tva, total_ttc, notes, conditions_paiement, facture_origine_id, devis_statut)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
       [
-        eid, client_id, req.user.id, numero, type,
+        eid, client_id, req.user.id, numero, type, statutInitial,
         date_emission || new Date().toISOString().split('T')[0],
         date_echeance || null,
         Math.round(sous_total * 100) / 100, tvaNorm,
         Math.round(montant_tva * 100) / 100,
         Math.round(total_ttc * 100) / 100,
         notes || null, conditions_paiement || 'Paiement à 30 jours',
+        facture_origine_id || null,
+        devisStatut,
       ]
     );
     const facture = factureRes.rows[0];
 
+    const lignesAvecProduit = [];
     for (let i = 0; i < lignes.length; i++) {
       const l = lignes[i];
       const remise = Math.min(100, Math.max(0, parseFloat(l.remise) || 0));
@@ -164,13 +198,47 @@ const createFacture = async (req, res) => {
       const pu = parseFloat(l.prix_unitaire) || 0;
       const total = Math.round(qte * pu * (1 - remise / 100) * 100) / 100;
       await client.query(
-        `INSERT INTO lignes_facture (facture_id, description, quantite, unite, prix_unitaire, remise, total, ordre)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [facture.id, l.description.trim(), qte, l.unite || 'unité', pu, remise, total, i]
+        `INSERT INTO lignes_facture (facture_id, description, quantite, unite, prix_unitaire, remise, total, ordre, produit_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [facture.id, l.description.trim(), qte, l.unite || 'unité', pu, remise, total, i, l.produit_id || null]
       );
+      if (l.produit_id) lignesAvecProduit.push({ produit_id: l.produit_id, quantite: qte, total });
+    }
+
+    // Validation immédiate : écriture comptable + sortie de stock pour les lignes produits
+    if (statutInitial === 'envoyee') {
+      await ecritureFacture(client, {
+        entrepriseId: eid,
+        utilisateurId: req.user.id,
+        facture,
+      });
+      // Avoirs : on inverse le sens (retour en stock)
+      const sensStock = facture.type === 'avoir' ? 'entree' : 'sortie';
+      for (const lp of lignesAvecProduit) {
+        try {
+          await appliquerMouvement(client, {
+            entrepriseId: eid,
+            produitId: lp.produit_id,
+            sens: sensStock,
+            quantite: lp.quantite,
+            sourceType: facture.type === 'avoir' ? 'retour' : 'vente',
+            sourceId: facture.id,
+            libelle: `${facture.type === 'avoir' ? 'Retour' : 'Vente'} - ${facture.numero}`,
+            reference: facture.numero,
+            date: facture.date_emission,
+            creePar: req.user?.id,
+          });
+        } catch (err) {
+          console.warn('[stock] mouvement facture échoué:', err.message);
+        }
+      }
     }
 
     await client.query('COMMIT');
+    logAudit(req, 'CREATE', 'factures', facture.id, {
+      numero: facture.numero, type: facture.type, total_ttc: facture.total_ttc, client_id,
+      statut: facture.statut,
+    });
     res.status(201).json({ success: true, data: facture });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -183,23 +251,78 @@ const createFacture = async (req, res) => {
 
 // PUT /api/factures/:id/statut
 const updateStatut = async (req, res) => {
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
     const { id } = req.params;
     const { statut } = req.body;
     const valid = ['brouillon', 'envoyee', 'payee', 'en_attente', 'retard', 'annulee'];
     if (!valid.includes(statut)) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ success: false, message: 'Statut invalide' });
     }
-    const result = await pool.query(
+
+    // On a besoin du statut précédent pour décider s'il faut générer l'écriture
+    const avant = await client.query(
+      'SELECT statut FROM factures WHERE id=$1 AND entreprise_id=$2',
+      [id, req.entrepriseId]
+    );
+    if (avant.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Facture introuvable' });
+    }
+    const ancienStatut = avant.rows[0].statut;
+
+    const result = await client.query(
       'UPDATE factures SET statut=$1, updated_at=NOW() WHERE id=$2 AND entreprise_id=$3 RETURNING *',
       [statut, id, req.entrepriseId]
     );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Facture introuvable' });
+    const facture = result.rows[0];
+
+    // Génération auto de l'écriture comptable à la première sortie de "brouillon"
+    if (ancienStatut === 'brouillon' && statut !== 'brouillon' && statut !== 'annulee') {
+      await ecritureFacture(client, {
+        entrepriseId: req.entrepriseId,
+        utilisateurId: req.user.id,
+        facture,
+      });
+
+      // Sortie de stock pour les lignes liées à un produit du catalogue
+      const lignesProd = await client.query(
+        `SELECT produit_id, quantite FROM lignes_facture
+         WHERE facture_id = $1 AND produit_id IS NOT NULL`,
+        [id]
+      );
+      const sensStock = facture.type === 'avoir' ? 'entree' : 'sortie';
+      for (const lp of lignesProd.rows) {
+        try {
+          await appliquerMouvement(client, {
+            entrepriseId: req.entrepriseId,
+            produitId: lp.produit_id,
+            sens: sensStock,
+            quantite: parseFloat(lp.quantite),
+            sourceType: facture.type === 'avoir' ? 'retour' : 'vente',
+            sourceId: facture.id,
+            libelle: `${facture.type === 'avoir' ? 'Retour' : 'Vente'} - ${facture.numero}`,
+            reference: facture.numero,
+            date: facture.date_emission,
+            creePar: req.user?.id,
+          });
+        } catch (err) {
+          console.warn('[stock] mouvement updateStatut échoué:', err.message);
+        }
+      }
     }
-    res.json({ success: true, data: result.rows[0] });
+
+    await client.query('COMMIT');
+    logAudit(req, 'UPDATE', 'factures', id, { champ: 'statut', ancien: ancienStatut, nouveau: statut, numero: facture.numero });
+    res.json({ success: true, data: facture });
   } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Erreur updateStatut:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  } finally {
+    client.release();
   }
 };
 
@@ -209,18 +332,23 @@ const addPaiement = async (req, res) => {
   try {
     await client.query('BEGIN');
     const { id } = req.params;
-    const { montant, date_paiement, mode_paiement = 'virement', reference, notes } = req.body;
+    const {
+      montant, date_paiement, mode_paiement = 'virement', reference, notes,
+      compte_tresorerie_id,
+    } = req.body;
 
     const factureRes = await client.query(
       'SELECT * FROM factures WHERE id=$1 AND entreprise_id=$2 FOR UPDATE',
       [id, req.entrepriseId]
     );
     if (factureRes.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ success: false, message: 'Facture introuvable' });
     }
     const facture = factureRes.rows[0];
 
     if (facture.statut === 'annulee') {
+      await client.query('ROLLBACK');
       return res.status(400).json({ success: false, message: 'Impossible de payer une facture annulée' });
     }
 
@@ -229,18 +357,46 @@ const addPaiement = async (req, res) => {
     const ttc = parseFloat(facture.total_ttc);
 
     if (nouveauPaye > ttc + 0.01) {
+      await client.query('ROLLBACK');
       return res.status(400).json({
         success: false,
         message: `Montant dépasse le total TTC (${ttc} FCFA)`,
       });
     }
 
-    await client.query(
-      `INSERT INTO paiements (facture_id, montant, date_paiement, mode_paiement, reference, notes)
-       VALUES ($1,$2,$3,$4,$5,$6)`,
+    // Résolution du compte de trésorerie : explicite, sinon défaut selon mode
+    let compteId = compte_tresorerie_id || null;
+    if (!compteId) {
+      const typeAttendu = mode_paiement === 'cash' ? 'caisse'
+        : mode_paiement === 'mobile_money' ? 'mobile_money'
+        : 'banque';
+      const r = await client.query(
+        `SELECT id FROM comptes_tresorerie
+         WHERE entreprise_id = $1 AND par_defaut = TRUE AND archived_at IS NULL
+           AND (type = $2 OR type = 'banque')
+         ORDER BY (type = $2) DESC LIMIT 1`,
+        [req.entrepriseId, typeAttendu]
+      );
+      compteId = r.rows[0]?.id || null;
+    } else {
+      // Validation que le compte existe et appartient bien à l'entreprise
+      const r = await client.query(
+        `SELECT id FROM comptes_tresorerie WHERE id = $1 AND entreprise_id = $2 AND archived_at IS NULL`,
+        [compteId, req.entrepriseId]
+      );
+      if (!r.rows[0]) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, message: 'Compte de trésorerie invalide' });
+      }
+    }
+
+    const paiementRes = await client.query(
+      `INSERT INTO paiements (facture_id, montant, date_paiement, mode_paiement, reference, notes, compte_tresorerie_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
       [id, montantNum, date_paiement || new Date().toISOString().split('T')[0],
-       mode_paiement, reference || null, notes || null]
+       mode_paiement, reference || null, notes || null, compteId]
     );
+    const paiement = paiementRes.rows[0];
 
     const nouveauStatut = nouveauPaye >= ttc - 0.01 ? 'payee' : 'en_attente';
     await client.query(
@@ -248,7 +404,29 @@ const addPaiement = async (req, res) => {
       [nouveauPaye, nouveauStatut, id]
     );
 
+    // Génération auto du mouvement de trésorerie (encaissement)
+    if (compteId) {
+      await client.query(
+        `INSERT INTO mouvements_tresorerie
+          (entreprise_id, compte_id, date_operation, sens, montant, libelle, reference, source_type, source_id, cree_par)
+         VALUES ($1,$2,$3,'entree',$4,$5,$6,'paiement_facture',$7,$8)`,
+        [req.entrepriseId, compteId, paiement.date_paiement, montantNum,
+         `Encaissement facture ${facture.numero}`, reference || facture.numero, paiement.id, req.user?.id]
+      );
+    }
+
+    // Génération auto de l'écriture comptable d'encaissement
+    await ecriturePaiementFacture(client, {
+      entrepriseId: req.entrepriseId,
+      utilisateurId: req.user.id,
+      facture, paiement,
+    });
+
     await client.query('COMMIT');
+    logAudit(req, 'PAY', 'factures', id, {
+      numero: facture.numero, montant: montantNum, mode_paiement,
+      total_paye: nouveauPaye, statut: nouveauStatut, compte_tresorerie_id: compteId,
+    });
     res.json({ success: true, statut: nouveauStatut, montant_paye: nouveauPaye });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -272,6 +450,7 @@ const deleteFacture = async (req, res) => {
         message: 'Facture introuvable ou non supprimable (brouillons uniquement)',
       });
     }
+    logAudit(req, 'DELETE', 'factures', req.params.id);
     res.json({ success: true, message: 'Facture supprimée' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Erreur serveur' });

@@ -16,6 +16,7 @@ const getStats = async (req, res) => {
         COUNT(CASE WHEN statut = 'retard' THEN 1 END) AS nb_retard
       FROM factures
       WHERE entreprise_id=$1 AND EXTRACT(YEAR FROM date_emission)=$2
+        AND type='facture'
     `, [eid, annee]);
 
     const depensesRes = await pool.query(`
@@ -41,6 +42,7 @@ const getStats = async (req, res) => {
              COALESCE(SUM(montant_paye),0) AS encaisse
       FROM factures
       WHERE entreprise_id=$1 AND EXTRACT(YEAR FROM date_emission)=$2
+        AND type='facture'
       GROUP BY EXTRACT(MONTH FROM date_emission)
     `, [eid, annee]);
 
@@ -68,7 +70,7 @@ const getStats = async (req, res) => {
         COUNT(f.id) AS nb_factures,
         COALESCE(SUM(f.total_ttc),0) AS ca_total
       FROM clients c
-      LEFT JOIN factures f ON f.client_id=c.id AND EXTRACT(YEAR FROM f.date_emission)=$2 AND f.statut!='annulee'
+      LEFT JOIN factures f ON f.client_id=c.id AND EXTRACT(YEAR FROM f.date_emission)=$2 AND f.statut!='annulee' AND f.type='facture'
       WHERE c.entreprise_id=$1
       GROUP BY c.id ORDER BY ca_total DESC LIMIT 5
     `, [eid, annee]);
@@ -131,7 +133,7 @@ const getTransactionsRecentes = async (req, res) => {
              'recette' AS sens, c.nom AS tiers
       FROM factures f
       LEFT JOIN clients c ON c.id = f.client_id
-      WHERE f.entreprise_id=$1
+      WHERE f.entreprise_id=$1 AND f.type='facture'
       ORDER BY f.created_at DESC LIMIT $2
     `, [eid, limit]);
 

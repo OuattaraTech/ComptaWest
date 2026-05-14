@@ -6,11 +6,12 @@ import { formatFCFA } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
 import { getC, Metric, CustomTooltip } from '../components/UI.jsx';
 import SelecteurAnnee from '../components/SelecteurAnnee.jsx';
+import Onboarding from '../components/Onboarding.jsx';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
 } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Percent, Calculator } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Percent, Calculator, Download } from 'lucide-react';
 
 export default function RapportsPage() {
   const { actuelle } = useEntreprise();
@@ -19,6 +20,30 @@ export default function RapportsPage() {
   const [annee, setAnnee] = useState(String(new Date().getFullYear()));
   const [bilan, setBilan] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+
+  const downloadPDF = async () => {
+    setExporting(true);
+    const toastId = toast.loading('Génération du PDF...');
+    try {
+      const res = await api.get(`/rapports/bilan/pdf?annee=${annee}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Bilan_${annee}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.dismiss(toastId);
+      toast.success(`Bilan ${annee} téléchargé`);
+    } catch (err) {
+      toast.dismiss(toastId);
+      toast.error(err.response?.data?.message || 'Erreur génération PDF');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     if (!actuelle) return;
@@ -51,14 +76,29 @@ export default function RapportsPage() {
             {bilan?.entreprise || actuelle?.nom} · {bilan?.regime_fiscal} · {annee}
           </p>
         </div>
-        <SelecteurAnnee annee={annee} setAnnee={setAnnee} couleurActif={C.accent} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div data-onboarding="periode-selector">
+            <SelecteurAnnee annee={annee} setAnnee={setAnnee} couleurActif={C.accent} />
+          </div>
+          <button data-onboarding="btn-export" onClick={downloadPDF} disabled={exporting || loading || !bilan} style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '10px 18px', borderRadius: 10, border: 'none',
+            background: (exporting || loading || !bilan) ? C.border : C.accent,
+            color: (exporting || loading || !bilan) ? C.muted : (dark ? '#000' : '#fff'),
+            fontSize: 13, fontWeight: 700,
+            cursor: (exporting || loading || !bilan) ? 'not-allowed' : 'pointer',
+            transition: 'all 0.15s',
+          }}>
+            <Download size={15} /> {exporting ? 'Génération...' : 'Exporter PDF'}
+          </button>
+        </div>
       </div>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '60px', color: C.muted }}>Chargement...</div>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 24 }}>
+          <div data-onboarding="metriques" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14, marginBottom: 24 }}>
             <Metric label="Recettes HT" value={`${formatFCFA(t.recettes, true)} FCFA`} sub="Total factures" icon={TrendingUp} color={C.accent} />
             <Metric label="Dépenses" value={`${formatFCFA(t.depenses, true)} FCFA`} sub="Charges payées" icon={TrendingDown} color={C.red} />
             <Metric label="Taxes payées" value={`${formatFCFA(t.taxes_payees, true)} FCFA`} sub="DGI · CNSS" icon={Calculator} color={C.purple} />
@@ -208,6 +248,8 @@ export default function RapportsPage() {
           </div>
         </>
       )}
+
+      <Onboarding pageKey="rapports" />
     </div>
   );
 }

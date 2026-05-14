@@ -1,5 +1,6 @@
 const pool = require('../../config/database');
 const { body } = require('express-validator');
+const { logAudit } = require('../utils/audit');
 
 const clientRules = [
   body('nom').trim().notEmpty().withMessage('Nom requis').isLength({ max: 150 }),
@@ -21,7 +22,7 @@ const getClients = async (req, res) => {
         COALESCE(SUM(f.total_ttc), 0) AS ca_total,
         COALESCE(SUM(CASE WHEN f.statut IN ('en_attente','retard') THEN f.total_ttc - f.montant_paye ELSE 0 END), 0) AS encours
       FROM clients c
-      LEFT JOIN factures f ON f.client_id = c.id
+      LEFT JOIN factures f ON f.client_id = c.id AND f.type = 'facture'
       WHERE c.entreprise_id = $1 AND c.actif = $2
     `;
     const params = [eid, actifBool];
@@ -68,7 +69,7 @@ const getClientById = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Client introuvable' });
     }
     const factures = await pool.query(
-      'SELECT id, numero, statut, date_emission, total_ttc, montant_paye FROM factures WHERE client_id=$1 ORDER BY date_emission DESC LIMIT 10',
+      "SELECT id, numero, statut, date_emission, total_ttc, montant_paye FROM factures WHERE client_id=$1 AND type='facture' ORDER BY date_emission DESC LIMIT 10",
       [id]
     );
     res.json({ success: true, data: { ...result.rows[0], factures: factures.rows } });
@@ -100,6 +101,7 @@ const createClient = async (req, res) => {
        adresse || null, ville || null, pays || "Côte d'Ivoire", ninea || null, rccm || null, notes || null]
     );
     await client.query('COMMIT');
+    logAudit(req, 'CREATE', 'clients', result.rows[0].id, { code, nom: nom.trim(), type });
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -132,6 +134,7 @@ const updateClient = async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Client introuvable' });
     }
+    logAudit(req, 'UPDATE', 'clients', id, { nom: nom.trim(), actif: actif !== false });
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Erreur serveur' });
@@ -148,6 +151,7 @@ const deleteClient = async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Client introuvable' });
     }
+    logAudit(req, 'DELETE', 'clients', req.params.id, { archive: true });
     res.json({ success: true, message: 'Client archivé' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Erreur serveur' });

@@ -6,11 +6,21 @@ import api from '../utils/api.jsx';
 import { formatFCFA, formatDate } from '../utils/helpers.jsx';
 import { getC, KpiCard, CustomTooltip, StatutBadge } from '../components/UI.jsx';
 import SelecteurAnnee from '../components/SelecteurAnnee.jsx';
+import Onboarding from '../components/Onboarding.jsx';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { TrendingUp, TrendingDown, Users, AlertTriangle, DollarSign, Calculator } from 'lucide-react';
+
+// Salutation selon l'heure locale — varie le texte, l'emoji et le mot d'accueil
+const getSalutation = () => {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12)  return { texte: 'Bonjour',        emoji: '☀️',  moment: 'Belle matinée pour piloter votre activité.' };
+  if (h >= 12 && h < 17) return { texte: 'Bon après-midi', emoji: '🌤️', moment: 'Un point sur vos chiffres en milieu de journée.' };
+  if (h >= 17 && h < 22) return { texte: 'Bonsoir',        emoji: '🌆',  moment: 'Faisons le bilan de votre journée.' };
+  return { texte: 'Bonne nuit', emoji: '🌙', moment: 'ComptaWest veille, même tard le soir.' };
+};
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -54,20 +64,58 @@ export default function DashboardPage() {
   const charges = stats?.repartition_charges || [];
   const topClients = stats?.top_clients || [];
 
+  const salutation = getSalutation();
+  const prenom = user?.nom?.split(' ')[0];
+  const dateStr = (() => {
+    const d = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    return d.charAt(0).toUpperCase() + d.slice(1);
+  })();
+
   return (
     <div style={{ padding: '32px 36px', minHeight: '100vh', background: C.bg, transition: 'background 0.2s' }}>
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>
-            Bonjour, {user?.nom?.split(' ')[0]} 👋
-          </h1>
-          <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
-            {actuelle.nom} · {actuelle.regime_fiscal} · {annee}
-          </p>
+      {/* Header — accueil */}
+      <div data-onboarding="header" style={{
+        position: 'relative', overflow: 'hidden',
+        background: dark
+          ? `linear-gradient(135deg, ${C.card} 0%, ${C.card} 58%, ${C.accent}14 100%)`
+          : `linear-gradient(135deg, ${C.card} 0%, ${C.card} 55%, ${C.accent}12 100%)`,
+        border: `1px solid ${C.border}`, borderRadius: 18,
+        padding: '22px 26px', marginBottom: 24, boxShadow: C.shadow,
+      }}>
+        {/* halo décoratif */}
+        <div style={{
+          position: 'absolute', top: -100, right: -50, width: 260, height: 260,
+          borderRadius: '50%', background: `radial-gradient(circle, ${C.accent}22, transparent 70%)`,
+          pointerEvents: 'none',
+        }} />
+        <div style={{
+          position: 'relative', zIndex: 1, display: 'flex',
+          justifyContent: 'space-between', alignItems: 'center', gap: 18, flexWrap: 'wrap',
+        }}>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: 16, flexShrink: 0,
+              background: `${C.accent}18`, border: `1px solid ${C.accent}35`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
+            }}>{salutation.emoji}</div>
+            <div>
+              <h1 style={{ fontSize: 23, fontWeight: 800, letterSpacing: '-0.02em', color: C.text, margin: 0 }}>
+                {salutation.texte}{prenom ? `, ${prenom}` : ''} <span style={{ fontSize: 20 }}>👋</span>
+              </h1>
+              <p style={{ fontSize: 12.5, color: C.sub, margin: '5px 0 0' }}>
+                {dateStr} · <span style={{ color: C.muted }}>{salutation.moment}</span>
+              </p>
+            </div>
+          </div>
+          <div data-onboarding="annee-selector" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 9 }}>
+            <SelecteurAnnee annee={annee} setAnnee={setAnnee} couleurActif={C.accent} />
+            <div style={{ fontSize: 11, color: C.muted, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.accent, flexShrink: 0 }} />
+              {actuelle.nom} · {actuelle.regime_fiscal} · {annee}
+            </div>
+          </div>
         </div>
-        <SelecteurAnnee annee={annee} setAnnee={setAnnee} couleurActif={C.accent} />
       </div>
 
       {/* Alertes */}
@@ -93,7 +141,7 @@ export default function DashboardPage() {
       )}
 
       {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 24 }}>
+      <div data-onboarding="kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 24 }}>
         <KpiCard label="Chiffre d'affaires" value={kpis.ca_total} sub={`marge ${kpis.marge}%`} icon={TrendingUp} color={C.accent} />
         <KpiCard label="Dépenses" value={kpis.total_depenses} sub="charges payées" icon={TrendingDown} color={C.red} />
         <KpiCard label="Taxes dues" value={kpis.total_taxes_dues} sub="DGI · CNSS" icon={Calculator} color={C.purple} alert={kpis.total_taxes_dues > 0} />
@@ -102,7 +150,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Graphiques */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20, marginBottom: 22 }}>
+      <div data-onboarding="graphiques" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20, marginBottom: 22 }}>
         {/* Évolution mensuelle */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, boxShadow: C.shadow }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3, color: C.text }}>Évolution financière {annee}</div>
@@ -234,6 +282,8 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <Onboarding pageKey="dashboard" />
     </div>
   );
 }

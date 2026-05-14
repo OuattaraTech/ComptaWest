@@ -1,4 +1,6 @@
 const pool = require('../../config/database');
+const { logAudit } = require('../utils/audit');
+const { ecriturePaiementTaxe } = require('../utils/comptabilite-auto');
 
 // Taux légaux Côte d'Ivoire (actualisables)
 const TAUX_LEGAUX = {
@@ -16,22 +18,9 @@ const getTaxes = async (req, res) => {
   try {
     const { statut, type_taxe, annee, page = 1, limit = 20 } = req.query;
     const eid = req.entrepriseId;
-    const offset = (page - 1) * limit;
-
-    let query = `
-      SELECT t.*, u.nom AS cree_par_nom
-      FROM declarations_taxes t
-      LEFT JOIN utilisateurs u ON u.id = t.cree_par
-      WHERE t.entreprise_id = $1
-    `;
-    const params = [eid];
-
-    if (statut) { params.push(statut); query += ` AND t.statut = $${params.length}`; }
-    if (type_taxe) { params.push(type_taxe); query += ` AND t.type_taxe = $${params.length}`; }
-    if (annee) {
-      params.push(annee);
-      query += ` AND EXTRACT(YEAR FROM t.periode_fin) = $${params.length}`;
-    }
+    const pageNum  = Math.max(1, parseInt(page));
+    const limitNum = Math.max(1, parseInt(limit));
+    const offset   = (pageNum - 1) * limitNum;
 
     // Marquer automatiquement les déclarations en retard
     await pool.query(`
@@ -39,21 +28,39 @@ const getTaxes = async (req, res) => {
       WHERE entreprise_id=$1 AND statut='a_payer' AND date_echeance < CURRENT_DATE
     `, [eid]);
 
-    const countQuery = query.replace('SELECT t.*, u.nom AS cree_par_nom', 'SELECT COUNT(*)');
-    const countRes = await pool.query(countQuery, params);
+    const conditions = ['t.entreprise_id = $1'];
+    const params     = [eid];
 
-    query += ` ORDER BY t.date_echeance ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-    params.push(limit, offset);
+    if (statut)    { params.push(statut);    conditions.push(`t.statut = $${params.length}`); }
+    if (type_taxe) { params.push(type_taxe); conditions.push(`t.type_taxe = $${params.length}`); }
+    if (annee)     { params.push(annee);     conditions.push(`EXTRACT(YEAR FROM t.periode_fin) = $${params.length}`); }
 
-    const result = await pool.query(query, params);
+    const where = conditions.join(' AND ');
+
+    const countRes = await pool.query(
+      `SELECT COUNT(*) FROM declarations_taxes t WHERE ${where}`,
+      params
+    );
+    const total = parseInt(countRes.rows[0].count);
+
+    const dataRes = await pool.query(
+      `SELECT t.*, u.nom AS cree_par_nom
+       FROM declarations_taxes t
+       LEFT JOIN utilisateurs u ON u.id = t.cree_par
+       WHERE ${where}
+       ORDER BY t.date_echeance ASC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limitNum, offset]
+    );
+
     res.json({
       success: true,
-      data: result.rows,
+      data: dataRes.rows,
       pagination: {
-        total: parseInt(countRes.rows[0].count),
-        page: parseInt(page),
-        limit: parseInt(limit),
-        pages: Math.ceil(countRes.rows[0].count / limit)
+        total,
+        page:  pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum) || 1,
       }
     });
   } catch (err) {
@@ -179,6 +186,9 @@ const createTaxe = async (req, res) => {
        parseFloat(montant_base) || 0, parseFloat(taux || tauxLegal?.taux || 0),
        montantDu, notes]
     );
+    logAudit(req, 'CREATE', 'taxes', result.rows[0].id, {
+      type_taxe, periode_debut, periode_fin, montant_du: montantDu,
+    });
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err) {
     console.error('Erreur createTaxe:', err);
@@ -188,26 +198,54 @@ const createTaxe = async (req, res) => {
 
 // POST /api/taxes/:id/paiement — marquer comme payée
 const payerTaxe = async (req, res) => {
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
     const { id } = req.params;
-    const { montant_paye, date_paiement, reference_paiement } = req.body;
+    const { montant_paye, date_paiement, reference_paiement, mode_paiement = 'virement' } = req.body;
 
-    const taxeRes = await pool.query('SELECT * FROM declarations_taxes WHERE id=$1 AND entreprise_id=$2', [id, req.entrepriseId]);
-    if (taxeRes.rows.length === 0) return res.status(404).json({ success: false, message: 'Déclaration introuvable' });
+    const taxeRes = await client.query(
+      'SELECT * FROM declarations_taxes WHERE id=$1 AND entreprise_id=$2 FOR UPDATE',
+      [id, req.entrepriseId]
+    );
+    if (taxeRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Déclaration introuvable' });
+    }
 
     const taxe = taxeRes.rows[0];
     const nouveauPaye = parseFloat(taxe.montant_paye) + parseFloat(montant_paye);
     const nouveauStatut = nouveauPaye >= parseFloat(taxe.montant_du) ? 'payee' : 'a_payer';
+    const datePaie = date_paiement || new Date().toISOString().split('T')[0];
 
-    const result = await pool.query(
+    const result = await client.query(
       `UPDATE declarations_taxes SET
         montant_paye=$1, statut=$2, reference_paiement=$3, date_paiement=$4, updated_at=NOW()
        WHERE id=$5 RETURNING *`,
-      [nouveauPaye, nouveauStatut, reference_paiement, date_paiement || new Date().toISOString().split('T')[0], id]
+      [nouveauPaye, nouveauStatut, reference_paiement, datePaie, id]
     );
+
+    // Génération auto de l'écriture de paiement
+    await ecriturePaiementTaxe(client, {
+      entrepriseId: req.entrepriseId,
+      utilisateurId: req.user.id,
+      taxe: { ...result.rows[0], date_paiement: datePaie },
+      montant: parseFloat(montant_paye),
+      modePaiement: mode_paiement,
+    });
+
+    await client.query('COMMIT');
+    logAudit(req, 'PAY', 'taxes', id, {
+      type_taxe: taxe.type_taxe, montant: parseFloat(montant_paye),
+      total_paye: nouveauPaye, statut: nouveauStatut, reference_paiement,
+    });
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Erreur payerTaxe:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  } finally {
+    client.release();
   }
 };
 

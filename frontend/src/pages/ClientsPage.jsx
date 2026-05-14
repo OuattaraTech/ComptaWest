@@ -4,6 +4,7 @@ import api from '../utils/api.jsx';
 import { formatFCFA, formatDate, initiales, truncate } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
 import { getC, Input, Modal } from '../components/UI.jsx';
+import Onboarding from '../components/Onboarding.jsx';
 import { Plus, Search, Trash2, Phone, Mail, MapPin, FileText } from 'lucide-react';
 
 const PAYS = ["Côte d'Ivoire","Sénégal","Mali","Burkina Faso","Guinée","Togo","Bénin","Niger","Cameroun","France"];
@@ -78,7 +79,7 @@ export default function ClientsPage() {
             {pagination.total} client{pagination.total > 1 ? 's' : ''} enregistré{pagination.total > 1 ? 's' : ''}
           </p>
         </div>
-        <button onClick={() => { setForm(emptyForm); setShowModal(true); }} style={{
+        <button data-onboarding="btn-nouveau" onClick={() => { setForm(emptyForm); setShowModal(true); }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10,
           border: 'none', background: C.accent, color: dark ? '#000' : '#fff',
           fontSize: 13, fontWeight: 700, cursor: 'pointer',
@@ -103,7 +104,7 @@ export default function ClientsPage() {
       </div>
 
       {/* Table */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', boxShadow: C.shadow }}>
+      <div data-onboarding="liste-clients" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', boxShadow: C.shadow }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: dark ? '#0D1220' : C.cardAlt, borderBottom: `1px solid ${C.border}` }}>
@@ -233,6 +234,8 @@ export default function ClientsPage() {
           </form>
         </Modal>
       )}
+
+      <Onboarding pageKey="clients" />
 
       {/* Modal détail */}
       {showDetail && (

@@ -7,22 +7,40 @@ import { initiales } from '../../utils/helpers.jsx';
 import {
   LayoutDashboard, Users, FileText, BarChart3, LogOut,
   Settings, ChevronRight, Receipt, Calculator, Plus,
-  ChevronDown, Building2, Check, Sun, Moon,
+  ChevronDown, Building2, Check, Sun, Moon, Shield, BookMarked, Wallet, UserCheck, Package, Box, Truck,
+  FileSignature,
 } from 'lucide-react';
 
+// Le rôle "rh" ne voit que le tableau de bord et le module Paie & RH :
+// tous les autres modules portent rolesRequis SANS_RH pour le masquer.
+const SANS_RH = ['proprietaire', 'admin', 'comptable', 'user', 'lecture'];
+
 const navItems = [
-  { to: '/dashboard',  icon: LayoutDashboard, label: 'Tableau de bord' },
-  { to: '/clients',    icon: Users,            label: 'Clients' },
-  { to: '/factures',   icon: FileText,         label: 'Factures' },
-  { to: '/depenses',   icon: Receipt,          label: 'Dépenses' },
-  { to: '/taxes',      icon: Calculator,       label: 'Taxes & Impôts' },
-  { to: '/rapports',   icon: BarChart3,        label: 'Rapports' },
+  { to: '/dashboard',       icon: LayoutDashboard, label: 'Tableau de bord' },
+  { to: '/clients',         icon: Users,            label: 'Clients',           rolesRequis: SANS_RH },
+  { to: '/fournisseurs',    icon: Truck,            label: 'Fournisseurs',      rolesRequis: SANS_RH },
+  { to: '/produits',        icon: Box,              label: 'Produits & Stocks', rolesRequis: SANS_RH },
+  { to: '/devis',           icon: FileSignature,    label: 'Devis & Proformas', rolesRequis: SANS_RH },
+  { to: '/factures',        icon: FileText,         label: 'Factures',          rolesRequis: SANS_RH },
+  { to: '/depenses',        icon: Receipt,          label: 'Dépenses',          rolesRequis: SANS_RH },
+  { to: '/tresorerie',      icon: Wallet,           label: 'Trésorerie',        rolesRequis: SANS_RH },
+  { to: '/immobilisations', icon: Package,          label: 'Immobilisations',   rolesRequis: ['proprietaire','admin','comptable'] },
+  { to: '/paie',            icon: UserCheck,        label: 'Paie & RH',         rolesRequis: ['proprietaire','admin','comptable','rh'] },
+  { to: '/taxes',           icon: Calculator,       label: 'Taxes & Impôts',    rolesRequis: SANS_RH },
+  { to: '/comptabilite',    icon: BookMarked,       label: 'Comptabilité',      rolesRequis: ['proprietaire','admin','comptable'] },
+  { to: '/rapports',        icon: BarChart3,        label: 'Rapports',          rolesRequis: SANS_RH },
+];
+
+// Visible uniquement pour propriétaires et administrateurs
+const adminItems = [
+  { to: '/audit-log',  icon: Shield,           label: 'Journal d’audit' },
 ];
 
 const ROLE_COLORS = {
   proprietaire: { bg: '#F5A62322', color: '#F5A623', label: 'Propriétaire' },
   admin:        { bg: '#4E8BF522', color: '#4E8BF5', label: 'Admin' },
   comptable:    { bg: '#00D4AA22', color: '#00D4AA', label: 'Comptable' },
+  rh:           { bg: '#A855F722', color: '#A855F7', label: 'RH' },
   user:         { bg: '#6B7A9922', color: '#9BAACC', label: 'Utilisateur' },
   lecture:      { bg: '#6B7A9922', color: '#6B7A99', label: 'Lecture seule' },
 };
@@ -71,17 +89,18 @@ export default function Sidebar() {
   };
 
   const roleInfo = ROLE_COLORS[actuelle?.role] || ROLE_COLORS.user;
+  const estAdmin = actuelle?.role === 'proprietaire' || actuelle?.role === 'admin';
 
   return (
     <aside style={{
-      width: 240, minHeight: '100vh', background: C.bg,
+      width: 240, height: '100vh', background: C.bg,
       borderRight: `1px solid ${C.border}`,
       display: 'flex', flexDirection: 'column',
       position: 'fixed', top: 0, left: 0, zIndex: 50,
       transition: 'background 0.2s, border-color 0.2s',
     }}>
       {/* Logo */}
-      <div style={{ padding: '20px 16px 16px', borderBottom: `1px solid ${C.border}` }}>
+      <div style={{ padding: '20px 16px 16px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <div style={{
             width: 36, height: 36, borderRadius: 10, flexShrink: 0,
@@ -166,12 +185,14 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav style={{ flex: 1, padding: '14px 10px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {/* Navigation — défile si le contenu dépasse la hauteur d'écran */}
+      <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 10px', display: 'flex', flexDirection: 'column', gap: 3 }}>
         <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: '0.1em', padding: '6px 8px 3px', textTransform: 'uppercase' }}>
           Menu
         </div>
-        {navItems.map(({ to, icon: Icon, label }) => (
+        {navItems
+          .filter(item => !item.rolesRequis || item.rolesRequis.includes(actuelle?.role))
+          .map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to} style={({ isActive }) => ({
             display: 'flex', alignItems: 'center', gap: 9,
             padding: '9px 10px', borderRadius: 9, textDecoration: 'none',
@@ -190,10 +211,37 @@ export default function Sidebar() {
             )}
           </NavLink>
         ))}
+
+        {estAdmin && (
+          <>
+            <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: '0.1em', padding: '14px 8px 3px', textTransform: 'uppercase' }}>
+              Administration
+            </div>
+            {adminItems.map(({ to, icon: Icon, label }) => (
+              <NavLink key={to} to={to} style={({ isActive }) => ({
+                display: 'flex', alignItems: 'center', gap: 9,
+                padding: '9px 10px', borderRadius: 9, textDecoration: 'none',
+                fontSize: 13, fontWeight: isActive ? 700 : 500,
+                color: isActive ? C.accent : C.sub,
+                background: isActive ? `${C.accent}15` : 'transparent',
+                transition: 'all 0.15s',
+                border: isActive ? `1px solid ${C.accent}30` : '1px solid transparent',
+              })}>
+                {({ isActive }) => (
+                  <>
+                    <Icon size={16} />
+                    <span style={{ flex: 1 }}>{label}</span>
+                    {isActive && <ChevronRight size={13} />}
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </>
+        )}
       </nav>
 
-      {/* Footer */}
-      <div style={{ padding: '10px', borderTop: `1px solid ${C.border}` }}>
+      {/* Footer — toujours visible, ne se comprime pas */}
+      <div style={{ padding: '10px', borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
         {/* Toggle Dark/Light */}
         <button onClick={toggle} style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',

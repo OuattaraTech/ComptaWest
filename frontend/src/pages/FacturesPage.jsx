@@ -5,16 +5,18 @@ import toast from 'react-hot-toast';
 import { Plus, Search, X, Download, CreditCard, Filter } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme.jsx';
 import { getC, Input, Modal, StatutBadge } from '../components/UI.jsx';
+import Onboarding from '../components/Onboarding.jsx';
 
 const STATUTS = ['', 'brouillon', 'envoyee', 'en_attente', 'payee', 'retard', 'annulee'];
 const STATUT_LABELS = { '': 'Tous', brouillon: 'Brouillon', envoyee: 'Envoyée', en_attente: 'En attente', payee: 'Payée', retard: 'Retard', annulee: 'Annulée' };
 
-const emptyLigne = { description: '', quantite: 1, unite: 'unité', prix_unitaire: '', remise: 0 };
+const emptyLigne = { description: '', quantite: 1, unite: 'unité', prix_unitaire: '', remise: 0, produit_id: null };
 
 const emptyForm = {
   client_id: '', type: 'facture', date_emission: new Date().toISOString().split('T')[0],
   date_echeance: '', taux_tva: 18, notes: '', conditions_paiement: 'Paiement à 30 jours',
   lignes: [{ ...emptyLigne }],
+  facture_origine_id: '',
 };
 
 export default function FacturesPage() {
@@ -22,6 +24,7 @@ export default function FacturesPage() {
   const C = getC(dark);
   const [factures, setFactures] = useState([]);
   const [clients, setClients] = useState([]);
+  const [facturesEligibles, setFacturesEligibles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statut, setStatut] = useState('');
@@ -33,7 +36,41 @@ export default function FacturesPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
 
-  const [paiementForm, setPaiementForm] = useState({ montant: '', date_paiement: new Date().toISOString().split('T')[0], mode_paiement: 'virement', reference: '' });
+  const [paiementForm, setPaiementForm] = useState({ montant: '', date_paiement: new Date().toISOString().split('T')[0], mode_paiement: 'virement', reference: '', compte_tresorerie_id: '' });
+  const [comptesTresorerie, setComptesTresorerie] = useState([]);
+  const [produitsCatalogue, setProduitsCatalogue] = useState([]);
+
+  // Charger les comptes de trésorerie et le catalogue produits
+  useEffect(() => {
+    api.get('/tresorerie/comptes')
+      .then(r => setComptesTresorerie(r.data.data))
+      .catch(() => {});
+    api.get('/produits?limit=500')
+      .then(r => setProduitsCatalogue(r.data.data))
+      .catch(() => {});
+  }, []);
+
+  // Choix d'un produit du catalogue → remplit auto la ligne
+  const choisirProduit = (idx, produit) => {
+    setForm(f => {
+      const lignes = [...f.lignes];
+      lignes[idx] = {
+        ...lignes[idx],
+        produit_id: produit.id,
+        description: produit.libelle,
+        unite: produit.unite || 'unité',
+        prix_unitaire: produit.prix_vente_ht || '',
+      };
+      return { ...f, lignes };
+    });
+  };
+  const reinitProduit = (idx) => {
+    setForm(f => {
+      const lignes = [...f.lignes];
+      lignes[idx] = { ...lignes[idx], produit_id: null };
+      return { ...f, lignes };
+    });
+  };
 
   const fetchFactures = useCallback(async () => {
     setLoading(true);
@@ -47,6 +84,14 @@ export default function FacturesPage() {
 
   useEffect(() => { fetchFactures(); }, [fetchFactures]);
   useEffect(() => { api.get('/clients?limit=100').then(r => setClients(r.data.data)).catch(err => console.error('Erreur clients:', err?.response?.data?.message)); }, []);
+
+  // Charger les factures éligibles (= type 'facture') pour le sélecteur d'avoir
+  useEffect(() => {
+    if (form.type !== 'avoir' || !showModal) return;
+    api.get('/factures?type=facture&limit=100')
+      .then(r => setFacturesEligibles(r.data.data))
+      .catch(err => console.error('Erreur factures éligibles:', err?.response?.data?.message));
+  }, [form.type, showModal]);
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
 
@@ -72,14 +117,17 @@ export default function FacturesPage() {
   const tva = sousTotal * (parseFloat(form.taux_tva) / 100);
   const ttc = sousTotal + tva;
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSave = async (valider_immediatement) => {
     if (!form.client_id) return toast.error('Sélectionnez un client');
+    if (form.type === 'avoir' && !form.facture_origine_id) return toast.error("Sélectionnez la facture d'origine (obligatoire pour un avoir)");
     if (form.lignes.some(l => !l.description || !l.prix_unitaire)) return toast.error('Complétez toutes les lignes');
     setSaving(true);
     try {
-      await api.post('/factures', form);
-      toast.success('Facture créée');
+      const payload = { ...form, valider_immediatement };
+      // Ne pas envoyer facture_origine_id pour les autres types
+      if (form.type !== 'avoir') delete payload.facture_origine_id;
+      await api.post('/factures', payload);
+      toast.success(valider_immediatement ? 'Facture créée et validée' : 'Facture enregistrée en brouillon');
       setShowModal(false);
       setForm({ ...emptyForm });
       fetchFactures();
@@ -137,7 +185,7 @@ export default function FacturesPage() {
           <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>Factures</h1>
           <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{pagination.total} facture{pagination.total > 1 ? 's' : ''} au total</p>
         </div>
-        <button onClick={() => setShowModal(true)} style={{
+        <button data-onboarding="btn-nouveau" onClick={() => setShowModal(true)} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10,
           border: 'none', background: C.accent, color: '#000', fontSize: 13, fontWeight: 700, cursor: 'pointer',
         }}>
@@ -154,7 +202,7 @@ export default function FacturesPage() {
             style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 12px 9px 32px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
           />
         </div>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div data-onboarding="filtres-statut" style={{ display: 'flex', gap: 6 }}>
           {STATUTS.map(s => (
             <button key={s} onClick={() => { setStatut(s); setPage(1); }} style={{
               padding: '8px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
@@ -166,7 +214,7 @@ export default function FacturesPage() {
       </div>
 
       {/* Table */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
+      <div data-onboarding="liste-factures" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${C.border}`, background: dark ? '#0D1220' : C.cardAlt }}>
@@ -239,19 +287,14 @@ export default function FacturesPage() {
 
       {/* Modal nouvelle facture */}
       {showModal && (
-        <Modal title={
-          form.type === 'facture' ? 'Nouvelle Facture' :
-          form.type === 'devis'   ? 'Nouveau Devis' :
-          form.type === 'proforma'? 'Facture Proforma' : 'Avoir / Note de credit'
-        } onClose={() => { setShowModal(false); setForm({ ...emptyForm }); }} width={720}>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <Modal title={form.type === 'avoir' ? 'Avoir / Note de credit' : 'Nouvelle Facture'}
+          onClose={() => { setShowModal(false); setForm({ ...emptyForm }); }} width={720}>
+          <form onSubmit={(e) => { e.preventDefault(); handleSave(false); }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* Selecteur type SYSCOHADA */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+            {/* Selecteur type SYSCOHADA — les devis/proformas ont leur propre page */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
               {[
                 { key: 'facture',  label: 'Facture',  color: C.accent, desc: 'Document definitif' },
-                { key: 'devis',    label: 'Devis',    color: C.blue,   desc: 'Offre sans engagement' },
-                { key: 'proforma', label: 'Proforma', color: C.gold,   desc: 'Facture provisoire' },
                 { key: 'avoir',    label: 'Avoir',    color: C.red,    desc: 'Note de credit' },
               ].map(({ key, label, color, desc }) => (
                 <button key={key} type="button" onClick={() => setForm(f => ({ ...f, type: key }))} style={{
@@ -272,14 +315,9 @@ export default function FacturesPage() {
                 <strong>Avoir SYSCOHADA :</strong> Annule partiellement ou totalement une facture precedente. Indiquer la reference dans les notes.
               </div>
             )}
-            {form.type === 'proforma' && (
-              <div style={{ background: `${C.gold}12`, border: `1px solid ${C.gold}40`, borderRadius: 9, padding: '9px 13px', fontSize: 11, color: C.gold }}>
-                <strong>Proforma :</strong> Document non comptabilisable, sans valeur juridique. Usage : douanes, demandes de financement.
-              </div>
-            )}
-            {form.type === 'devis' && (
-              <div style={{ background: `${C.blue}12`, border: `1px solid ${C.blue}40`, borderRadius: 9, padding: '9px 13px', fontSize: 11, color: C.blue }}>
-                <strong>Devis :</strong> Offre commerciale valable jusqu'a la date d'echeance. Convertible en facture apres acceptation.
+            {form.type === 'facture' && (
+              <div style={{ background: `${C.blue}10`, border: `1px solid ${C.blue}30`, borderRadius: 9, padding: '9px 13px', fontSize: 11, color: C.muted }}>
+                Besoin d'un <strong style={{ color: C.blue }}>devis</strong> ou d'une <strong style={{ color: C.blue }}>proforma</strong> ? Rendez-vous sur la page <strong style={{ color: C.blue }}>Devis &amp; Proformas</strong> — un devis accepté se convertit en facture en un clic.
               </div>
             )}
 
@@ -300,26 +338,39 @@ export default function FacturesPage() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  {form.type === 'devis' ? "Valide jusqu'au" : form.type === 'avoir' ? 'Date avoir' : 'Date echeance'}
+                  {form.type === 'avoir' ? 'Date avoir' : 'Date echeance'}
                 </label>
                 <input type="date" value={form.date_echeance} onChange={set('date_echeance')}
                   style={{ background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 9, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
               </div>
             </div>
 
-            {/* Reference facture origine pour avoirs */}
+            {/* Reference facture origine pour avoirs (obligatoire SYSCOHADA) */}
             {form.type === 'avoir' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Reference facture d'origine <span style={{ color: C.red }}>*</span></label>
-                <input value={form.ref_origine || ''} onChange={e => setForm(f => ({ ...f, ref_origine: e.target.value }))}
-                  placeholder="Ex: F-2026-001 — facture annulee partiellement"
-                  style={{ background: C.input, border: `1.5px solid ${C.red}50`, borderRadius: 9, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  Facture d'origine <span style={{ color: C.red }}>*</span>
+                </label>
+                <select value={form.facture_origine_id} onChange={set('facture_origine_id')} required
+                  style={{ background: C.input, border: `1.5px solid ${C.red}50`, borderRadius: 9, padding: '10px 12px', color: form.facture_origine_id ? C.text : C.muted, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
+                  <option value="">— Sélectionner la facture corrigée —</option>
+                  {facturesEligibles
+                    .filter(f => !form.client_id || f.client_id === form.client_id)
+                    .map(f => (
+                      <option key={f.id} value={f.id}>
+                        {f.numero} — {f.client_nom || '—'} ({parseFloat(f.total_ttc).toLocaleString('fr-FR')} FCFA)
+                      </option>
+                    ))}
+                </select>
+                <span style={{ fontSize: 10, color: C.muted, fontStyle: 'italic' }}>
+                  Obligatoire pour conformité SYSCOHADA. La liste se restreint au client sélectionné si renseigné.
+                </span>
               </div>
             )}
 
             {/* En-tete colonnes */}
             <div>
-              <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr 1.5fr 0.8fr 32px', gap: 8, marginBottom: 6 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 0.8fr) 32px', gap: 8, marginBottom: 6 }}>
                 {[
                   'Description',
                   'Qte',
@@ -333,24 +384,53 @@ export default function FacturesPage() {
               </div>
 
               {form.lignes.map((l, idx) => (
-                <div key={idx} style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr 1.5fr 0.8fr 32px', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                  <input value={l.description} onChange={e => updateLigne(idx, 'description', e.target.value)}
-                    placeholder={form.type === 'avoir' ? 'Prestation a crediter...' : form.type === 'devis' ? 'Prestation proposee...' : 'Description de la prestation...'} required
-                    style={{ background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: '9px 11px', color: C.text, fontSize: 12, outline: 'none', fontFamily: 'inherit' }} />
+                <div key={idx} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 0.8fr) 32px', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                  <div style={{ position: 'relative' }}>
+                    <input value={l.description}
+                      onChange={e => { updateLigne(idx, 'description', e.target.value); if (l.produit_id) reinitProduit(idx); }}
+                      list={`produits-${idx}`}
+                      placeholder={form.type === 'avoir' ? 'Prestation a crediter...' : 'Description (taper ou choisir un produit)...'} required
+                      style={{ width: '100%', minWidth: 0, boxSizing: 'border-box',
+                        background: C.input,
+                        border: `1.5px solid ${l.produit_id ? C.accent : C.border}`,
+                        borderRadius: 8, padding: '9px 11px', color: C.text, fontSize: 12, outline: 'none', fontFamily: 'inherit' }}
+                      onBlur={e => {
+                        // Si la saisie correspond exactement à un produit du catalogue → auto-fill
+                        if (!l.produit_id) {
+                          const p = produitsCatalogue.find(pp => pp.libelle === e.target.value);
+                          if (p) choisirProduit(idx, p);
+                        }
+                      }} />
+                    <datalist id={`produits-${idx}`}>
+                      {produitsCatalogue.map(p => (
+                        <option key={p.id} value={p.libelle}>
+                          {p.code} · {new Intl.NumberFormat('fr-FR').format(Math.round(p.prix_vente_ht))} FCFA{p.type === 'produit' ? ` · stock ${p.stock_actuel}` : ''}
+                        </option>
+                      ))}
+                    </datalist>
+                    {l.produit_id && (
+                      <span title="Lié au catalogue"
+                        style={{
+                          position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+                          fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 10,
+                          background: C.accent, color: dark ? '#000' : '#fff',
+                        }}>P</span>
+                    )}
+                  </div>
                   <input type="number" value={l.quantite} onChange={e => updateLigne(idx, 'quantite', e.target.value)}
                     placeholder="1" min="0.001" step="any"
-                    style={{ background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: '9px 8px', color: C.text, fontSize: 12, outline: 'none', fontFamily: 'inherit', textAlign: 'center' }} />
+                    style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: '9px 8px', color: C.text, fontSize: 12, outline: 'none', fontFamily: 'inherit', textAlign: 'center' }} />
                   <input value={l.unite} onChange={e => updateLigne(idx, 'unite', e.target.value)}
                     placeholder="unite"
-                    style={{ background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: '9px 8px', color: C.text, fontSize: 12, outline: 'none', fontFamily: 'inherit' }} />
+                    style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: '9px 8px', color: C.text, fontSize: 12, outline: 'none', fontFamily: 'inherit' }} />
                   <input type="number" value={l.prix_unitaire} onChange={e => updateLigne(idx, 'prix_unitaire', e.target.value)}
                     placeholder="0" required min="0"
-                    style={{ background: C.input, border: `1.5px solid ${form.type === 'avoir' ? C.red + '60' : C.border}`, borderRadius: 8, padding: '9px 8px', color: form.type === 'avoir' ? C.red : C.text, fontSize: 12, outline: 'none', fontFamily: 'inherit', textAlign: 'right' }} />
+                    style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', background: C.input, border: `1.5px solid ${form.type === 'avoir' ? C.red + '60' : C.border}`, borderRadius: 8, padding: '9px 8px', color: form.type === 'avoir' ? C.red : C.text, fontSize: 12, outline: 'none', fontFamily: 'inherit', textAlign: 'right' }} />
                   <input type="number" value={l.remise} onChange={e => updateLigne(idx, 'remise', e.target.value)}
                     placeholder="0" min="0" max="100"
-                    style={{ background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: '9px 6px', color: C.text, fontSize: 12, outline: 'none', fontFamily: 'inherit', textAlign: 'center' }} />
+                    style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: '9px 6px', color: C.text, fontSize: 12, outline: 'none', fontFamily: 'inherit', textAlign: 'center' }} />
                   <button type="button" onClick={() => removeLigne(idx)} disabled={form.lignes.length === 1}
-                    style={{ padding: '8px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, cursor: 'pointer', color: C.muted, opacity: form.lignes.length === 1 ? 0.3 : 1 }}>
+                    style={{ padding: '8px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 8, cursor: 'pointer', color: C.muted, opacity: form.lignes.length === 1 ? 0.3 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <X size={12} />
                   </button>
                 </div>
@@ -384,13 +464,8 @@ export default function FacturesPage() {
                   </div>
                   <span style={{ fontFamily: 'monospace', color: C.sub }}>{formatFCFA(tva)} FCFA</span>
                 </div>
-                {form.type === 'proforma' && (
-                  <div style={{ fontSize: 10, color: C.gold, marginBottom: 8, fontStyle: 'italic', textAlign: 'center' }}>
-                    Montants indicatifs - document non comptabilisable
-                  </div>
-                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 800, borderTop: `1px solid ${C.border}`, paddingTop: 10,
-                  color: form.type === 'avoir' ? C.red : form.type === 'devis' ? C.blue : form.type === 'proforma' ? C.gold : C.accent }}>
+                  color: form.type === 'avoir' ? C.red : C.accent }}>
                   <span>{form.type === 'avoir' ? 'MONTANT A CREDITER' : 'TOTAL TTC'}</span>
                   <span style={{ fontFamily: 'monospace' }}>{formatFCFA(ttc)} FCFA</span>
                 </div>
@@ -401,15 +476,11 @@ export default function FacturesPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  {form.type === 'devis' ? 'Conditions du devis' : form.type === 'avoir' ? 'Motif avoir' : 'Conditions paiement'}
+                  {form.type === 'avoir' ? 'Motif avoir' : 'Conditions paiement'}
                 </label>
                 <select value={form.conditions_paiement} onChange={set('conditions_paiement')}
                   style={{ background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 9, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
-                  {form.type === 'devis' ? <>
-                    <option>Devis valable 30 jours</option>
-                    <option>Devis valable 60 jours</option>
-                    <option>Devis valable 90 jours</option>
-                  </> : form.type === 'avoir' ? <>
+                  {form.type === 'avoir' ? <>
                     <option>Remboursement par virement</option>
                     <option>Credit sur prochaine facture</option>
                     <option>Retour marchandise</option>
@@ -426,7 +497,14 @@ export default function FacturesPage() {
                 </select>
               </div>
               <Input label="Notes" value={form.notes} onChange={set('notes')}
-                placeholder={form.type === 'avoir' ? 'Ex: Avoir suite facture F-2026-001...' : form.type === 'devis' ? 'Precisions techniques...' : 'Instructions de paiement...'} />
+                placeholder={form.type === 'avoir' ? 'Ex: Avoir suite facture F-2026-001...' : 'Instructions de paiement...'} />
+            </div>
+
+            {/* Brouillon vs validation */}
+            <div style={{ fontSize: 11, color: C.muted, padding: '8px 12px', background: `${C.accent}08`, border: `1px solid ${C.border}`, borderRadius: 8, lineHeight: 1.5 }}>
+              <strong style={{ color: C.sub }}>Brouillon</strong> : modifiable et supprimable, aucune écriture comptable.
+              <br />
+              <strong style={{ color: C.accent }}>Valider</strong> : génère l'écriture comptable automatique (irréversible).
             </div>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
@@ -434,13 +512,26 @@ export default function FacturesPage() {
                 style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`, background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Annuler
               </button>
-              <button type="submit" disabled={saving} style={{
-                flex: 2, padding: '11px 0', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 700,
-                cursor: saving ? 'not-allowed' : 'pointer',
-                background: saving ? C.border : form.type === 'avoir' ? C.red : form.type === 'devis' ? C.blue : form.type === 'proforma' ? C.gold : C.accent,
-                color: saving ? C.muted : '#000',
-              }}>
-                {saving ? 'Creation...' : form.type === 'facture' ? 'Creer la Facture' : form.type === 'devis' ? 'Creer le Devis' : form.type === 'proforma' ? 'Creer la Proforma' : "Creer l'Avoir"}
+
+              <button type="button" onClick={() => handleSave(false)} disabled={saving}
+                style={{
+                  flex: 1.5, padding: '11px 0', borderRadius: 10,
+                  border: `1.5px solid ${C.border}`,
+                  background: 'transparent',
+                  color: saving ? C.muted : C.sub,
+                  fontSize: 13, fontWeight: 600,
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                }}>
+                {saving ? '...' : 'Enregistrer en brouillon'}
+              </button>
+              <button type="button" onClick={() => handleSave(true)} disabled={saving}
+                style={{
+                  flex: 1.5, padding: '11px 0', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 700,
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                  background: saving ? C.border : form.type === 'avoir' ? C.red : C.accent,
+                  color: saving ? C.muted : '#000',
+                }}>
+                {saving ? 'Creation...' : form.type === 'avoir' ? "Creer & Valider l'Avoir" : 'Creer & Valider'}
               </button>
             </div>
           </form>
@@ -461,9 +552,27 @@ export default function FacturesPage() {
             <Input label="Date de paiement" type="date" value={paiementForm.date_paiement} onChange={e => setPaiementForm(p => ({ ...p, date_paiement: e.target.value }))} required />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Mode de paiement</label>
-              <select value={paiementForm.mode_paiement} onChange={e => setPaiementForm(p => ({ ...p, mode_paiement: e.target.value }))}
+              <select value={paiementForm.mode_paiement} onChange={e => setPaiementForm(p => ({ ...p, mode_paiement: e.target.value, compte_tresorerie_id: '' }))}
                 style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
                 {['virement', 'cash', 'cheque', 'mobile_money', 'carte'].map(m => <option key={m} value={m}>{m.replace('_', ' ')}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Compte de trésorerie</label>
+              <select value={paiementForm.compte_tresorerie_id} onChange={e => setPaiementForm(p => ({ ...p, compte_tresorerie_id: e.target.value }))}
+                style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
+                <option value="">— Compte par défaut —</option>
+                {comptesTresorerie
+                  .filter(c => {
+                    const m = paiementForm.mode_paiement;
+                    const typeAttendu = m === 'cash' ? 'caisse' : m === 'mobile_money' ? 'mobile_money' : 'banque';
+                    return c.type === typeAttendu;
+                  })
+                  .map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.nom}{c.operateur ? ` (${c.operateur})` : ''}
+                    </option>
+                  ))}
               </select>
             </div>
             <Input label="Référence (optionnel)" value={paiementForm.reference} onChange={e => setPaiementForm(p => ({ ...p, reference: e.target.value }))} placeholder="Réf. virement..." />
@@ -476,6 +585,8 @@ export default function FacturesPage() {
           </form>
         </Modal>
       )}
+
+      <Onboarding pageKey="factures" />
     </div>
   );
 }

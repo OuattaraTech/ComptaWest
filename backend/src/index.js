@@ -6,6 +6,20 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const routes = require('./routes');
 
+// ── Vérification des variables critiques au boot ──────────────────────────
+const isProd = process.env.NODE_ENV === 'production';
+
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+  console.error('❌ JWT_SECRET manquant ou trop court (32 caractères minimum requis).');
+  console.error('   Génère une clé : node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
+  process.exit(1);
+}
+
+if (isProd && !process.env.FRONTEND_URL) {
+  console.error('❌ FRONTEND_URL doit être défini en production (CORS).');
+  process.exit(1);
+}
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 

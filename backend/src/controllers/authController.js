@@ -2,7 +2,11 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body } = require('express-validator');
 const pool = require('../../config/database');
-const { creerCategoriesDefaut } = require('../utils/helpers');
+const {
+  creerCategoriesDefaut, creerPlanComptableSyscohada,
+  creerJournauxDefaut, creerExerciceCourant,
+} = require('../utils/helpers');
+const { logAudit } = require('../utils/audit');
 
 // ── Règles de validation ──────────────────────────────────────────────────
 const registerRules = [
@@ -55,6 +59,11 @@ const register = async (req, res) => {
     // Utiliser le helper partagé (plus de duplication)
     await creerCategoriesDefaut(entreprise.id, client);
 
+    // Comptabilité SYSCOHADA : plan de comptes, journaux, exercice en cours
+    await creerPlanComptableSyscohada(entreprise.id, client);
+    await creerJournauxDefaut(entreprise.id, client);
+    await creerExerciceCourant(entreprise.id, client);
+
     await client.query('COMMIT');
 
     const token = jwt.sign(
@@ -85,12 +94,16 @@ const login = async (req, res) => {
 
     // Message générique pour ne pas révéler si l'email existe
     if (result.rows.length === 0) {
+      logAudit(req, 'LOGIN_FAIL', 'auth', null, { email, raison: 'utilisateur_inconnu' });
       return res.status(401).json({ success: false, message: 'Email ou mot de passe incorrect' });
     }
 
     const user = result.rows[0];
     const valid = await bcrypt.compare(mot_de_passe, user.mot_de_passe);
     if (!valid) {
+      // Injecter user dans req pour que logAudit capture l'utilisateur_id
+      req.user = { id: user.id, email: user.email };
+      logAudit(req, 'LOGIN_FAIL', 'auth', user.id, { email, raison: 'mauvais_mot_de_passe' });
       return res.status(401).json({ success: false, message: 'Email ou mot de passe incorrect' });
     }
 
@@ -99,6 +112,9 @@ const login = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
+
+    req.user = { id: user.id, email: user.email };
+    logAudit(req, 'LOGIN_OK', 'auth', user.id);
 
     const { mot_de_passe: _, ...userSafe } = user;
     res.json({ success: true, data: { user: userSafe, token } });
@@ -164,7 +180,10 @@ const loginDemo = async (req, res) => {
         `INSERT INTO membres_entreprise (utilisateur_id, entreprise_id, role) VALUES ($1, $2, 'proprietaire')`,
         [user.id, eid]
       );
-      await creerCategoriesDefaut(client, eid);
+      await creerCategoriesDefaut(eid, client);
+      await creerPlanComptableSyscohada(eid, client);
+      await creerJournauxDefaut(eid, client);
+      await creerExerciceCourant(eid, client);
     }
 
     await client.query('COMMIT');
@@ -177,4 +196,98 @@ const loginDemo = async (req, res) => {
     client.release();
   }
 };
-module.exports = { register, login, me, loginDemo, registerRules, loginRules };
+
+// ── INVITATIONS ───────────────────────────────────────────────────────────
+
+// GET /api/auth/invitation/:token — infos publiques d'une invitation
+// Permet à la page d'activation d'afficher « Vous êtes invité chez X en tant que Y »
+const getInvitation = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const result = await pool.query(
+      `SELECT u.id, u.nom, u.email, u.invitation_expire_at,
+              e.nom AS entreprise_nom, me.role
+       FROM utilisateurs u
+       JOIN membres_entreprise me ON me.utilisateur_id = u.id AND me.actif = true
+       JOIN entreprises e ON e.id = me.entreprise_id
+       WHERE u.invitation_token = $1 AND u.actif = false
+       ORDER BY me.created_at DESC
+       LIMIT 1`,
+      [token]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Lien d\'invitation invalide ou déjà utilisé' });
+    }
+    const inv = result.rows[0];
+    if (inv.invitation_expire_at && new Date(inv.invitation_expire_at) < new Date()) {
+      return res.status(410).json({ success: false, message: 'Lien d\'invitation expiré. Demandez une nouvelle invitation.' });
+    }
+    res.json({
+      success: true,
+      data: {
+        nom: inv.nom, email: inv.email,
+        entreprise_nom: inv.entreprise_nom, role: inv.role,
+      },
+    });
+  } catch (err) {
+    console.error('Erreur getInvitation:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+};
+
+// POST /api/auth/invitation/:token — l'invité définit son mot de passe
+// Active le compte, consomme le token, et connecte automatiquement l'utilisateur.
+const accepterInvitation = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { nom, mot_de_passe } = req.body;
+
+    if (!mot_de_passe || mot_de_passe.length < 8) {
+      return res.status(400).json({ success: false, message: 'Mot de passe : 8 caractères minimum' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, email, invitation_expire_at FROM utilisateurs
+       WHERE invitation_token = $1 AND actif = false`,
+      [token]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Lien d\'invitation invalide ou déjà utilisé' });
+    }
+    const user = result.rows[0];
+    if (user.invitation_expire_at && new Date(user.invitation_expire_at) < new Date()) {
+      return res.status(410).json({ success: false, message: 'Lien d\'invitation expiré' });
+    }
+
+    const hash = await bcrypt.hash(mot_de_passe, 12);
+    await pool.query(
+      `UPDATE utilisateurs
+       SET mot_de_passe = $1, actif = true, nom = COALESCE(NULLIF($2, ''), nom),
+           invitation_token = NULL, invitation_expire_at = NULL, updated_at = NOW()
+       WHERE id = $3`,
+      [hash, nom || '', user.id]
+    );
+
+    // Connexion automatique
+    const jwtToken = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+    req.user = { id: user.id, email: user.email };
+    logAudit(req, 'INVITATION_ACCEPTED', 'auth', user.id, { email: user.email });
+
+    const userRes = await pool.query(
+      'SELECT id, nom, email, telephone FROM utilisateurs WHERE id = $1', [user.id]
+    );
+    res.json({ success: true, data: { user: userRes.rows[0], token: jwtToken } });
+  } catch (err) {
+    console.error('Erreur accepterInvitation:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+};
+
+module.exports = {
+  register, login, me, loginDemo, getInvitation, accepterInvitation,
+  registerRules, loginRules,
+};

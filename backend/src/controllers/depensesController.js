@@ -1,4 +1,7 @@
 const pool = require('../../config/database');
+const { logAudit } = require('../utils/audit');
+const { ecritureDepense } = require('../utils/comptabilite-auto');
+const { controlerSoldeAvantSortie, SoldeInsuffisantError } = require('./tresorerieController');
 
 // GET /api/depenses — liste avec filtres
 const getDepenses = async (req, res) => {
@@ -137,15 +140,19 @@ const getStatsDepenses = async (req, res) => {
 
 // POST /api/depenses
 const createDepense = async (req, res) => {
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
     const eid = req.entrepriseId;
     const {
       categorie_id, description, fournisseur, montant_ht, taux_tva = 0,
       date_depense, date_echeance, statut = 'payee', mode_paiement = 'virement',
       reference, notes, est_recurrente, periodicite,
+      compte_tresorerie_id,
     } = req.body;
 
     if (!description || !montant_ht) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ success: false, message: 'Description et montant requis' });
     }
 
@@ -155,31 +162,100 @@ const createDepense = async (req, res) => {
     const montantTTC = Math.round((montantHT + montantTVA) * 100) / 100;
 
     const year     = new Date().getFullYear();
-    const countRes = await pool.query(
+    const countRes = await client.query(
       `SELECT COUNT(*) FROM depenses WHERE entreprise_id=$1 AND EXTRACT(YEAR FROM date_depense)=$2`,
       [eid, year]
     );
     const numero = `D-${year}-${String(parseInt(countRes.rows[0].count) + 1).padStart(3, '0')}`;
 
-    const result = await pool.query(
+    // Résolution du compte de trésorerie pour les dépenses payées
+    let compteId = compte_tresorerie_id || null;
+    if (statut === 'payee') {
+      if (!compteId) {
+        const typeAttendu = mode_paiement === 'cash' ? 'caisse'
+          : mode_paiement === 'mobile_money' ? 'mobile_money'
+          : 'banque';
+        const r = await client.query(
+          `SELECT id FROM comptes_tresorerie
+           WHERE entreprise_id = $1 AND par_defaut = TRUE AND archived_at IS NULL
+             AND (type = $2 OR type = 'banque')
+           ORDER BY (type = $2) DESC LIMIT 1`,
+          [eid, typeAttendu]
+        );
+        compteId = r.rows[0]?.id || null;
+      } else {
+        const r = await client.query(
+          `SELECT id FROM comptes_tresorerie WHERE id = $1 AND entreprise_id = $2 AND archived_at IS NULL`,
+          [compteId, eid]
+        );
+        if (!r.rows[0]) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ success: false, message: 'Compte de trésorerie invalide' });
+        }
+      }
+    } else {
+      compteId = null;
+    }
+
+    const result = await client.query(
       `INSERT INTO depenses
          (entreprise_id, categorie_id, cree_par, numero, description, fournisseur,
           montant_ht, taux_tva, montant_tva, montant_ttc, date_depense, date_echeance,
-          statut, mode_paiement, reference, notes, est_recurrente, periodicite)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+          statut, mode_paiement, reference, notes, est_recurrente, periodicite,
+          compte_tresorerie_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
        RETURNING *`,
       [
         eid, categorie_id || null, req.user.id, numero, description, fournisseur || null,
         montantHT, tauxTVA, montantTVA, montantTTC,
         date_depense || new Date().toISOString().split('T')[0], date_echeance || null,
         statut, mode_paiement, reference || null, notes || null,
-        est_recurrente || false, periodicite || null,
+        est_recurrente || false, periodicite || null, compteId,
       ]
     );
-    res.status(201).json({ success: true, data: result.rows[0] });
+    const depense = result.rows[0];
+
+    // Récupérer le code SYSCOHADA de la catégorie pour mapper vers le bon compte
+    let codeCategorie = null;
+    if (depense.categorie_id) {
+      const cat = await client.query('SELECT code FROM categories_depenses WHERE id=$1', [depense.categorie_id]);
+      codeCategorie = cat.rows[0]?.code || null;
+    }
+
+    // Génération auto du mouvement de trésorerie (sortie) si dépense payée
+    if (statut === 'payee' && compteId) {
+      // Contrôle du solde du compte avant le décaissement
+      await controlerSoldeAvantSortie(client, compteId, montantTTC);
+      await client.query(
+        `INSERT INTO mouvements_tresorerie
+          (entreprise_id, compte_id, date_operation, sens, montant, libelle, reference, source_type, source_id, cree_par)
+         VALUES ($1,$2,$3,'sortie',$4,$5,$6,'depense',$7,$8)`,
+        [eid, compteId, depense.date_depense, montantTTC,
+         `${fournisseur || description} - ${numero}`.slice(0, 250), reference || numero, depense.id, req.user.id]
+      );
+    }
+
+    // Génération auto (sauf si statut annulee)
+    await ecritureDepense(client, {
+      entrepriseId: eid,
+      utilisateurId: req.user.id,
+      depense: { ...depense, categorie_code: codeCategorie },
+    });
+
+    await client.query('COMMIT');
+    logAudit(req, 'CREATE', 'depenses', depense.id, {
+      numero, description, fournisseur, montant_ttc: montantTTC,
+    });
+    res.status(201).json({ success: true, data: depense });
   } catch (err) {
+    await client.query('ROLLBACK');
+    if (err instanceof SoldeInsuffisantError) {
+      return res.status(400).json({ success: false, message: err.message, code: err.code, details: err.details });
+    }
     console.error('Erreur createDepense:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  } finally {
+    client.release();
   }
 };
 
@@ -219,6 +295,9 @@ const updateDepense = async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Dépense introuvable' });
     }
+    logAudit(req, 'UPDATE', 'depenses', id, {
+      description, montant_ttc: montantTTC, statut, mode_paiement,
+    });
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     console.error('Erreur updateDepense:', err.message);
@@ -236,6 +315,7 @@ const deleteDepense = async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Dépense introuvable' });
     }
+    logAudit(req, 'DELETE', 'depenses', req.params.id);
     res.json({ success: true, message: 'Dépense supprimée' });
   } catch (err) {
     console.error('Erreur deleteDepense:', err.message);

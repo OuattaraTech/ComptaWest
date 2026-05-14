@@ -5,10 +5,15 @@ const pool = require('../../config/database');
  * L'entreprise_id vient soit du header X-Entreprise-Id, soit du param :entrepriseId
  * Injecte req.entreprise, req.entrepriseId et req.roleEntreprise
  */
-const entrepriseAccess = (rolesAutorises = ['proprietaire', 'admin', 'comptable', 'user', 'lecture']) => {
+const entrepriseAccess = (rolesAutorises = ['proprietaire', 'admin', 'comptable', 'rh', 'user', 'lecture']) => {
   return async (req, res, next) => {
     try {
-      const entrepriseId = req.headers['x-entreprise-id'] || req.params.entrepriseId;
+      // Source possible : header X-Entreprise-Id, ou paramètre de route :entrepriseId / :id
+      // (sur les routes /entreprises/:id/* le param se nomme id et désigne déjà l'entreprise)
+      const entrepriseId =
+        req.headers['x-entreprise-id'] ||
+        req.params.entrepriseId ||
+        req.params.id;
 
       if (!entrepriseId) {
         return res.status(400).json({

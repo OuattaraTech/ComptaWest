@@ -3,7 +3,43 @@ import { useEntreprise } from '../hooks/useEntreprise.jsx';
 import api from '../utils/api.jsx';
 import { formatDate, initiales } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
-import { Users, Building2, Plus, X, Edit2, Trash2, Shield, Save } from 'lucide-react';
+import { Users, Building2, Plus, X, Edit2, Trash2, Shield, Save, Copy, Link2 } from 'lucide-react';
+import { useTheme } from '../hooks/useTheme.jsx';
+import { getC, Input } from '../components/UI.jsx';
+import Onboarding from '../components/Onboarding.jsx';
+
+// ─── Référentiels ──────────────────────────────────────────────────────────
+// Formes juridiques courantes en zone OHADA / Côte d'Ivoire
+const FORMES = [
+  'SARL', 'SARLU', 'SA', 'SAS', 'SUARL', 'SNC', 'SCS',
+  'Entreprise individuelle', 'GIE', 'SCI', 'Coopérative', 'Association', 'Autre',
+];
+
+// Régimes fiscaux applicables en Côte d'Ivoire
+const REGIMES = [
+  'RSI',           // Réel Simplifié d'Imposition
+  'RNI',           // Réel Normal d'Imposition
+  'Microentreprise',
+  'BIC',           // Bénéfices Industriels et Commerciaux
+  'BNC',           // Bénéfices Non Commerciaux
+  'Exonéré',
+];
+
+// Pays UEMOA / CEMAC les plus fréquents
+const PAYS_LIST = [
+  "Côte d'Ivoire", 'Sénégal', 'Mali', 'Burkina Faso', 'Bénin', 'Togo',
+  'Niger', 'Guinée-Bissau', 'Cameroun', 'Gabon', 'Congo', 'Tchad', 'Autre',
+];
+
+// Rôles d'accès — alignés sur les permissions du backend (middleware/entreprise.js)
+const ROLES = {
+  proprietaire: { label: 'Propriétaire', color: '#F5A623', desc: 'Accès total, gestion de l\'entreprise et des membres.' },
+  admin:        { label: 'Administrateur', color: '#4E8BF5', desc: 'Gère les membres, paramètres et toutes les données.' },
+  comptable:    { label: 'Comptable', color: '#00D4AA', desc: 'Saisie et édition de toutes les écritures comptables.' },
+  rh:           { label: 'RH', color: '#A855F7', desc: 'Gère la paie (employés, bulletins) sans accès à la comptabilité.' },
+  user:         { label: 'Utilisateur', color: '#9BAACC', desc: 'Consultation et saisie limitée selon les modules.' },
+  lecture:      { label: 'Lecture seule', color: '#6B7A99', desc: 'Consultation uniquement, aucune modification.' },
+};
 
 export default function ParametresPage() {
   const { dark } = useTheme();
@@ -15,6 +51,7 @@ export default function ParametresPage() {
   const [inviteForm, setInviteForm] = useState({ email: '', role: 'user', nom: '' });
   const [saving, setSaving] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const [invitationGeneree, setInvitationGeneree] = useState(null);  // { email, role, lien_invitation, compte_existant }
 
   useEffect(() => {
     if (actuelle) {
@@ -55,12 +92,32 @@ export default function ParametresPage() {
   const handleInviter = async (e) => {
     e.preventDefault();
     try {
-      await api.post(`/entreprises/${actuelle.id}/membres`, inviteForm);
-      toast.success(`${inviteForm.email} invité en tant que ${inviteForm.role}`);
+      const res = await api.post(`/entreprises/${actuelle.id}/membres`, inviteForm);
+      const data = res.data.data || {};
+      const emailInvite = inviteForm.email;
       setShowInvite(false);
       setInviteForm({ email: '', role: 'user', nom: '' });
       fetchMembres();
+      if (data.lien_invitation) {
+        // Nouveau compte : on affiche le lien à transmettre
+        setInvitationGeneree({
+          email: emailInvite,
+          role: data.role,
+          lien_invitation: window.location.origin + data.lien_invitation,
+          compte_existant: false,
+        });
+      } else {
+        // Compte déjà existant : accès immédiat, pas de lien
+        toast.success(`${emailInvite} a déjà un compte : l'entreprise apparaîtra à sa prochaine connexion.`);
+      }
     } catch (err) { toast.error(err.response?.data?.message || 'Erreur invitation'); }
+  };
+
+  const copierLien = () => {
+    if (!invitationGeneree) return;
+    navigator.clipboard.writeText(invitationGeneree.lien_invitation)
+      .then(() => toast.success('Lien copié dans le presse-papier'))
+      .catch(() => toast.error('Impossible de copier — sélectionnez le lien manuellement'));
   };
 
   const handleChangeRole = async (userId, role) => {
@@ -68,7 +125,10 @@ export default function ParametresPage() {
       await api.put(`/entreprises/${actuelle.id}/membres/${userId}/role`, { role });
       toast.success('Rôle mis à jour');
       fetchMembres();
-    } catch { toast.error('Erreur mise à jour rôle'); }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur mise à jour rôle');
+      fetchMembres();  // resynchronise le sélecteur sur la valeur réelle
+    }
   };
 
   const handleRetirerMembre = async (userId) => {
@@ -109,7 +169,7 @@ export default function ParametresPage() {
 
       {/* Tab Entreprise */}
       {tab === 'entreprise' && (
-        <form onSubmit={handleSaveEntreprise} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <form data-onboarding="form-entreprise" onSubmit={handleSaveEntreprise} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28 }}>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 20 }}>Informations générales</div>
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 16 }}>
@@ -233,6 +293,45 @@ export default function ParametresPage() {
               </div>
             )}
 
+            {/* Lien d'invitation généré — à transmettre au nouveau membre */}
+            {invitationGeneree && (
+              <div style={{
+                padding: '18px 24px', background: `${C.accent}10`,
+                borderBottom: `1px solid ${C.border}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 }}>
+                  <Link2 size={16} color={C.accent} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
+                      Lien d'invitation pour {invitationGeneree.email}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                      Transmettez ce lien (WhatsApp, SMS, email…). Il permet de définir le mot de passe et d'activer le compte. Valable 7 jours.
+                    </div>
+                  </div>
+                  <button onClick={() => setInvitationGeneree(null)}
+                    style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: C.muted, padding: 0 }}>
+                    <X size={15} />
+                  </button>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input readOnly value={invitationGeneree.lien_invitation}
+                    onFocus={e => e.target.select()}
+                    style={{
+                      flex: 1, background: C.input, border: `1px solid ${C.border}`, borderRadius: 8,
+                      padding: '9px 12px', color: C.text, fontSize: 12, fontFamily: 'monospace', outline: 'none',
+                    }} />
+                  <button onClick={copierLien} style={{
+                    display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8,
+                    border: 'none', background: C.accent, color: dark ? '#000' : '#fff',
+                    fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+                  }}>
+                    <Copy size={13} /> Copier
+                  </button>
+                </div>
+              </div>
+            )}
+
             {membres.map((m, i) => {
               const roleInfo = ROLES[m.role] || ROLES.user;
               return (
@@ -255,30 +354,27 @@ export default function ParametresPage() {
                     <div style={{ fontSize: 11, color: C.muted }}>{m.email}</div>
                   </div>
                   <div style={{ fontSize: 11, color: C.muted }}>Depuis {formatDate(m.created_at)}</div>
-                  {m.role !== 'proprietaire' ? (
-                    <select value={m.role} onChange={e => handleChangeRole(m.id, e.target.value)}
-                      style={{ background: `${roleInfo.color}20`, border: `1px solid ${roleInfo.color}50`, borderRadius: 8, padding: '6px 10px', color: roleInfo.color, fontSize: 12, fontWeight: 700, outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                      {Object.entries(ROLES).filter(([k]) => k !== 'proprietaire').map(([k, v]) => (
-                        <option key={k} value={k} style={{ background: C.card, color: C.text }}>{v.label}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span style={{ fontSize: 11, padding: '5px 12px', borderRadius: 8, background: `${roleInfo.color}20`, color: roleInfo.color, fontWeight: 700 }}>
-                      {roleInfo.label}
-                    </span>
-                  )}
-                  {m.role !== 'proprietaire' && (
-                    <button onClick={() => handleRetirerMembre(m.id)}
-                      style={{ padding: '6px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.muted }}>
-                      <X size={13} />
-                    </button>
-                  )}
+                  {/* Le rôle de tout membre est modifiable (y compris propriétaire) ;
+                      le backend empêche de retirer/rétrograder le dernier propriétaire. */}
+                  <select value={m.role} onChange={e => handleChangeRole(m.id, e.target.value)}
+                    style={{ background: `${roleInfo.color}20`, border: `1px solid ${roleInfo.color}50`, borderRadius: 8, padding: '6px 10px', color: roleInfo.color, fontSize: 12, fontWeight: 700, outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {Object.entries(ROLES).map(([k, v]) => (
+                      <option key={k} value={k} style={{ background: C.card, color: C.text }}>{v.label}</option>
+                    ))}
+                  </select>
+                  <button onClick={() => handleRetirerMembre(m.id)}
+                    title="Retirer ce membre"
+                    style={{ padding: '6px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.muted }}>
+                    <X size={13} />
+                  </button>
                 </div>
               );
             })}
           </div>
         </div>
       )}
+
+      <Onboarding pageKey="parametres" />
     </div>
   );
 }

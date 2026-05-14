@@ -92,10 +92,13 @@ CREATE TABLE IF NOT EXISTS factures (
   devise VARCHAR(10) DEFAULT 'FCFA',
   notes TEXT,
   conditions_paiement TEXT DEFAULT 'Paiement à 30 jours',
+  facture_origine_id UUID REFERENCES factures(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
   UNIQUE(entreprise_id, numero)
 );
+
+CREATE INDEX IF NOT EXISTS idx_factures_origine ON factures(facture_origine_id);
 
 -- ─── LIGNES FACTURE ───────────────────────────
 CREATE TABLE IF NOT EXISTS lignes_facture (
@@ -169,6 +172,94 @@ CREATE TABLE IF NOT EXISTS declarations_taxes (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- ─── COMPTABILITÉ SYSCOHADA ──────────────────
+CREATE TABLE IF NOT EXISTS plan_comptable (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  entreprise_id UUID REFERENCES entreprises(id) ON DELETE CASCADE,
+  numero VARCHAR(15) NOT NULL,
+  libelle VARCHAR(200) NOT NULL,
+  classe SMALLINT NOT NULL CHECK (classe BETWEEN 1 AND 9),
+  nature VARCHAR(15) NOT NULL CHECK (nature IN ('ACTIF','PASSIF','CHARGE','PRODUIT','HAO','ANALYTIQUE')),
+  est_systeme BOOLEAN DEFAULT false,
+  est_lettrable BOOLEAN DEFAULT false,
+  parent_numero VARCHAR(15),
+  actif BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(entreprise_id, numero)
+);
+
+CREATE TABLE IF NOT EXISTS exercices (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  entreprise_id UUID REFERENCES entreprises(id) ON DELETE CASCADE,
+  libelle VARCHAR(80) NOT NULL,
+  date_debut DATE NOT NULL,
+  date_fin DATE NOT NULL,
+  cloture BOOLEAN DEFAULT false,
+  date_cloture TIMESTAMP,
+  cloture_par UUID REFERENCES utilisateurs(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  CHECK (date_fin > date_debut),
+  UNIQUE(entreprise_id, date_debut, date_fin)
+);
+
+CREATE TABLE IF NOT EXISTS journaux (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  entreprise_id UUID REFERENCES entreprises(id) ON DELETE CASCADE,
+  code VARCHAR(8) NOT NULL,
+  libelle VARCHAR(80) NOT NULL,
+  type VARCHAR(20) NOT NULL CHECK (type IN ('VENTE','ACHAT','BANQUE','CAISSE','OD','A_NOUVEAU')),
+  compte_contrepartie VARCHAR(15),
+  est_systeme BOOLEAN DEFAULT false,
+  actif BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(entreprise_id, code)
+);
+
+CREATE TABLE IF NOT EXISTS ecritures (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  entreprise_id UUID REFERENCES entreprises(id) ON DELETE CASCADE,
+  exercice_id UUID REFERENCES exercices(id) ON DELETE RESTRICT,
+  journal_id UUID REFERENCES journaux(id) ON DELETE RESTRICT,
+  numero_piece VARCHAR(40) NOT NULL,
+  date_ecriture DATE NOT NULL,
+  libelle VARCHAR(255) NOT NULL,
+  reference VARCHAR(80),
+  origine VARCHAR(40),
+  origine_id UUID,
+  validee BOOLEAN DEFAULT true,
+  cree_par UUID REFERENCES utilisateurs(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(entreprise_id, numero_piece)
+);
+
+CREATE TABLE IF NOT EXISTS lignes_ecriture (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  ecriture_id UUID NOT NULL REFERENCES ecritures(id) ON DELETE CASCADE,
+  compte_id UUID NOT NULL REFERENCES plan_comptable(id) ON DELETE RESTRICT,
+  compte_numero VARCHAR(15) NOT NULL,
+  libelle VARCHAR(255),
+  debit DECIMAL(15,2) DEFAULT 0 CHECK (debit >= 0),
+  credit DECIMAL(15,2) DEFAULT 0 CHECK (credit >= 0),
+  lettrage VARCHAR(10),
+  ordre SMALLINT DEFAULT 0,
+  CHECK ((debit > 0 AND credit = 0) OR (credit > 0 AND debit = 0))
+);
+
+-- ─── AUDIT LOG ────────────────────────────────
+CREATE TABLE IF NOT EXISTS audit_log (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  entreprise_id UUID REFERENCES entreprises(id) ON DELETE CASCADE,
+  utilisateur_id UUID REFERENCES utilisateurs(id) ON DELETE SET NULL,
+  utilisateur_email VARCHAR(150),
+  action VARCHAR(40) NOT NULL,
+  entite VARCHAR(40) NOT NULL,
+  entite_id UUID,
+  details JSONB,
+  ip VARCHAR(45),
+  user_agent TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- ─── PAIEMENTS FACTURES ───────────────────────
 CREATE TABLE IF NOT EXISTS paiements (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -193,6 +284,27 @@ CREATE INDEX IF NOT EXISTS idx_depenses_date ON depenses(date_depense);
 CREATE INDEX IF NOT EXISTS idx_taxes_entreprise ON declarations_taxes(entreprise_id);
 CREATE INDEX IF NOT EXISTS idx_taxes_statut ON declarations_taxes(statut);
 CREATE INDEX IF NOT EXISTS idx_taxes_echeance ON declarations_taxes(date_echeance);
+CREATE INDEX IF NOT EXISTS idx_audit_entreprise ON audit_log(entreprise_id);
+CREATE INDEX IF NOT EXISTS idx_audit_utilisateur ON audit_log(utilisateur_id);
+CREATE INDEX IF NOT EXISTS idx_audit_entite ON audit_log(entite, entite_id);
+CREATE INDEX IF NOT EXISTS idx_audit_date ON audit_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_log(action);
+
+CREATE INDEX IF NOT EXISTS idx_pc_entreprise ON plan_comptable(entreprise_id);
+CREATE INDEX IF NOT EXISTS idx_pc_numero ON plan_comptable(entreprise_id, numero);
+CREATE INDEX IF NOT EXISTS idx_pc_classe ON plan_comptable(entreprise_id, classe);
+CREATE INDEX IF NOT EXISTS idx_exercices_entreprise ON exercices(entreprise_id);
+CREATE INDEX IF NOT EXISTS idx_exercices_dates ON exercices(entreprise_id, date_debut, date_fin);
+CREATE INDEX IF NOT EXISTS idx_journaux_entreprise ON journaux(entreprise_id);
+CREATE INDEX IF NOT EXISTS idx_ecritures_entreprise ON ecritures(entreprise_id);
+CREATE INDEX IF NOT EXISTS idx_ecritures_exercice ON ecritures(exercice_id);
+CREATE INDEX IF NOT EXISTS idx_ecritures_journal ON ecritures(journal_id);
+CREATE INDEX IF NOT EXISTS idx_ecritures_date ON ecritures(date_ecriture DESC);
+CREATE INDEX IF NOT EXISTS idx_ecritures_origine ON ecritures(origine, origine_id);
+CREATE INDEX IF NOT EXISTS idx_lignes_ecriture ON lignes_ecriture(ecriture_id);
+CREATE INDEX IF NOT EXISTS idx_lignes_compte ON lignes_ecriture(compte_id);
+CREATE INDEX IF NOT EXISTS idx_lignes_compte_numero ON lignes_ecriture(compte_numero);
+CREATE INDEX IF NOT EXISTS idx_lignes_lettrage ON lignes_ecriture(lettrage) WHERE lettrage IS NOT NULL;
 
 -- ─── DONNÉES DÉMO ─────────────────────────────
 

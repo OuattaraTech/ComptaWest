@@ -5,13 +5,22 @@ import { EntrepriseProvider } from './hooks/useEntreprise.jsx';
 import { ThemeProvider, useTheme } from './hooks/useTheme.jsx';
 import Layout from './components/Layout/Layout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
+import InvitationPage from './pages/InvitationPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import ClientsPage from './pages/ClientsPage.jsx';
 import FacturesPage from './pages/FacturesPage.jsx';
+import DevisPage from './pages/DevisPage.jsx';
 import RapportsPage from './pages/RapportsPage.jsx';
 import DepensesPage from './pages/DepensesPage.jsx';
 import TaxesPage from './pages/TaxesPage.jsx';
 import ParametresPage from './pages/ParametresPage.jsx';
+import AuditLogPage from './pages/AuditLogPage.jsx';
+import ComptabilitePage from './pages/ComptabilitePage.jsx';
+import TresoreriePage from './pages/TresoreriePage.jsx';
+import RHPage from './pages/RHPage.jsx';
+import ImmobilisationsPage from './pages/ImmobilisationsPage.jsx';
+import ProduitsPage from './pages/ProduitsPage.jsx';
+import FournisseursPage from './pages/FournisseursPage.jsx';
 
 const Protected = ({ children }) => {
   const { user, loading } = useAuth();
@@ -47,14 +56,23 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Public><LoginPage /></Public>} />
+      <Route path="/invitation/:token" element={<InvitationPage />} />
       <Route path="/" element={<Protected><Layout /></Protected>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="clients" element={<ClientsPage />} />
+        <Route path="devis" element={<DevisPage />} />
         <Route path="factures" element={<FacturesPage />} />
         <Route path="depenses" element={<DepensesPage />} />
+        <Route path="tresorerie" element={<TresoreriePage />} />
+        <Route path="paie" element={<RHPage />} />
+        <Route path="immobilisations" element={<ImmobilisationsPage />} />
+        <Route path="produits" element={<ProduitsPage />} />
+        <Route path="fournisseurs" element={<FournisseursPage />} />
         <Route path="taxes" element={<TaxesPage />} />
         <Route path="rapports" element={<RapportsPage />} />
+        <Route path="comptabilite" element={<ComptabilitePage />} />
+        <Route path="audit-log" element={<AuditLogPage />} />
         <Route path="parametres" element={<ParametresPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

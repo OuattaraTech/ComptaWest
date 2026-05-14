@@ -1,7 +1,11 @@
 const pool = require('../../config/database');
 const bcrypt = require('bcryptjs');
 const { body } = require('express-validator');
-const { creerCategoriesDefaut } = require('../utils/helpers');
+const {
+  creerCategoriesDefaut, creerPlanComptableSyscohada,
+  creerJournauxDefaut, creerExerciceCourant,
+} = require('../utils/helpers');
+const { logAudit } = require('../utils/audit');
 
 const entrepriseRules = [
   body('nom').trim().notEmpty().withMessage('Nom requis').isLength({ max: 150 }),
@@ -15,7 +19,7 @@ const getMesEntreprises = async (req, res) => {
     const result = await pool.query(
       `SELECT e.*, me.role,
         (SELECT COUNT(*) FROM membres_entreprise m2 WHERE m2.entreprise_id = e.id AND m2.actif = true) AS nb_membres,
-        (SELECT COUNT(*) FROM factures f WHERE f.entreprise_id = e.id) AS nb_factures,
+        (SELECT COUNT(*) FROM factures f WHERE f.entreprise_id = e.id AND f.type = 'facture') AS nb_factures,
         (SELECT COUNT(*) FROM clients c WHERE c.entreprise_id = e.id AND c.actif = true) AS nb_clients
        FROM entreprises e
        JOIN membres_entreprise me ON me.entreprise_id = e.id
@@ -61,6 +65,11 @@ const createEntreprise = async (req, res) => {
     // Helper partagé (zéro duplication)
     await creerCategoriesDefaut(entreprise.id, client);
 
+    // Comptabilité SYSCOHADA : plan de comptes, journaux, exercice en cours
+    await creerPlanComptableSyscohada(entreprise.id, client);
+    await creerJournauxDefaut(entreprise.id, client);
+    await creerExerciceCourant(entreprise.id, client);
+
     await client.query('COMMIT');
     res.status(201).json({ success: true, data: entreprise });
   } catch (err) {
@@ -103,6 +112,7 @@ const updateEntreprise = async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Entreprise introuvable' });
     }
+    logAudit(req, 'UPDATE', 'entreprises', id, { nom: nom.trim(), regime_fiscal, taux_tva });
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     console.error('Erreur updateEntreprise:', err.message);
@@ -119,7 +129,7 @@ const getMembres = async (req, res) => {
        FROM membres_entreprise me
        JOIN utilisateurs u ON u.id = me.utilisateur_id
        WHERE me.entreprise_id = $1
-       ORDER BY CASE me.role WHEN 'proprietaire' THEN 1 WHEN 'admin' THEN 2 WHEN 'comptable' THEN 3 ELSE 4 END, u.nom ASC`,
+       ORDER BY CASE me.role WHEN 'proprietaire' THEN 1 WHEN 'admin' THEN 2 WHEN 'comptable' THEN 3 WHEN 'rh' THEN 4 ELSE 5 END, u.nom ASC`,
       [id]
     );
     res.json({ success: true, data: result.rows });
@@ -138,32 +148,75 @@ const inviterMembre = async (req, res) => {
 
     if (!email) return res.status(400).json({ success: false, message: 'Email requis' });
 
-    const rolesValides = ['admin', 'comptable', 'user', 'lecture'];
+    const rolesValides = ['admin', 'comptable', 'rh', 'user', 'lecture'];
     if (!rolesValides.includes(role)) {
       return res.status(400).json({ success: false, message: 'Rôle invalide' });
     }
 
-    let userRes = await client.query('SELECT id FROM utilisateurs WHERE email = $1', [email]);
+    const emailNorm = email.trim().toLowerCase();
+
+    // Garde-fou : on ne peut pas s'inviter soi-même (cela écraserait son propre rôle)
+    if (req.user?.email && emailNorm === req.user.email.trim().toLowerCase()) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'Vous ne pouvez pas vous inviter vous-même : vous êtes déjà membre de cette entreprise.',
+      });
+    }
+
+    let userRes = await client.query(
+      'SELECT id, actif FROM utilisateurs WHERE email = $1', [emailNorm]
+    );
     let userId;
+    let invitationToken = null;       // non-null seulement pour un nouveau compte
+    let compteExistant = false;
 
     if (userRes.rows.length === 0) {
-      // Compte provisoire avec mot de passe aléatoire fort
+      // Nouveau compte : créé inactif, avec un lien d'invitation à usage unique.
+      // Le mot de passe restera un hash aléatoire jusqu'à ce que l'invité
+      // définisse le sien via /invitation/<token>.
       const tempPwd = await bcrypt.hash(require('crypto').randomBytes(16).toString('hex'), 12);
+      invitationToken = require('crypto').randomBytes(24).toString('hex');
+      const expire = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // +7 jours
       const newUser = await client.query(
-        'INSERT INTO utilisateurs (nom, email, mot_de_passe) VALUES ($1,$2,$3) RETURNING id',
-        [nom || email.split('@')[0], email, tempPwd]
+        `INSERT INTO utilisateurs (nom, email, mot_de_passe, actif, invitation_token, invitation_expire_at)
+         VALUES ($1,$2,$3,false,$4,$5) RETURNING id`,
+        [nom || emailNorm.split('@')[0], emailNorm, tempPwd, invitationToken, expire]
       );
       userId = newUser.rows[0].id;
     } else {
       userId = userRes.rows[0].id;
+      compteExistant = userRes.rows[0].actif;
+      // Compte existant mais encore inactif (invitation précédente non acceptée) :
+      // on régénère un token frais.
+      if (!userRes.rows[0].actif) {
+        invitationToken = require('crypto').randomBytes(24).toString('hex');
+        const expire = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        await client.query(
+          'UPDATE utilisateurs SET invitation_token=$1, invitation_expire_at=$2 WHERE id=$3',
+          [invitationToken, expire, userId]
+        );
+      }
     }
 
     const exist = await client.query(
-      'SELECT id FROM membres_entreprise WHERE utilisateur_id=$1 AND entreprise_id=$2',
+      'SELECT id, role, actif FROM membres_entreprise WHERE utilisateur_id=$1 AND entreprise_id=$2',
       [userId, id]
     );
 
     if (exist.rows.length > 0) {
+      // Le membre a déjà une ligne pour cette entreprise.
+      if (exist.rows[0].actif) {
+        // Déjà membre actif : on NE touche PAS à son rôle (une invitation ne doit
+        // jamais rétrograder ni reconfigurer un membre existant — risque de se
+        // dégrader soi-même ou un propriétaire).
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          success: false,
+          message: `${emailNorm} est déjà membre de cette entreprise. Modifiez son rôle depuis la liste des membres.`,
+        });
+      }
+      // Membre anciennement retiré (actif = false) : on le réactive avec le nouveau rôle.
       await client.query(
         'UPDATE membres_entreprise SET role=$1, actif=true WHERE utilisateur_id=$2 AND entreprise_id=$3',
         [role, userId, id]
@@ -176,7 +229,22 @@ const inviterMembre = async (req, res) => {
     }
 
     await client.query('COMMIT');
-    res.json({ success: true, message: `Membre ${email} ajouté avec le rôle ${role}` });
+    logAudit(req, 'INVITE', 'membres', userId, { email: emailNorm, role, nouveau_compte: !!invitationToken });
+
+    // Construit le lien d'invitation pour le front (le frontend complète le domaine)
+    const lienInvitation = invitationToken ? `/invitation/${invitationToken}` : null;
+
+    res.json({
+      success: true,
+      message: compteExistant
+        ? `${email} a déjà un compte ComptaWest : il/elle verra l'entreprise dès sa prochaine connexion.`
+        : `Invitation créée pour ${email}. Transmettez-lui le lien ci-dessous.`,
+      data: {
+        email, role,
+        compte_existant: compteExistant,
+        lien_invitation: lienInvitation,    // null si le compte existait déjà et est actif
+      },
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Erreur inviterMembre:', err.message);
@@ -186,34 +254,60 @@ const inviterMembre = async (req, res) => {
   }
 };
 
+// Compte les propriétaires actifs d'une entreprise, en excluant éventuellement un membre.
+const compterProprietaires = async (entrepriseId, exclureUserId = null) => {
+  const r = await pool.query(
+    `SELECT COUNT(*) FROM membres_entreprise
+     WHERE entreprise_id = $1 AND role = 'proprietaire' AND actif = true
+       AND ($2::uuid IS NULL OR utilisateur_id != $2)`,
+    [entrepriseId, exclureUserId]
+  );
+  return parseInt(r.rows[0].count, 10);
+};
+
 // PUT /api/entreprises/:id/membres/:userId/role
 const updateRoleMembre = async (req, res) => {
   try {
     const { id, userId } = req.params;
     const { role } = req.body;
-    const rolesValides = ['admin', 'comptable', 'user', 'lecture'];
+    // 'proprietaire' est assignable : on peut promouvoir un membre ou transférer la propriété
+    const rolesValides = ['proprietaire', 'admin', 'comptable', 'rh', 'user', 'lecture'];
     if (!rolesValides.includes(role)) {
       return res.status(400).json({ success: false, message: 'Rôle invalide' });
     }
 
-    // Empêcher de changer le rôle du propriétaire
     const check = await pool.query(
-      'SELECT role FROM membres_entreprise WHERE utilisateur_id=$1 AND entreprise_id=$2',
+      'SELECT role FROM membres_entreprise WHERE utilisateur_id=$1 AND entreprise_id=$2 AND actif=true',
       [userId, id]
     );
-    if (check.rows[0]?.role === 'proprietaire') {
-      return res.status(400).json({ success: false, message: 'Impossible de modifier le rôle du propriétaire' });
-    }
-
-    const result = await pool.query(
-      'UPDATE membres_entreprise SET role=$1 WHERE utilisateur_id=$2 AND entreprise_id=$3 RETURNING *',
-      [role, userId, id]
-    );
-    if (result.rowCount === 0) {
+    if (!check.rows.length) {
       return res.status(404).json({ success: false, message: 'Membre introuvable' });
     }
+    const ancienRole = check.rows[0].role;
+    if (ancienRole === role) {
+      return res.json({ success: true, message: 'Aucun changement' });
+    }
+
+    // Garde-fou : une entreprise doit toujours garder au moins un propriétaire.
+    // Si on rétrograde un propriétaire, il doit en rester au moins un autre.
+    if (ancienRole === 'proprietaire' && role !== 'proprietaire') {
+      const autresProprietaires = await compterProprietaires(id, userId);
+      if (autresProprietaires === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Impossible : c\'est le dernier propriétaire. Nommez d\'abord un autre propriétaire.',
+        });
+      }
+    }
+
+    await pool.query(
+      'UPDATE membres_entreprise SET role=$1 WHERE utilisateur_id=$2 AND entreprise_id=$3',
+      [role, userId, id]
+    );
+    logAudit(req, 'ROLE_CHANGE', 'membres', userId, { ancien_role: ancienRole, nouveau_role: role });
     res.json({ success: true, message: 'Rôle mis à jour' });
   } catch (err) {
+    console.error('Erreur updateRoleMembre:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 };
@@ -223,21 +317,32 @@ const retirerMembre = async (req, res) => {
   try {
     const { id, userId } = req.params;
     const check = await pool.query(
-      'SELECT role FROM membres_entreprise WHERE utilisateur_id=$1 AND entreprise_id=$2',
+      'SELECT role FROM membres_entreprise WHERE utilisateur_id=$1 AND entreprise_id=$2 AND actif=true',
       [userId, id]
     );
     if (!check.rows.length) {
       return res.status(404).json({ success: false, message: 'Membre introuvable' });
     }
+
+    // Garde-fou : ne pas retirer le dernier propriétaire de l'entreprise
     if (check.rows[0].role === 'proprietaire') {
-      return res.status(400).json({ success: false, message: 'Impossible de retirer le propriétaire' });
+      const autresProprietaires = await compterProprietaires(id, userId);
+      if (autresProprietaires === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Impossible : c\'est le dernier propriétaire. L\'entreprise doit garder au moins un propriétaire.',
+        });
+      }
     }
+
     await pool.query(
       'UPDATE membres_entreprise SET actif=false WHERE utilisateur_id=$1 AND entreprise_id=$2',
       [userId, id]
     );
+    logAudit(req, 'REVOKE', 'membres', userId, { ancien_role: check.rows[0].role });
     res.json({ success: true, message: 'Membre retiré' });
   } catch (err) {
+    console.error('Erreur retirerMembre:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 };
