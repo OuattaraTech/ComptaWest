@@ -29,6 +29,21 @@ const employeRules = [
   body('type_contrat').optional().isIn(['CDI', 'CDD', 'stage', 'prestation', 'apprentissage']),
 ];
 
+const rubriqueRules = [
+  body('code').trim().notEmpty().withMessage('Code requis').isLength({ max: 20 }).withMessage('Code trop long'),
+  body('libelle').trim().notEmpty().withMessage('Libellé requis').isLength({ max: 120 }).withMessage('Libellé trop long'),
+  body('type').isIn(['gain', 'retenue', 'cotisation_salariale', 'cotisation_patronale', 'info']).withMessage('Type de rubrique invalide'),
+  body('nature').optional().isIn(['fixe', 'variable', 'pourcentage', 'formule']).withMessage('Nature invalide'),
+  body('valeur_defaut').optional({ nullable: true, checkFalsy: true }).isFloat().withMessage('Valeur par défaut invalide'),
+];
+
+const bulletinRules = [
+  body('employe_id').isUUID().withMessage('Employé invalide'),
+  body('annee').isInt({ min: 2000, max: 2100 }).withMessage('Année invalide'),
+  body('mois').isInt({ min: 1, max: 12 }).withMessage('Mois invalide'),
+  body('jours_travailles').optional().isFloat({ min: 0, max: 31 }).withMessage('Jours travaillés invalides'),
+];
+
 // ─── EMPLOYÉS ─────────────────────────────────────────────────────────────
 
 // GET /api/paie/employes
@@ -1153,10 +1168,10 @@ module.exports = {
   // Employés
   getEmployes, getEmployeById, createEmploye, updateEmploye, archiveEmploye, employeRules,
   // Rubriques
-  getRubriques, createRubrique, updateRubrique, deleteRubrique,
+  getRubriques, createRubrique, updateRubrique, deleteRubrique, rubriqueRules,
   // Bulletins
   getBulletins, getBulletinById, creerOuMajBulletin, genererMois,
-  validerBulletin, payerBulletin, supprimerBulletin, getBulletinPDF,
+  validerBulletin, payerBulletin, supprimerBulletin, getBulletinPDF, bulletinRules,
   // Stats
   getStatsPaie, getParametres,
 };

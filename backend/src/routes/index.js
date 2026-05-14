@@ -16,8 +16,8 @@ const { getFactures, getFactureById, createFacture, updateStatut, addPaiement, d
 const { getDevis, getStatsDevis, updateDevisStatut, convertirEnFacture, supprimerDevis, convertirRules } = require('../controllers/devisController');
 const { getStats, getTransactionsRecentes, getAnneesDisponibles } = require('../controllers/dashboardController');
 const { getBilan, getBilanPDF, getFacturePDF } = require('../controllers/rapportsController');
-const { getDepenses, getStatsDepenses, createDepense, updateDepense, deleteDepense, getCategories, createCategorie } = require('../controllers/depensesController');
-const { getTaxes, getTableauBordTaxes, createTaxe, payerTaxe, calculerTVA } = require('../controllers/taxesController');
+const { getDepenses, getStatsDepenses, createDepense, updateDepense, deleteDepense, getCategories, createCategorie, depenseRules, categorieDepenseRules } = require('../controllers/depensesController');
+const { getTaxes, getTableauBordTaxes, createTaxe, payerTaxe, calculerTVA, taxeRules, paiementTaxeRules } = require('../controllers/taxesController');
 const { getAuditLog } = require('../controllers/auditController');
 const {
   getPlanComptable, getJournaux, getExercices,
@@ -33,9 +33,9 @@ const {
 } = require('../controllers/tresorerieController');
 const {
   getEmployes, getEmployeById, createEmploye, updateEmploye, archiveEmploye, employeRules,
-  getRubriques, createRubrique, updateRubrique, deleteRubrique,
+  getRubriques, createRubrique, updateRubrique, deleteRubrique, rubriqueRules,
   getBulletins, getBulletinById, creerOuMajBulletin, genererMois,
-  validerBulletin, payerBulletin, supprimerBulletin, getBulletinPDF,
+  validerBulletin, payerBulletin, supprimerBulletin, getBulletinPDF, bulletinRules,
   getStatsPaie, getParametres,
 } = require('../controllers/paieController');
 const {
@@ -63,7 +63,7 @@ const {
   getStatsFournisseurs,
 } = require('../controllers/fournisseursController');
 const {
-  commandeRules,
+  commandeRules, paiementFournisseurRules,
   getCommandes, getCommandeById, createCommande,
   envoyerCommande, receptionnerCommande, facturerCommande,
   annulerCommande, supprimerCommande,
@@ -136,18 +136,18 @@ router.delete('/devis/:id', auth, eaWrite, supprimerDevis);
 // ─── DÉPENSES ──────────────────────────────────────────────────────────────
 router.get('/depenses/stats', auth, ea, getStatsDepenses);
 router.get('/depenses/categories', auth, ea, getCategories);
-router.post('/depenses/categories', auth, eaWrite, createCategorie);
+router.post('/depenses/categories', auth, eaWrite, categorieDepenseRules, validate, createCategorie);
 router.get('/depenses', auth, ea, getDepenses);
-router.post('/depenses', auth, eaWrite, createDepense);
-router.put('/depenses/:id', auth, eaWrite, updateDepense);
+router.post('/depenses', auth, eaWrite, depenseRules, validate, createDepense);
+router.put('/depenses/:id', auth, eaWrite, depenseRules, validate, updateDepense);
 router.delete('/depenses/:id', auth, eaAdmin, deleteDepense);
 
 // ─── TAXES ─────────────────────────────────────────────────────────────────
 router.get('/taxes/tableau-de-bord', auth, ea, getTableauBordTaxes);
 router.get('/taxes/calculer-tva', auth, ea, calculerTVA);
 router.get('/taxes', auth, ea, getTaxes);
-router.post('/taxes', auth, eaWrite, createTaxe);
-router.post('/taxes/:id/paiement', auth, eaWrite, payerTaxe);
+router.post('/taxes', auth, eaWrite, taxeRules, validate, createTaxe);
+router.post('/taxes/:id/paiement', auth, eaWrite, paiementTaxeRules, validate, payerTaxe);
 
 // ─── RAPPORTS ──────────────────────────────────────────────────────────────
 router.get('/rapports/bilan', auth, ea, getBilan);
@@ -206,13 +206,13 @@ router.delete('/paie/employes/:id',     auth, eaPaieAdmin, archiveEmploye);
 
 // Rubriques
 router.get('/paie/rubriques',           auth, eaPaie,      getRubriques);
-router.post('/paie/rubriques',          auth, eaPaie,      createRubrique);
+router.post('/paie/rubriques',          auth, eaPaie,      rubriqueRules, validate, createRubrique);
 router.put('/paie/rubriques/:id',       auth, eaPaie,      updateRubrique);
 router.delete('/paie/rubriques/:id',    auth, eaPaieAdmin, deleteRubrique);
 
 // Bulletins
 router.get('/paie/bulletins',           auth, eaPaie,      getBulletins);
-router.post('/paie/bulletins',          auth, eaPaie,      creerOuMajBulletin);
+router.post('/paie/bulletins',          auth, eaPaie,      bulletinRules, validate, creerOuMajBulletin);
 router.post('/paie/bulletins/generer-mois', auth, eaPaie,  genererMois);
 router.get('/paie/bulletins/:id',       auth, eaPaie,      getBulletinById);
 router.get('/paie/bulletins/:id/pdf',   auth, eaPaie,      getBulletinPDF);
@@ -259,7 +259,7 @@ router.get('/produits/:id/mouvements', auth, ea,      getMouvementsProduit);
 
 // ─── FOURNISSEURS ─────────────────────────────────────────────────────────
 router.get('/fournisseurs/stats',          auth, ea,      getStatsFournisseurs);
-router.post('/fournisseurs/paiements',     auth, eaWrite, creerPaiementFournisseur);
+router.post('/fournisseurs/paiements',     auth, eaWrite, paiementFournisseurRules, validate, creerPaiementFournisseur);
 router.get('/fournisseurs',                auth, ea,      getFournisseurs);
 router.post('/fournisseurs',               auth, eaWrite, fournisseurRules, validate, createFournisseur);
 router.get('/fournisseurs/:id',            auth, ea,      getFournisseurById);

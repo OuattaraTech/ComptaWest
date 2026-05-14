@@ -1,7 +1,27 @@
 const pool = require('../../config/database');
+const { body } = require('express-validator');
 const { logAudit } = require('../utils/audit');
 const { ecritureDepense } = require('../utils/comptabilite-auto');
 const { controlerSoldeAvantSortie, SoldeInsuffisantError } = require('./tresorerieController');
+
+// ── Règles de validation ──────────────────────────────────────────────────
+const depenseRules = [
+  body('description').trim().notEmpty().withMessage('Description requise').isLength({ max: 500 }).withMessage('Description trop longue'),
+  body('montant_ht').isFloat({ min: 0 }).withMessage('Montant HT invalide'),
+  body('taux_tva').optional().isFloat({ min: 0, max: 100 }).withMessage('Taux de TVA invalide'),
+  body('categorie_id').optional({ nullable: true, checkFalsy: true }).isUUID().withMessage('Catégorie invalide'),
+  body('compte_tresorerie_id').optional({ nullable: true, checkFalsy: true }).isUUID().withMessage('Compte de trésorerie invalide'),
+  body('date_depense').optional({ checkFalsy: true }).isISO8601().withMessage('Date de dépense invalide'),
+  body('date_echeance').optional({ nullable: true, checkFalsy: true }).isISO8601().withMessage("Date d'échéance invalide"),
+  body('statut').optional().isIn(['payee', 'en_attente', 'annulee']).withMessage('Statut invalide'),
+  body('mode_paiement').optional().isIn(['cash', 'virement', 'cheque', 'mobile_money', 'carte']).withMessage('Mode de paiement invalide'),
+  body('fournisseur').optional({ nullable: true }).trim().isLength({ max: 200 }).withMessage('Nom de fournisseur trop long'),
+];
+
+const categorieDepenseRules = [
+  body('nom').trim().notEmpty().withMessage('Nom requis').isLength({ max: 80 }).withMessage('Nom trop long'),
+  body('code').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 10 }).withMessage('Code trop long'),
+];
 
 // GET /api/depenses — liste avec filtres
 const getDepenses = async (req, res) => {
@@ -354,4 +374,5 @@ const createCategorie = async (req, res) => {
 module.exports = {
   getDepenses, getStatsDepenses, createDepense, updateDepense,
   deleteDepense, getCategories, createCategorie,
+  depenseRules, categorieDepenseRules,
 };

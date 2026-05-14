@@ -13,6 +13,15 @@ const commandeRules = [
   body('lignes').isArray({ min: 1 }).withMessage('Au moins une ligne requise'),
 ];
 
+const paiementFournisseurRules = [
+  body('fournisseur_id').isUUID().withMessage('Fournisseur invalide'),
+  body('montant').isFloat({ min: 0.01 }).withMessage('Montant invalide'),
+  body('compte_tresorerie_id').optional({ nullable: true, checkFalsy: true }).isUUID().withMessage('Compte de trésorerie invalide'),
+  body('depense_id').optional({ nullable: true, checkFalsy: true }).isUUID().withMessage('Dépense invalide'),
+  body('date_paiement').optional({ checkFalsy: true }).isISO8601().withMessage('Date de paiement invalide'),
+  body('mode_paiement').optional().isIn(['virement', 'cash', 'cheque', 'mobile_money', 'carte']).withMessage('Mode de paiement invalide'),
+];
+
 // Génération du numéro de commande
 const generateNumero = async (client, entrepriseId) => {
   const year = new Date().getFullYear();
@@ -509,7 +518,7 @@ const getPaiementsFournisseur = async (req, res) => {
 };
 
 module.exports = {
-  commandeRules,
+  commandeRules, paiementFournisseurRules,
   getCommandes, getCommandeById, createCommande,
   envoyerCommande, receptionnerCommande, facturerCommande,
   annulerCommande, supprimerCommande,

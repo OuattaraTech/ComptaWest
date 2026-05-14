@@ -1,6 +1,25 @@
 const pool = require('../../config/database');
+const { body } = require('express-validator');
 const { logAudit } = require('../utils/audit');
 const { ecriturePaiementTaxe } = require('../utils/comptabilite-auto');
+
+// ── Règles de validation ──────────────────────────────────────────────────
+const taxeRules = [
+  body('type_taxe').isIn(['TVA', 'IS', 'BIC', 'CNSS', 'CMU', 'IRVM', 'Patente', 'Autre']).withMessage('Type de taxe invalide'),
+  body('periode_debut').isISO8601().withMessage('Période de début invalide'),
+  body('periode_fin').isISO8601().withMessage('Période de fin invalide'),
+  body('date_echeance').isISO8601().withMessage("Date d'échéance invalide"),
+  body('montant_base').isFloat({ min: 0 }).withMessage('Montant de base invalide'),
+  body('taux').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0, max: 100 }).withMessage('Taux invalide'),
+  body('montant_du').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Montant dû invalide'),
+  body('organisme').optional({ nullable: true }).trim().isLength({ max: 80 }).withMessage('Organisme trop long'),
+];
+
+const paiementTaxeRules = [
+  body('montant_paye').isFloat({ min: 0.01 }).withMessage('Montant payé invalide'),
+  body('date_paiement').optional({ checkFalsy: true }).isISO8601().withMessage('Date de paiement invalide'),
+  body('mode_paiement').optional().isIn(['cash', 'virement', 'cheque', 'mobile_money', 'carte']).withMessage('Mode de paiement invalide'),
+];
 
 // Taux légaux Côte d'Ivoire (actualisables)
 const TAUX_LEGAUX = {
@@ -295,4 +314,7 @@ const calculerTVA = async (req, res) => {
   }
 };
 
-module.exports = { getTaxes, getTableauBordTaxes, createTaxe, payerTaxe, calculerTVA };
+module.exports = {
+  getTaxes, getTableauBordTaxes, createTaxe, payerTaxe, calculerTVA,
+  taxeRules, paiementTaxeRules,
+};
