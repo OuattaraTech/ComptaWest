@@ -22,15 +22,17 @@ const getC = (dark) => dark ? {
   red: '#E03050', input: '#F8FAFC', hero: '#0A1628',
 };
 
+// Liste des icônes par clé i18n. Les titres et descriptions sont résolus
+// au rendu via t('login.features.<key>.title' / '.desc').
 const FEATURES = [
-  { icon: FileText,   titre: 'Devis & facturation', desc: 'Devis avec cycle de vie, conversion en facture en un clic, avoirs et export PDF.' },
-  { icon: Truck,      titre: 'Achats & fournisseurs', desc: 'Bons de commande, échéancier des dettes et paiements fournisseurs intégrés.' },
-  { icon: Box,        titre: 'Produits & stocks', desc: 'Catalogue, valorisation CMP SYSCOHADA, mouvements et inventaires physiques.' },
-  { icon: Wallet,     titre: 'Trésorerie & Mobile Money', desc: 'Multi-comptes, Wave / Orange / MTN, import de relevés et rapprochement bancaire.' },
-  { icon: UserCheck,  titre: 'Paie & RH', desc: 'Bulletins CNPS / ITS conformes Côte d\'Ivoire, génération en masse, rôle RH dédié.' },
-  { icon: Package,    titre: 'Immobilisations', desc: 'Amortissements linéaire et dégressif, dotations annuelles et cessions automatisées.' },
-  { icon: BookMarked, titre: 'Comptabilité SYSCOHADA', desc: 'Écritures automatiques, grand livre, balance et export du fichier FEC.' },
-  { icon: BarChart3,  titre: 'Taxes & rapports', desc: 'TVA, IS, CNSS avec alertes DGI, bilan et compte de résultat en temps réel.' },
+  { icon: FileText,   key: 'billing'   },
+  { icon: Truck,      key: 'purchases' },
+  { icon: Box,        key: 'stock'     },
+  { icon: Wallet,     key: 'treasury'  },
+  { icon: UserCheck,  key: 'payroll'   },
+  { icon: Package,    key: 'assets'    },
+  { icon: BookMarked, key: 'accounting'},
+  { icon: BarChart3,  key: 'reports'   },
 ];
 
 const Input = ({ label, type = 'text', value, onChange, placeholder, required, C }) => (
@@ -73,10 +75,10 @@ export default function LoginPage() {
       await api.post('/auth/demo');
       await login('demo@comptawest.ci', 'demo1234');
       await chargerEntreprises();
-      toast.success('Bienvenue sur le compte démo !');
+      toast.success(t('login.success_demo'));
       navigate('/dashboard');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur connexion démo');
+      toast.error(err.response?.data?.message || t('login.error_demo'));
     } finally {
       setLoading(false);
     }
@@ -90,16 +92,16 @@ export default function LoginPage() {
         await login(form.email, form.mot_de_passe);
       } else {
         if (form.mot_de_passe.length < 8) {
-          toast.error('Mot de passe : 8 caractères minimum');
+          toast.error(t('login.error_password_short'));
           return;
         }
         await register(form);
       }
       await chargerEntreprises();
-      toast.success(mode === 'login' ? 'Connexion réussie !' : 'Compte créé avec succès !');
+      toast.success(mode === 'login' ? t('login.success_login') : t('login.success_register'));
       navigate('/dashboard');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur de connexion');
+      toast.error(err.response?.data?.message || t('login.error_login'));
     } finally {
       setLoading(false);
     }
@@ -167,7 +169,7 @@ export default function LoginPage() {
                   ComptaWest
                 </div>
                 <div style={{ fontSize: 11, color: '#9BAACC', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 2 }}>
-                  Comptabilité africaine · SYSCOHADA
+                  {t('common.tagline')}
                 </div>
               </div>
             </div>
@@ -177,16 +179,14 @@ export default function LoginPage() {
               fontSize: 32, fontWeight: 800, lineHeight: 1.2, color: '#fff',
               letterSpacing: '-0.02em', margin: '0 0 16px 0',
             }}>
-              La comptabilité <span style={{ color: C.accent }}>moderne</span><br />
-              pour les PME africaines.
+              {t('login.hero_title_line1')} <span style={{ color: C.accent }}>{t('login.hero_title_highlight')}</span><br />
+              {t('login.hero_title_line2')}
             </h1>
             <p style={{
               fontSize: 14.5, color: '#9BAACC', lineHeight: 1.65, margin: '0 0 36px 0',
               maxWidth: 480,
             }}>
-              Devis, facturation, achats, stocks, trésorerie Mobile Money, paie,
-              immobilisations, comptabilité SYSCOHADA et rapports DGI/CNSS&nbsp;:
-              tout le cycle de gestion de votre PME dans une seule application.
+              {t('login.hero_subtitle')}
             </p>
 
             {/* Grille de fonctionnalités */}
@@ -194,8 +194,8 @@ export default function LoginPage() {
               display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18,
               maxWidth: 560,
             }} className="cw-features-grid">
-              {FEATURES.map(({ icon: Icon, titre, desc }, i) => (
-                <div key={i} style={{
+              {FEATURES.map(({ icon: Icon, key }) => (
+                <div key={key} style={{
                   background: 'rgba(255,255,255,0.04)',
                   border: '1px solid rgba(255,255,255,0.08)',
                   borderRadius: 12, padding: '14px 16px',
@@ -210,10 +210,10 @@ export default function LoginPage() {
                     <Icon size={16} />
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 3 }}>
-                    {titre}
+                    {t(`login.features.${key}.title`)}
                   </div>
                   <div style={{ fontSize: 11.5, color: '#9BAACC', lineHeight: 1.45 }}>
-                    {desc}
+                    {t(`login.features.${key}.desc`)}
                   </div>
                 </div>
               ))}
@@ -225,9 +225,9 @@ export default function LoginPage() {
             position: 'relative', zIndex: 1, marginTop: 40,
             display: 'flex', gap: 24, fontSize: 11.5, color: '#6B7A99', flexWrap: 'wrap',
           }}>
-            <span>✓ Conforme SYSCOHADA</span>
-            <span>✓ Compatible DGI / CNSS</span>
-            <span>✓ Données chiffrées</span>
+            <span>{t('login.footer_syscohada')}</span>
+            <span>{t('login.footer_dgi')}</span>
+            <span>{t('login.footer_secure')}</span>
           </div>
         </div>
 
@@ -245,15 +245,13 @@ export default function LoginPage() {
             {/* Titre du form */}
             <div style={{ marginBottom: 28 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.accent, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-                {mode === 'login' ? 'Bon retour' : 'Bienvenue'}
+                {mode === 'login' ? t('login.welcome_back') : t('login.welcome')}
               </div>
               <div style={{ fontSize: 22, fontWeight: 800, color: C.text, letterSpacing: '-0.02em' }}>
-                {mode === 'login' ? 'Connectez-vous à ComptaWest' : 'Créez votre compte gratuit'}
+                {mode === 'login' ? t('login.title_login') : t('login.title_register')}
               </div>
               <div style={{ fontSize: 13, color: C.muted, marginTop: 6, lineHeight: 1.5 }}>
-                {mode === 'login'
-                  ? 'Accédez à votre tableau de bord et à vos données comptables.'
-                  : 'Quelques secondes suffisent pour démarrer.'}
+                {mode === 'login' ? t('login.subtitle_login') : t('login.subtitle_register')}
               </div>
             </div>
 
@@ -266,7 +264,7 @@ export default function LoginPage() {
                   background: mode === m ? C.accent : 'transparent',
                   color: mode === m ? '#000' : C.muted,
                 }}>
-                  {m === 'login' ? t('login.submit') : t('login.register_submit')}
+                  {m === 'login' ? t('login.tab_login') : t('login.tab_register')}
                 </button>
               ))}
             </div>
@@ -301,12 +299,12 @@ export default function LoginPage() {
             {mode === 'login' && (
               <div style={{ marginTop: 18, padding: '14px 16px', background: dark ? '#0D1220' : '#F0F7FF', borderRadius: 12, border: `1px solid ${C.accent}30` }}>
                 <div style={{ fontSize: 10, color: C.muted, marginBottom: 6, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                  🎯 Compte démo
+                  🎯 {t('login.demo_title')}
                 </div>
                 <div style={{ fontSize: 12, color: C.sub, marginBottom: 10, lineHeight: 1.55 }}>
-                  Découvrez ComptaWest avec des données pré-remplies.
+                  {t('login.demo_description')}
                   <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
-                    ✓ Devis · Factures · Stocks · Trésorerie · Paie · Comptabilité
+                    {t('login.demo_features')}
                   </div>
                 </div>
                 <button onClick={handleDemoLogin} disabled={loading} style={{
@@ -319,7 +317,7 @@ export default function LoginPage() {
                   onMouseEnter={e => { e.currentTarget.style.background = C.accent; e.currentTarget.style.color = '#000'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = `${C.accent}15`; e.currentTarget.style.color = C.accent; }}
                 >
-                  {loading ? 'Connexion...' : '→ Accéder au compte démo'}
+                  {loading ? t('login.demo_connecting') : t('login.demo_button')}
                 </button>
               </div>
             )}
@@ -327,9 +325,9 @@ export default function LoginPage() {
             {mode === 'register' && (
               <div style={{ marginTop: 14, padding: '12px 14px', background: dark ? '#0D1220' : '#F8FAFC', borderRadius: 10 }}>
                 <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.65 }}>
-                  ✓ Une entreprise sera créée automatiquement<br />
-                  ✓ 10 catégories SYSCOHADA prédéfinies<br />
-                  ✓ Accès illimité à toutes les fonctionnalités
+                  {t('login.register_advantages_1')}<br />
+                  {t('login.register_advantages_2')}<br />
+                  {t('login.register_advantages_3')}
                 </div>
               </div>
             )}

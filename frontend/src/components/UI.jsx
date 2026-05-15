@@ -4,6 +4,7 @@
  * → Ils se mettent à jour automatiquement en dark/light mode
  */
 import { useTheme } from '../hooks/useTheme.jsx';
+import { useTranslation } from 'react-i18next';
 import { X, AlertTriangle, AlertCircle, CheckCircle } from 'lucide-react';
 
 // ─── Palette centralisée ──────────────────────────────────────────────────
@@ -265,23 +266,29 @@ export const BtnSecondary = ({ children, onClick, type = 'button', style = {} })
 
 // ─── Badge statut ─────────────────────────────────────────────────────────
 export const StatutBadge = ({ statut }) => {
-  const cfg = {
-    payee:      { label: 'Payée',      bg: '#00D4AA20', color: '#00A882', border: '#00D4AA40' },
-    en_attente: { label: 'En attente', bg: '#F5A62320', color: '#A0660A', border: '#F5A62340' },
-    retard:     { label: 'En retard',  bg: '#FF5C6B20', color: '#C01833', border: '#FF5C6B40' },
-    brouillon:  { label: 'Brouillon',  bg: '#6B7A9920', color: '#6B7A99', border: '#6B7A9940' },
-    envoyee:    { label: 'Envoyée',    bg: '#4E8BF520', color: '#1A52B0', border: '#4E8BF540' },
-    annulee:    { label: 'Annulée',    bg: '#FF5C6B20', color: '#C01833', border: '#FF5C6B40' },
-    a_payer:    { label: 'À payer',    bg: '#F5A62320', color: '#A0660A', border: '#F5A62340' },
-    en_retard:  { label: 'En retard',  bg: '#FF5C6B20', color: '#C01833', border: '#FF5C6B40' },
-    exoneree:   { label: 'Exonérée',   bg: '#4E8BF520', color: '#1A52B0', border: '#4E8BF540' },
-  }[statut] || { label: statut, bg: '#6B7A9920', color: '#6B7A99', border: '#6B7A9940' };
+  const { t, i18n } = useTranslation();
+  // Couleurs par statut ; le libellé est résolu via t('statut.<key>').
+  const COULEURS = {
+    payee:      { bg: '#00D4AA20', color: '#00A882', border: '#00D4AA40' },
+    en_attente: { bg: '#F5A62320', color: '#A0660A', border: '#F5A62340' },
+    retard:     { bg: '#FF5C6B20', color: '#C01833', border: '#FF5C6B40' },
+    brouillon:  { bg: '#6B7A9920', color: '#6B7A99', border: '#6B7A9940' },
+    envoyee:    { bg: '#4E8BF520', color: '#1A52B0', border: '#4E8BF540' },
+    annulee:    { bg: '#FF5C6B20', color: '#C01833', border: '#FF5C6B40' },
+    a_payer:    { bg: '#F5A62320', color: '#A0660A', border: '#F5A62340' },
+    en_retard:  { bg: '#FF5C6B20', color: '#C01833', border: '#FF5C6B40' },
+    exoneree:   { bg: '#4E8BF520', color: '#1A52B0', border: '#4E8BF540' },
+  };
+  const cfg = COULEURS[statut] || { bg: '#6B7A9920', color: '#6B7A99', border: '#6B7A9940' };
+  // Si la clé n'existe pas dans le bundle de traduction, on retombe sur le statut brut
+  const key = `statut.${statut}`;
+  const label = i18n.exists(key) ? t(key) : statut;
   return (
     <span style={{
       fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
       background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
       whiteSpace: 'nowrap',
-    }}>{cfg.label}</span>
+    }}>{label}</span>
   );
 };
 

@@ -40,13 +40,14 @@ const adminItems = [
   { to: '/audit-log',  icon: Shield,  i18nKey: 'nav.audit_log',  label: 'Journal d’audit' },
 ];
 
+// Couleurs par rôle ; le libellé est résolu via t('roles.<key>') au rendu.
 const ROLE_COLORS = {
-  proprietaire: { bg: '#F5A62322', color: '#F5A623', label: 'Propriétaire' },
-  admin:        { bg: '#4E8BF522', color: '#4E8BF5', label: 'Admin' },
-  comptable:    { bg: '#00D4AA22', color: '#00D4AA', label: 'Comptable' },
-  rh:           { bg: '#A855F722', color: '#A855F7', label: 'RH' },
-  user:         { bg: '#6B7A9922', color: '#9BAACC', label: 'Utilisateur' },
-  lecture:      { bg: '#6B7A9922', color: '#6B7A99', label: 'Lecture seule' },
+  proprietaire: { bg: '#F5A62322', color: '#F5A623' },
+  admin:        { bg: '#4E8BF522', color: '#4E8BF5' },
+  comptable:    { bg: '#00D4AA22', color: '#00D4AA' },
+  rh:           { bg: '#A855F722', color: '#A855F7' },
+  user:         { bg: '#6B7A9922', color: '#9BAACC' },
+  lecture:      { bg: '#6B7A9922', color: '#6B7A99' },
 };
 
 export default function Sidebar() {
@@ -132,7 +133,7 @@ export default function Sidebar() {
                 {actuelle?.nom || 'Sélectionner...'}
               </div>
               <div style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, background: roleInfo.bg, color: roleInfo.color, display: 'inline-block', marginTop: 2 }}>
-                {roleInfo.label}
+                {t(`roles.${actuelle?.role || 'user'}`)}
               </div>
             </div>
             <ChevronDown size={13} color={C.muted} style={{ flexShrink: 0, transform: showSwitcher ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
@@ -193,7 +194,7 @@ export default function Sidebar() {
       {/* Navigation — défile si le contenu dépasse la hauteur d'écran */}
       <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 10px', display: 'flex', flexDirection: 'column', gap: 3 }}>
         <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: '0.1em', padding: '6px 8px 3px', textTransform: 'uppercase' }}>
-          Menu
+          {t('common.menu')}
         </div>
         {navItems
           .filter(item => !item.rolesRequis || item.rolesRequis.includes(actuelle?.role))
@@ -220,7 +221,7 @@ export default function Sidebar() {
         {estAdmin && (
           <>
             <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: '0.1em', padding: '14px 8px 3px', textTransform: 'uppercase' }}>
-              Administration
+              {t('common.administration')}
             </div>
             {adminItems.map(({ to, icon: Icon, label, i18nKey }) => (
               <NavLink key={to} to={to} style={({ isActive }) => ({

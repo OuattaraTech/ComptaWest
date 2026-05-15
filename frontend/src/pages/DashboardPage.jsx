@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useEntreprise } from '../hooks/useEntreprise.jsx';
 import { useTheme } from '../hooks/useTheme.jsx';
@@ -13,16 +14,18 @@ import {
 } from 'recharts';
 import { TrendingUp, TrendingDown, Users, AlertTriangle, DollarSign, Calculator } from 'lucide-react';
 
-// Salutation selon l'heure locale — varie le texte, l'emoji et le mot d'accueil
-const getSalutation = () => {
+// Salutation selon l'heure locale : renvoie une clé i18n + emoji + clé moment.
+// Les libellés sont résolus dans le composant via t().
+const getSalutationKeys = () => {
   const h = new Date().getHours();
-  if (h >= 5 && h < 12)  return { texte: 'Bonjour',        emoji: '☀️',  moment: 'Belle matinée pour piloter votre activité.' };
-  if (h >= 12 && h < 17) return { texte: 'Bon après-midi', emoji: '🌤️', moment: 'Un point sur vos chiffres en milieu de journée.' };
-  if (h >= 17 && h < 22) return { texte: 'Bonsoir',        emoji: '🌆',  moment: 'Faisons le bilan de votre journée.' };
-  return { texte: 'Bonne nuit', emoji: '🌙', moment: 'ComptaWest veille, même tard le soir.' };
+  if (h >= 5 && h < 12)  return { greeting: 'greeting_morning',   moment: 'moment_morning',   emoji: '☀️' };
+  if (h >= 12 && h < 17) return { greeting: 'greeting_afternoon', moment: 'moment_afternoon', emoji: '🌤️' };
+  if (h >= 17 && h < 22) return { greeting: 'greeting_evening',   moment: 'moment_evening',   emoji: '🌆' };
+  return                        { greeting: 'greeting_night',     moment: 'moment_night',     emoji: '🌙' };
 };
 
 export default function DashboardPage() {
+  const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const { actuelle } = useEntreprise();
   const { dark } = useTheme();
@@ -49,13 +52,13 @@ export default function DashboardPage() {
   if (!actuelle) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', flexDirection: 'column', gap: 12 }}>
       <div style={{ fontSize: 40 }}>🏢</div>
-      <div style={{ color: C.muted, fontSize: 14 }}>Sélectionnez une entreprise dans la sidebar</div>
+      <div style={{ color: C.muted, fontSize: 14 }}>{t('dashboard.no_company_selected')}</div>
     </div>
   );
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: C.muted, fontSize: 13 }}>
-      Chargement du tableau de bord...
+      {t('dashboard.loading')}
     </div>
   );
 
@@ -64,10 +67,12 @@ export default function DashboardPage() {
   const charges = stats?.repartition_charges || [];
   const topClients = stats?.top_clients || [];
 
-  const salutation = getSalutation();
+  const salutKeys = getSalutationKeys();
   const prenom = user?.nom?.split(' ')[0];
+  // Date locale formatée selon la langue active (fr-FR ou en-US)
+  const locale = i18n.language?.startsWith('en') ? 'en-US' : 'fr-FR';
   const dateStr = (() => {
-    const d = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const d = new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     return d.charAt(0).toUpperCase() + d.slice(1);
   })();
 
@@ -98,13 +103,13 @@ export default function DashboardPage() {
               width: 56, height: 56, borderRadius: 16, flexShrink: 0,
               background: `${C.accent}18`, border: `1px solid ${C.accent}35`,
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
-            }}>{salutation.emoji}</div>
+            }}>{salutKeys.emoji}</div>
             <div>
               <h1 style={{ fontSize: 23, fontWeight: 800, letterSpacing: '-0.02em', color: C.text, margin: 0 }}>
-                {salutation.texte}{prenom ? `, ${prenom}` : ''} <span style={{ fontSize: 20 }}>👋</span>
+                {t(`dashboard.${salutKeys.greeting}`)}{prenom ? `, ${prenom}` : ''} <span style={{ fontSize: 20 }}>👋</span>
               </h1>
               <p style={{ fontSize: 12.5, color: C.sub, margin: '5px 0 0' }}>
-                {dateStr} · <span style={{ color: C.muted }}>{salutation.moment}</span>
+                {dateStr} · <span style={{ color: C.muted }}>{t(`dashboard.${salutKeys.moment}`)}</span>
               </p>
             </div>
           </div>
@@ -125,7 +130,7 @@ export default function DashboardPage() {
             <div style={{ background: `${C.red}15`, border: `1px solid ${C.red}50`, borderRadius: 12, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
               <AlertTriangle size={15} color={C.red} />
               <span style={{ fontSize: 13, color: C.red, fontWeight: 600 }}>
-                {kpis.nb_retard} facture{kpis.nb_retard > 1 ? 's' : ''} en retard · {formatFCFA(kpis.en_retard)} FCFA
+                {t(kpis.nb_retard > 1 ? 'dashboard.alert_overdue_other' : 'dashboard.alert_overdue_one', { count: kpis.nb_retard, amount: formatFCFA(kpis.en_retard) })}
               </span>
             </div>
           )}
@@ -133,7 +138,7 @@ export default function DashboardPage() {
             <div style={{ background: `${C.purple}15`, border: `1px solid ${C.purple}50`, borderRadius: 12, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
               <Calculator size={15} color={C.purple} />
               <span style={{ fontSize: 13, color: C.purple, fontWeight: 600 }}>
-                {formatFCFA(kpis.total_taxes_dues)} FCFA de taxes dues (DGI/CNSS)
+                {t('dashboard.alert_taxes_due', { amount: formatFCFA(kpis.total_taxes_dues) })}
               </span>
             </div>
           )}
@@ -142,19 +147,19 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <div data-onboarding="kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 24 }}>
-        <KpiCard label="Chiffre d'affaires" value={kpis.ca_total} sub={`marge ${kpis.marge}%`} icon={TrendingUp} color={C.accent} />
-        <KpiCard label="Dépenses" value={kpis.total_depenses} sub="charges payées" icon={TrendingDown} color={C.red} />
-        <KpiCard label="Taxes dues" value={kpis.total_taxes_dues} sub="DGI · CNSS" icon={Calculator} color={C.purple} alert={kpis.total_taxes_dues > 0} />
-        <KpiCard label="Bénéfice net" value={kpis.benefice_net} sub={`${kpis.nb_factures} factures`} icon={DollarSign} color={C.gold} />
-        <KpiCard label="Clients actifs" value={kpis.nb_clients} sub="en base" icon={Users} color={C.blue} />
+        <KpiCard label={t('dashboard.kpi_revenue')}        value={kpis.ca_total}          sub={t('dashboard.kpi_revenue_sub', { value: kpis.marge })}     icon={TrendingUp}   color={C.accent} />
+        <KpiCard label={t('dashboard.kpi_expenses')}       value={kpis.total_depenses}    sub={t('dashboard.kpi_expenses_sub')}                          icon={TrendingDown} color={C.red} />
+        <KpiCard label={t('dashboard.kpi_taxes_due')}      value={kpis.total_taxes_dues}  sub={t('dashboard.kpi_taxes_due_sub')}                         icon={Calculator}   color={C.purple} alert={kpis.total_taxes_dues > 0} />
+        <KpiCard label={t('dashboard.kpi_profit')}         value={kpis.benefice_net}      sub={t('dashboard.kpi_profit_sub', { count: kpis.nb_factures })} icon={DollarSign}  color={C.gold} />
+        <KpiCard label={t('dashboard.kpi_clients_count')}  value={kpis.nb_clients}        sub={t('dashboard.kpi_clients_sub')}                           icon={Users}        color={C.blue} />
       </div>
 
       {/* Graphiques */}
       <div data-onboarding="graphiques" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20, marginBottom: 22 }}>
         {/* Évolution mensuelle */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, boxShadow: C.shadow }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3, color: C.text }}>Évolution financière {annee}</div>
-          <div style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>Recettes · Dépenses · Bénéfice</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3, color: C.text }}>{t('dashboard.chart_evolution_title', { year: annee })}</div>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>{t('dashboard.chart_evolution_sub')}</div>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={evolution}>
               <defs>
@@ -171,17 +176,17 @@ export default function DashboardPage() {
               <XAxis dataKey="mois" tick={{ fill: C.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis tickFormatter={v => formatFCFA(v, true)} tick={{ fill: C.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
               <Tooltip content={<CustomTooltip />} />
-              <Area type="monotone" dataKey="recettes" name="Recettes" stroke={C.accent} fill="url(#gR)" strokeWidth={2} dot={false} />
-              <Area type="monotone" dataKey="benefice" name="Bénéfice" stroke={C.gold} fill="url(#gB)" strokeWidth={2} dot={false} />
-              <Area type="monotone" dataKey="depenses" name="Dépenses" stroke={C.red} fill="transparent" strokeWidth={1.5} strokeDasharray="4 4" dot={false} />
+              <Area type="monotone" dataKey="recettes" name={t('dashboard.chart_legend_revenue')} stroke={C.accent} fill="url(#gR)" strokeWidth={2} dot={false} />
+              <Area type="monotone" dataKey="benefice" name={t('dashboard.chart_legend_profit')} stroke={C.gold} fill="url(#gB)" strokeWidth={2} dot={false} />
+              <Area type="monotone" dataKey="depenses" name={t('dashboard.chart_legend_expenses')} stroke={C.red} fill="transparent" strokeWidth={1.5} strokeDasharray="4 4" dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
         {/* Répartition charges */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, boxShadow: C.shadow }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3, color: C.text }}>Structure des charges</div>
-          <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>Dépenses par catégorie</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3, color: C.text }}>{t('dashboard.chart_charges_title')}</div>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>{t('dashboard.chart_charges_sub')}</div>
           {charges.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={140}>
@@ -208,7 +213,7 @@ export default function DashboardPage() {
               </div>
             </>
           ) : (
-            <div style={{ textAlign: 'center', padding: '30px 0', color: C.muted, fontSize: 12 }}>Aucune dépense enregistrée</div>
+            <div style={{ textAlign: 'center', padding: '30px 0', color: C.muted, fontSize: 12 }}>{t('dashboard.chart_charges_empty')}</div>
           )}
         </div>
       </div>
@@ -217,12 +222,18 @@ export default function DashboardPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 20 }}>
         {/* Transactions */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, boxShadow: C.shadow }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3, color: C.text }}>Transactions récentes</div>
-          <div style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>Factures et dépenses</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3, color: C.text }}>{t('dashboard.transactions_title')}</div>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>{t('dashboard.transactions_sub')}</div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                {['N°', 'Tiers', 'Montant', 'Date', 'Statut'].map(h => (
+                {[
+                  t('dashboard.transactions_col_num'),
+                  t('dashboard.transactions_col_party'),
+                  t('dashboard.transactions_col_amount'),
+                  t('dashboard.transactions_col_date'),
+                  t('dashboard.transactions_col_status'),
+                ].map(h => (
                   <th key={h} style={{ textAlign: 'left', padding: '6px 10px', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
                 ))}
               </tr>
@@ -242,7 +253,7 @@ export default function DashboardPage() {
                 </tr>
               ))}
               {transactions.length === 0 && (
-                <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: C.muted, fontSize: 12 }}>Aucune transaction</td></tr>
+                <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: C.muted, fontSize: 12 }}>{t('dashboard.transactions_empty')}</td></tr>
               )}
             </tbody>
           </table>
@@ -250,8 +261,8 @@ export default function DashboardPage() {
 
         {/* Top clients */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, boxShadow: C.shadow }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3, color: C.text }}>Top Clients</div>
-          <div style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>Par chiffre d'affaires {annee}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3, color: C.text }}>{t('dashboard.top_clients_title')}</div>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>{t('dashboard.top_clients_sub', { year: annee })}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {topClients.map((c, i) => {
               const maxCA = topClients[0]?.ca_total || 1;
@@ -277,7 +288,7 @@ export default function DashboardPage() {
               );
             })}
             {topClients.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '24px 0', color: C.muted, fontSize: 12 }}>Aucun client</div>
+              <div style={{ textAlign: 'center', padding: '24px 0', color: C.muted, fontSize: 12 }}>{t('dashboard.top_clients_empty')}</div>
             )}
           </div>
         </div>
