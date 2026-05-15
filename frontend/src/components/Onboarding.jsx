@@ -15,16 +15,22 @@
  *   ... et ajouter data-onboarding="kpis" sur les éléments cibles
  */
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme.jsx';
 import { getC } from './UI.jsx';
-import { getOnboarding } from '../utils/onboardingContent.jsx';
+import { getOnboarding as getOnboardingFr } from '../utils/onboardingContent.jsx';
+import { getOnboarding as getOnboardingEn } from '../utils/onboardingContent.en.jsx';
 import { X, ChevronLeft, ChevronRight, HelpCircle, Sparkles } from 'lucide-react';
 
 const SEEN_KEY = (pageKey) => `cw_onboarding_${pageKey}_seen`;
 
 export default function Onboarding({ pageKey }) {
+  const { i18n } = useTranslation();
   const { dark } = useTheme();
   const C = getC(dark);
+  // Charge le contenu d'onboarding dans la langue active. Le fichier .en suit
+  // la même structure que la version FR — seules les chaînes diffèrent.
+  const getOnboarding = i18n.language?.startsWith('en') ? getOnboardingEn : getOnboardingFr;
   const content = getOnboarding(pageKey);
 
   // 'closed' | 'intro' | 'spotlight'

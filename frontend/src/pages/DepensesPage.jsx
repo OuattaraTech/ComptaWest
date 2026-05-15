@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme.jsx';
 import api from '../utils/api.jsx';
 import { formatFCFA, formatDate, truncate } from '../utils/helpers.jsx';
@@ -27,6 +28,7 @@ const emptyForm = {
 };
 
 export default function DepensesPage() {
+  const { t } = useTranslation();
   const { dark } = useTheme();
   const C = getC(dark);
   const navigate = useNavigate();
@@ -65,7 +67,7 @@ export default function DepensesPage() {
       setPagination(dRes.data.pagination);
       setStats(sRes.data.data);
       setCategories(cRes.data.data);
-    } catch { toast.error('Erreur chargement'); }
+    } catch { toast.error(t('depenses.error_load')); }
     finally { setLoading(false); }
   }, [search, filtreCategorie, filtreStatut, page, annee]);
 
@@ -99,17 +101,17 @@ export default function DepensesPage() {
   const handleSubmit = async (e) => {
     e.preventDefault(); setSaving(true);
     try {
-      if (editId) { await api.put(`/depenses/${editId}`, form); toast.success('Dépense mise à jour'); }
-      else { await api.post('/depenses', form); toast.success('Dépense créée'); }
+      if (editId) { await api.put(`/depenses/${editId}`, form); toast.success(t('depenses.modified')); }
+      else { await api.post('/depenses', form); toast.success(t('depenses.created')); }
       setShowModal(false); fetchData();
-    } catch (err) { toast.error(err.response?.data?.message || 'Erreur'); }
+    } catch (err) { toast.error(err.response?.data?.message || t('common.error_generic')); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Supprimer cette dépense ?')) return;
-    try { await api.delete(`/depenses/${id}`); toast.success('Supprimée'); fetchData(); }
-    catch { toast.error('Erreur suppression'); }
+    if (!confirm(t('depenses.confirm_delete'))) return;
+    try { await api.delete(`/depenses/${id}`); toast.success(t('depenses.deleted')); fetchData(); }
+    catch { toast.error(t('depenses.error_delete')); }
   };
 
   const inputStyle = {
@@ -124,9 +126,9 @@ export default function DepensesPage() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>Dépenses</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>{t('depenses.title')}</h1>
           <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
-            {pagination.total} dépenses · {formatFCFA(stats?.total_annee || 0, true)} FCFA en {annee}
+            {pagination.total} {t('depenses.title').toLowerCase()} · {formatFCFA(stats?.total_annee || 0, true)} {t('common.currency')} · {annee}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -135,7 +137,7 @@ export default function DepensesPage() {
             display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', borderRadius: 10,
             border: 'none', background: C.red, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
           }}>
-            <Plus size={15} /> Nouvelle dépense
+            <Plus size={15} /> {t('depenses.new')}
           </button>
         </div>
       </div>
@@ -144,7 +146,7 @@ export default function DepensesPage() {
       {stats && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 22, boxShadow: C.shadow }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, color: C.text }}>Évolution mensuelle {annee}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, color: C.text }}>{t('dashboard.evolution')} {annee}</div>
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={stats.par_mois}>
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
@@ -156,7 +158,7 @@ export default function DepensesPage() {
             </ResponsiveContainer>
           </div>
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 22, boxShadow: C.shadow }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, color: C.text }}>Répartition par catégorie</div>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, color: C.text }}>{t('rapports.chart_charges_sub')}</div>
             <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
               <ResponsiveContainer width={120} height={120}>
                 <PieChart>
@@ -185,20 +187,24 @@ export default function DepensesPage() {
       <div data-onboarding="filtres-statut" style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: '0 0 260px' }}>
           <Search size={13} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: C.muted }} />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Rechercher..."
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder={t('depenses.search_placeholder')}
             style={{ ...inputStyle, paddingLeft: 32, background: C.card }} />
         </div>
         <select value={filtreCategorie} onChange={e => { setFiltreCategorie(e.target.value); setPage(1); }} style={{ ...inputStyle, background: C.card, width: 'auto' }}>
-          <option value="">Toutes les catégories</option>
+          <option value="">{t('common.all')}</option>
           {categories.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
         </select>
-        {['','payee','en_attente'].map(s => (
-          <button key={s} onClick={() => { setFiltreStatut(s); setPage(1); }} style={{
+        {[
+          { v: '',           label: t('common.all')       },
+          { v: 'payee',      label: t('depenses.status_paid')    },
+          { v: 'en_attente', label: t('depenses.status_pending') },
+        ].map(({ v, label }) => (
+          <button key={v} onClick={() => { setFiltreStatut(v); setPage(1); }} style={{
             padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600,
-            border: `1.5px solid ${filtreStatut === s ? C.red : C.border}`,
-            background: filtreStatut === s ? `${C.red}15` : 'transparent',
-            color: filtreStatut === s ? C.red : C.muted, transition: 'all 0.15s',
-          }}>{{ '': 'Tous', payee: 'Payées', en_attente: 'En attente' }[s]}</button>
+            border: `1.5px solid ${filtreStatut === v ? C.red : C.border}`,
+            background: filtreStatut === v ? `${C.red}15` : 'transparent',
+            color: filtreStatut === v ? C.red : C.muted, transition: 'all 0.15s',
+          }}>{label}</button>
         ))}
       </div>
 
@@ -207,7 +213,16 @@ export default function DepensesPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: dark ? '#0D1220' : C.cardAlt, borderBottom: `1px solid ${C.border}` }}>
-              {['N°', 'Description', 'Catégorie', 'Fournisseur', 'Montant TTC', 'Date', 'Statut', ''].map(h => (
+              {[
+                t('dashboard.transactions_col_num'),
+                t('depenses.col_description'),
+                t('depenses.col_category'),
+                t('depenses.col_supplier'),
+                t('depenses.col_amount_ttc'),
+                t('depenses.col_date'),
+                t('depenses.col_status'),
+                '',
+              ].map(h => (
                 <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
@@ -279,7 +294,7 @@ export default function DepensesPage() {
 
       {/* Modal */}
       {showModal && (
-        <Modal title={editId ? 'Modifier la dépense' : 'Nouvelle dépense'} onClose={() => setShowModal(false)}>
+        <Modal title={editId ? t('depenses.edit') : t('depenses.new')} onClose={() => setShowModal(false)}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Catégorie</label>
@@ -288,7 +303,7 @@ export default function DepensesPage() {
                 {categories.map(c => <option key={c.id} value={c.id}>{c.code ? `[${c.code}] ` : ''}{c.nom}</option>)}
               </select>
             </div>
-            <Input label="Description" value={form.description} onChange={set('description')} placeholder="Ex: Loyer Bureau - Janvier" required />
+            <Input label={t('depenses.field_description')} value={form.description} onChange={set('description')} placeholder="Ex: Loyer Bureau - Janvier" required />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Fournisseur</label>
               <div style={{ display: 'flex', gap: 6 }}>
@@ -334,7 +349,7 @@ export default function DepensesPage() {
               )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Input label="Montant HT (FCFA)" type="number" value={form.montant_ht} onChange={set('montant_ht')} placeholder="0" required />
+              <Input label={t('depenses.field_amount_ht')} type="number" value={form.montant_ht} onChange={set('montant_ht')} placeholder="0" required />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>TVA (%)</label>
                 <select value={form.taux_tva} onChange={set('taux_tva')} style={{ ...inputStyle }}>
@@ -351,7 +366,7 @@ export default function DepensesPage() {
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Input label="Date" type="date" value={form.date_depense} onChange={set('date_depense')} required />
+              <Input label={t('depenses.field_date')} type="date" value={form.date_depense} onChange={set('date_depense')} required />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Mode paiement</label>
                 <select value={form.mode_paiement}
@@ -369,7 +384,7 @@ export default function DepensesPage() {
                   <option value="en_attente">En attente</option>
                 </select>
               </div>
-              <Input label="Référence" value={form.reference} onChange={set('reference')} placeholder="Réf. paiement..." />
+              <Input label={t('common.reference')} value={form.reference} onChange={set('reference')} placeholder="Réf. paiement..." />
             </div>
             {form.statut === 'payee' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -397,7 +412,7 @@ export default function DepensesPage() {
                 compte={comptesTresorerie.find(c => c.id === form.compte_tresorerie_id)}
                 montant={montantTTC} />
             )}
-            <Input label="Notes" value={form.notes} onChange={set('notes')} placeholder="Notes complémentaires..." />
+            <Input label={t('common.notes')} value={form.notes} onChange={set('notes')} />
             {(() => {
               // Blocage si dépense payée + compte explicite insuffisant (nouvelle dépense seulement)
               const compteSel = comptesTresorerie.find(c => c.id === form.compte_tresorerie_id);
@@ -414,7 +429,7 @@ export default function DepensesPage() {
                     background: (saving || bloque) ? C.border : C.red, color: (saving || bloque) ? C.muted : '#fff',
                     fontSize: 13, fontWeight: 700, cursor: (saving || bloque) ? 'not-allowed' : 'pointer',
                   }}>
-                    {saving ? 'Enregistrement...' : bloque ? 'Solde insuffisant' : editId ? 'Modifier' : 'Enregistrer'}
+                    {saving ? t('depenses.saving') : bloque ? t('depenses.error_create') : editId ? t('common.edit') : t('depenses.save_button')}
                   </button>
                 </div>
               );

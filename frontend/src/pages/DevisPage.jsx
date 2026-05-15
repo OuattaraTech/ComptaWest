@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../utils/api.jsx';
 import { formatFCFA, formatDate, truncate } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
@@ -11,25 +12,26 @@ import { getC, Input, Modal, KpiCard } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
 
 const DEVIS_STATUTS = ['', 'en_attente', 'accepte', 'refuse', 'expire', 'converti'];
-const DEVIS_LABELS = {
-  '': 'Tous', en_attente: 'En attente', accepte: 'Acceptés',
-  refuse: 'Refusés', expire: 'Expirés', converti: 'Convertis',
-};
 
-// Badge dédié au cycle de vie commercial du devis (distinct du statut comptable)
+// Badge dédié au cycle de vie commercial du devis (distinct du statut comptable).
+// Le libellé est résolu via t('statut.<code>') au rendu.
 const DevisBadge = ({ statut }) => {
-  const cfg = {
-    en_attente: { label: 'En attente', bg: '#F5A62320', color: '#A0660A', border: '#F5A62340' },
-    accepte:    { label: 'Accepté',    bg: '#00D4AA20', color: '#00A882', border: '#00D4AA40' },
-    refuse:     { label: 'Refusé',     bg: '#FF5C6B20', color: '#C01833', border: '#FF5C6B40' },
-    expire:     { label: 'Expiré',     bg: '#6B7A9920', color: '#6B7A99', border: '#6B7A9940' },
-    converti:   { label: 'Converti',   bg: '#4E8BF520', color: '#1A52B0', border: '#4E8BF540' },
-  }[statut] || { label: statut || '—', bg: '#6B7A9920', color: '#6B7A99', border: '#6B7A9940' };
+  const { t, i18n } = useTranslation();
+  const COULEURS = {
+    en_attente: { bg: '#F5A62320', color: '#A0660A', border: '#F5A62340' },
+    accepte:    { bg: '#00D4AA20', color: '#00A882', border: '#00D4AA40' },
+    refuse:     { bg: '#FF5C6B20', color: '#C01833', border: '#FF5C6B40' },
+    expire:     { bg: '#6B7A9920', color: '#6B7A99', border: '#6B7A9940' },
+    converti:   { bg: '#4E8BF520', color: '#1A52B0', border: '#4E8BF540' },
+  };
+  const cfg = COULEURS[statut] || { bg: '#6B7A9920', color: '#6B7A99', border: '#6B7A9940' };
+  const key = `statut.${statut}`;
+  const label = statut && i18n.exists(key) ? t(key) : (statut || '—');
   return (
     <span style={{
       fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
       background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, whiteSpace: 'nowrap',
-    }}>{cfg.label}</span>
+    }}>{label}</span>
   );
 };
 
@@ -41,6 +43,7 @@ const emptyForm = {
 };
 
 export default function DevisPage() {
+  const { t } = useTranslation();
   const { dark } = useTheme();
   const C = getC(dark);
   const [devis, setDevis] = useState([]);
@@ -73,9 +76,9 @@ export default function DevisPage() {
       const res = await api.get(`/devis?search=${search}&devis_statut=${statut}&page=${page}&limit=15`);
       setDevis(res.data.data);
       setPagination(res.data.pagination);
-    } catch { toast.error('Erreur chargement devis'); }
+    } catch { toast.error(t('devis.error_load')); }
     finally { setLoading(false); }
-  }, [search, statut, page]);
+  }, [search, statut, page, t]);
 
   useEffect(() => { fetchDevis(); }, [fetchDevis]);
   useEffect(() => { fetchStats(); }, [fetchStats]);
@@ -113,41 +116,41 @@ export default function DevisPage() {
   const ttc = sousTotal + tva;
 
   const handleSave = async () => {
-    if (!form.client_id) return toast.error('Sélectionnez un client');
-    if (form.lignes.some(l => !l.description || !l.prix_unitaire)) return toast.error('Complétez toutes les lignes');
+    if (!form.client_id) return toast.error(t('factures.error_create'));
+    if (form.lignes.some(l => !l.description || !l.prix_unitaire)) return toast.error(t('factures.error_create'));
     setSaving(true);
     try {
       await api.post('/factures', { ...form, valider_immediatement: false });
-      toast.success(form.type === 'devis' ? 'Devis créé' : 'Proforma créée');
+      toast.success(t('devis.saved'));
       setShowModal(false);
       setForm({ ...emptyForm });
       fetchDevis();
       fetchStats();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur création');
+      toast.error(err.response?.data?.message || t('devis.error_create'));
     } finally { setSaving(false); }
   };
 
   const changerStatut = async (id, devis_statut) => {
     try {
       await api.put(`/devis/${id}/statut`, { devis_statut });
-      toast.success('Statut mis à jour');
+      toast.success(t('factures.success_status'));
       fetchDevis();
       fetchStats();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur mise à jour');
+      toast.error(err.response?.data?.message || t('factures.error_status'));
     }
   };
 
   const supprimer = async (id, numero) => {
-    if (!window.confirm(`Supprimer définitivement le devis ${numero} ?`)) return;
+    if (!window.confirm(t('devis.confirm_delete') + ` (${numero})`)) return;
     try {
       await api.delete(`/devis/${id}`);
-      toast.success('Devis supprimé');
+      toast.success(t('devis.deleted'));
       fetchDevis();
       fetchStats();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur suppression');
+      toast.error(err.response?.data?.message || t('factures.error_delete'));
     }
   };
 
@@ -155,18 +158,18 @@ export default function DevisPage() {
     setSaving(true);
     try {
       const res = await api.post(`/devis/${showConvert.id}/convertir`, convertForm);
-      toast.success(`Facture ${res.data.data.numero} créée depuis le devis`);
+      toast.success(`${res.data.data.numero} — ${t('devis.converted')}`);
       setShowConvert(null);
       setConvertForm({ date_echeance: '', valider_immediatement: false });
       fetchDevis();
       fetchStats();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur conversion');
+      toast.error(err.response?.data?.message || t('devis.error_convert'));
     } finally { setSaving(false); }
   };
 
   const downloadPDF = async (id, numero) => {
-    const toastId = toast.loading('Génération PDF...');
+    const toastId = toast.loading(t('rapports.export_loading'));
     try {
       const res = await api.get(`/rapports/facture/${id}/pdf`, { responseType: 'blob' });
       const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
@@ -178,10 +181,10 @@ export default function DevisPage() {
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast.dismiss(toastId);
-      toast.success('PDF téléchargé');
+      toast.success(t('rapports.export_pdf'));
     } catch {
       toast.dismiss(toastId);
-      toast.error('Erreur génération PDF');
+      toast.error(t('rapports.error_export'));
     }
   };
 
@@ -195,26 +198,24 @@ export default function DevisPage() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>Devis & Proformas</h1>
-          <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
-            {pagination.total} document{pagination.total > 1 ? 's' : ''} · suivi du cycle commercial avant facturation
-          </p>
+          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>{t('devis.title')}</h1>
+          <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{t('devis.subtitle')}</p>
         </div>
         <button data-onboarding="btn-nouveau" onClick={() => { setForm({ ...emptyForm }); setShowModal(true); }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10,
           border: 'none', background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
         }}>
-          <Plus size={16} /> Nouveau devis
+          <Plus size={16} /> {t('devis.new')}
         </button>
       </div>
 
       {/* Stats */}
       {stats && (
         <div data-onboarding="devis-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
-          <KpiCard label="En attente de réponse" value={stats.en_attente} sub={`${formatFCFA(stats.montant_pipeline)} FCFA en jeu`} icon={Clock} color={C.gold} />
-          <KpiCard label="Devis acceptés" value={stats.accepte} sub="prêts à convertir" icon={Check} color={C.accent} />
-          <KpiCard label="Convertis en facture" value={stats.converti} sub={`${formatFCFA(stats.montant_converti)} FCFA facturés`} icon={ArrowRightCircle} color={C.blue} />
-          <KpiCard label="Taux de transformation" value={`${stats.taux_conversion} %`} sub="convertis / devis traités" icon={Percent} color={C.purple} />
+          <KpiCard label={t('statut.en_attente')} value={stats.en_attente} sub={`${formatFCFA(stats.montant_pipeline)} ${t('common.currency')}`} icon={Clock} color={C.gold} />
+          <KpiCard label={t('statut.accepte')} value={stats.accepte} sub={t('devis.convert_button')} icon={Check} color={C.accent} />
+          <KpiCard label={t('statut.converti')} value={stats.converti} sub={`${formatFCFA(stats.montant_converti)} ${t('common.currency')}`} icon={ArrowRightCircle} color={C.blue} />
+          <KpiCard label="%" value={`${stats.taux_conversion} %`} sub={t('common.total')} icon={Percent} color={C.purple} />
         </div>
       )}
 
@@ -223,7 +224,7 @@ export default function DevisPage() {
         <div style={{ position: 'relative', flex: '0 0 280px' }}>
           <Search size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: C.muted }} />
           <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Rechercher..."
+            placeholder={t('devis.search_placeholder')}
             style={{ width: '100%', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 12px 9px 32px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
           />
         </div>
@@ -233,7 +234,7 @@ export default function DevisPage() {
               padding: '8px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
               background: statut === s ? C.accent : (dark ? '#161F2E' : C.hover),
               color: statut === s ? (dark ? '#000' : '#fff') : C.muted, transition: 'all 0.15s',
-            }}>{DEVIS_LABELS[s]}</button>
+            }}>{s ? t(`statut.${s}`) : t('common.all')}</button>
           ))}
         </div>
       </div>
@@ -243,16 +244,25 @@ export default function DevisPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: `1px solid ${C.border}`, background: dark ? '#0D1220' : C.cardAlt }}>
-              {['N°', 'Client', 'Émis le', 'Valide jusqu\'au', 'Montant TTC', 'Statut', 'Facture liée', 'Actions'].map(h => (
+              {[
+                t('devis.col_number'),
+                t('devis.col_client'),
+                t('devis.col_date'),
+                t('devis.col_due'),
+                t('devis.col_total_ttc'),
+                t('devis.col_status'),
+                t('factures.title'),
+                t('common.actions'),
+              ].map(h => (
                 <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: C.muted }}>Chargement...</td></tr>
+              <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: C.muted }}>{t('common.loading')}</td></tr>
             ) : devis.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 13 }}>Aucun devis trouvé</td></tr>
+              <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 13 }}>{t('devis.empty')}</td></tr>
             ) : devis.map(d => {
               const estConverti = d.devis_statut === 'converti';
               const figeable = !estConverti;
@@ -278,22 +288,22 @@ export default function DevisPage() {
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', gap: 5 }}>
                       {figeable && d.devis_statut !== 'accepte' && (
-                        <button onClick={() => changerStatut(d.id, 'accepte')} title="Marquer accepté"
+                        <button onClick={() => changerStatut(d.id, 'accepte')} title={t('devis.accept_button')}
                           style={btnAction(`${C.accent}20`, `${C.accent}40`, C.accent)}><Check size={13} /></button>
                       )}
                       {figeable && d.devis_statut !== 'refuse' && (
-                        <button onClick={() => changerStatut(d.id, 'refuse')} title="Marquer refusé"
+                        <button onClick={() => changerStatut(d.id, 'refuse')} title={t('devis.decline_button')}
                           style={btnAction(`${C.red}20`, `${C.red}40`, C.red)}><Ban size={13} /></button>
                       )}
                       {!estConverti && (
                         <button onClick={() => { setShowConvert(d); setConvertForm({ date_echeance: '', valider_immediatement: false }); }}
-                          title="Convertir en facture"
+                          title={t('devis.convert_button')}
                           style={btnAction(`${C.blue}20`, `${C.blue}40`, C.blue)}><ArrowRightCircle size={13} /></button>
                       )}
-                      <button onClick={() => downloadPDF(d.id, d.numero)} title="Télécharger PDF"
+                      <button onClick={() => downloadPDF(d.id, d.numero)} title={t('factures.btn_download_pdf')}
                         style={btnAction(C.hover, C.border, C.sub)}><Download size={13} /></button>
                       {!estConverti && (
-                        <button onClick={() => supprimer(d.id, d.numero)} title="Supprimer"
+                        <button onClick={() => supprimer(d.id, d.numero)} title={t('common.delete')}
                           style={btnAction(C.hover, C.border, C.muted)}><Trash2 size={13} /></button>
                       )}
                     </div>
@@ -322,7 +332,7 @@ export default function DevisPage() {
 
       {/* Modal nouveau devis */}
       {showModal && (
-        <Modal title={form.type === 'devis' ? 'Nouveau Devis' : 'Nouvelle Proforma'}
+        <Modal title={form.type === 'devis' ? t('devis.new') : t('devis.new_proforma')}
           onClose={() => { setShowModal(false); setForm({ ...emptyForm }); }} width={720}>
           <form onSubmit={(e) => { e.preventDefault(); handleSave(); }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
@@ -485,7 +495,7 @@ export default function DevisPage() {
 
       {/* Modal conversion en facture */}
       {showConvert && (
-        <Modal title={`Convertir ${showConvert.numero} en facture`} onClose={() => setShowConvert(null)} width={440}>
+        <Modal title={`${t('devis.convert_button')} — ${showConvert.numero}`} onClose={() => setShowConvert(null)} width={440}>
           <div style={{ background: `${C.blue}12`, border: `1px solid ${C.blue}40`, borderRadius: 10, padding: '12px 14px', marginBottom: 18, fontSize: 12, color: C.sub, lineHeight: 1.5 }}>
             Une nouvelle facture sera créée pour <strong style={{ color: C.text }}>{showConvert.client_nom}</strong> en
             reprenant les {' '}<strong style={{ color: C.text }}>{formatFCFA(showConvert.total_ttc)} FCFA TTC</strong> du devis.
