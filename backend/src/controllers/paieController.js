@@ -797,6 +797,19 @@ const payerBulletin = async (req, res) => {
 
     // Résolution du compte de trésorerie
     let compteId = compte_tresorerie_id;
+    if (compteId) {
+      // Vérifier que le compte fourni appartient bien à cette entreprise :
+      // sans ce filtre, n'importe qui peut faire passer un salaire sur la
+      // banque d'une autre entreprise (et la sortie de trésorerie associée).
+      const verif = await client.query(
+        `SELECT id FROM comptes_tresorerie WHERE id = $1 AND entreprise_id = $2 AND archived_at IS NULL`,
+        [compteId, eid]
+      );
+      if (!verif.rows[0]) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, message: 'Compte de trésorerie invalide' });
+      }
+    }
     if (!compteId) {
       // Tente le compte de l'employé, sinon le compte par défaut bancaire
       const empRes = await client.query(`SELECT compte_tresorerie_id, mode_paiement FROM employes WHERE id = $1`, [bul.employe_id]);

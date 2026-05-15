@@ -512,10 +512,23 @@ const transfererEntreComptes = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Compte introuvable' });
     }
 
+    // Garde-fou clôture : un transfert antidaté dans un exercice clos fait
+    // diverger la balance fournisseur figée des soldes courants de trésorerie.
+    // Même justification que pour createMouvement (pas d'écriture comptable
+    // auto, donc creerEcriture ne protège pas).
+    const dateOp = (date_operation && String(date_operation).slice(0, 10)) || new Date().toISOString().split('T')[0];
+    const exId = await trouverExerciceOuvert(client, eid, dateOp);
+    if (!exId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: `Aucun exercice ouvert pour la date ${dateOp}. L'exercice correspondant est clôturé.`,
+        code: 'EXERCICE_FERME',
+      });
+    }
+
     // Contrôle de solde sur le compte source
     await controlerSoldeAvantSortie(client, compte_source_id, m);
-
-    const dateOp = date_operation || new Date();
     const libelleFinal = libelle || `Transfert ${sourceRes.rows[0].nom} → ${destRes.rows[0].nom}`;
     const transfertGroupRef = `TRF-${Date.now()}`;
 

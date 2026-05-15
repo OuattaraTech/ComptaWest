@@ -919,6 +919,7 @@ const JOURNAUX_DEFAUT = [
   { code: 'MM',  libelle: 'Journal Mobile Money',   type: 'BANQUE',    compte_contrepartie: '541'  },
   { code: 'OD',  libelle: 'Opérations diverses',    type: 'OD',        compte_contrepartie: null   },
   { code: 'AN',  libelle: 'À nouveau',              type: 'A_NOUVEAU', compte_contrepartie: null   },
+  { code: 'PAI', libelle: 'Journal de paie',        type: 'OD',        compte_contrepartie: '422'  },
 ];
 
 module.exports = { PLAN_COMPTABLE, JOURNAUX_DEFAUT };

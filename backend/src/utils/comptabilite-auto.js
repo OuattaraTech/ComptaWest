@@ -32,12 +32,16 @@ const compteTresorerie = (mode) => COMPTES_TRESORERIE[mode] || '5211';
 
 /**
  * Codes d'erreur qui doivent ANNULER l'action métier appelante (rollback),
- * et non être avalés. Une écriture sur un exercice clos ou une écriture
- * déséquilibrée traduisent une contrainte forte du système comptable :
+ * et non être avalés. Une écriture sur un exercice clos, une écriture
+ * déséquilibrée, un journal manquant ou un compte introuvable traduisent
+ * une contrainte forte (ou une configuration cassée) du système comptable :
  * laisser passer l'action métier sans son pendant comptable créerait une
- * incohérence (facture vendue mais hors compta, par ex.).
+ * incohérence (facture vendue mais hors compta, par ex.). On préfère
+ * échouer bruyamment pour que l'admin corrige la configuration.
  */
-const ERREURS_BLOQUANTES = new Set(['EXERCICE_FERME', 'DESEQUILIBRE']);
+const ERREURS_BLOQUANTES = new Set([
+  'EXERCICE_FERME', 'DESEQUILIBRE', 'JOURNAL_INCONNU', 'COMPTE_INCONNU',
+]);
 
 /**
  * Wrapper : exécute fn() en attrapant ComptaError pour les remonter en log lisible.
@@ -103,10 +107,20 @@ const ecritureFacture = async (client, { entrepriseId, utilisateurId, facture, c
 /**
  * Écriture de paiement d'un fournisseur (décaissement) :
  *   401 (D) compte fournisseur / 521|571|541 (C) trésorerie
- * Utilise le code auxiliaire 4011XXX du fournisseur si disponible, sinon 401 collectif.
+ * Utilise le code auxiliaire 4011XXX du fournisseur si disponible et présent
+ * dans le plan comptable de l'entreprise, sinon fallback vers le collectif 4011.
+ * Le fallback couvre les fournisseurs créés avant que createFournisseur ne seede
+ * automatiquement leur compte auxiliaire dans le plan.
  */
 const ecriturePaiementFournisseur = async (client, { entrepriseId, utilisateurId, fournisseur, paiement }) => {
-  const compteFournisseur = fournisseur.code_auxiliaire || '401';
+  let compteFournisseur = '4011';
+  if (fournisseur.code_auxiliaire) {
+    const r = await client.query(
+      `SELECT 1 FROM plan_comptable WHERE entreprise_id = $1 AND numero = $2 AND actif = true LIMIT 1`,
+      [entrepriseId, fournisseur.code_auxiliaire]
+    );
+    if (r.rows.length > 0) compteFournisseur = fournisseur.code_auxiliaire;
+  }
   return safeAuto(`paiement fournisseur ${fournisseur.nom}`, () =>
     creerEcriture(client, {
       entrepriseId,
@@ -232,23 +246,29 @@ const ecriturePaiementTaxe = async (client, { entrepriseId, utilisateurId, taxe,
  * Écriture de constat de la charge salariale d'un bulletin de paie (à la validation).
  * Journal PAI. Date = fin de période (periode_fin).
  *
- * Schéma SYSCOHADA :
- *   661 Rémunérations directes      (D) brut_total
- *   664 Charges sociales patronales (D) total_cotisations_patronales
- *       421 Personnel - rémun. dues  (C) net_a_payer
- *       431 Sécurité sociale         (C) total_cotisations_salariales + total_cotisations_patronales
- *       4471 État - ITS retenu       (C) total_impots
+ * Schéma SYSCOHADA (plan ComptaWest) :
+ *   661 Rémunérations directes              (D) brut_total
+ *   664 Charges sociales patronales         (D) total_cotisations_patronales
+ *       422 Personnel - rémunérations dues   (C) net_a_payer
+ *       431 Sécurité sociale                 (C) total_cotisations_salariales + total_cotisations_patronales
+ *       4471 État - ITS retenu               (C) total_impots
+ *       421 Personnel - avances et acomptes  (C) total_retenues (solde des avances/acomptes versés)
+ *
+ * Note sur le plan : dans ComptaWest, 422 = net à payer (PASSIF) et 421 = avances/
+ * acomptes (ACTIF) — l'inverse de la nomenclature SYSCOHADA stricte. Conserver
+ * cette correspondance car c'est celle du seed plan_comptable_syscohada.js.
  *
  * Vérification d'équilibre :
- *   brut + cot_pat = net + (cot_sal + cot_pat) + impots
- *   brut + cot_pat = (brut - cot_sal - impots) + cot_sal + cot_pat + impots ✓
+ *   brut + cot_pat = net + (cot_sal + cot_pat) + impots + retenues
+ *   brut + cot_pat = (brut - cot_sal - impots - retenues) + cot_sal + cot_pat + impots + retenues ✓
  */
 const ecritureBulletinValidation = async (client, { entrepriseId, utilisateurId, bulletin }) => {
-  const brut    = round2(bulletin.brut_total);
-  const cotSal  = round2(bulletin.total_cotisations_salariales);
-  const cotPat  = round2(bulletin.total_cotisations_patronales);
-  const impots  = round2(bulletin.total_impots);
-  const net     = round2(bulletin.net_a_payer);
+  const brut     = round2(bulletin.brut_total);
+  const cotSal   = round2(bulletin.total_cotisations_salariales);
+  const cotPat   = round2(bulletin.total_cotisations_patronales);
+  const impots   = round2(bulletin.total_impots);
+  const retenues = round2(bulletin.total_retenues);
+  const net      = round2(bulletin.net_a_payer);
 
   if (brut <= 0) return null;
 
@@ -258,9 +278,9 @@ const ecritureBulletinValidation = async (client, { entrepriseId, utilisateurId,
   if (cotPat > 0) {
     lignes.push({ compte: '664', debit: cotPat, libelle: `Charges patronales ${bulletin.nom_complet}` });
   }
-  // Crédit : dettes
+  // Crédit : dettes envers le salarié, les organismes sociaux, l'État
   if (net > 0) {
-    lignes.push({ compte: '421', credit: net, libelle: `Net à payer ${bulletin.nom_complet}` });
+    lignes.push({ compte: '422', credit: net, libelle: `Net à payer ${bulletin.nom_complet}` });
   }
   const totalCotisations = round2(cotSal + cotPat);
   if (totalCotisations > 0) {
@@ -268,6 +288,12 @@ const ecritureBulletinValidation = async (client, { entrepriseId, utilisateurId,
   }
   if (impots > 0) {
     lignes.push({ compte: '4471', credit: impots, libelle: `ITS retenu à la source` });
+  }
+  if (retenues > 0) {
+    // Solde de l'avance/acompte précédemment versé (qui était au débit du 421
+    // lors du versement). Une retenue paie donc une dette de l'employé envers
+    // l'employeur, et fait disparaître la créance.
+    lignes.push({ compte: '421', credit: retenues, libelle: `Retenue sur salaire ${bulletin.nom_complet}` });
   }
 
   return safeAuto(`bulletin ${bulletin.nom_complet} ${bulletin.mois}/${bulletin.annee}`, () =>
@@ -315,7 +341,7 @@ const ecriturePaiementBulletin = async (client, { entrepriseId, utilisateurId, b
       origine: 'AUTO_PAIE_VERSEMENT',
       origineId: bulletin.id,
       lignes: [
-        { compte: '421', debit: net, libelle: `Solde dette ${bulletin.nom_complet}` },
+        { compte: '422', debit: net, libelle: `Solde dette ${bulletin.nom_complet}` },
         { compte: compteTresorerie(modePaiement), credit: net, libelle: `Versement ${bulletin.nom_complet}` },
       ],
     })

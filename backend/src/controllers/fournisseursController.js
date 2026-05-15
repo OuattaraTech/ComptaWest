@@ -150,13 +150,15 @@ const getFournisseurById = async (req, res) => {
 
 // POST /api/fournisseurs
 const createFournisseur = async (req, res) => {
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
     const eid = req.entrepriseId;
     const b = req.body;
     const code = b.code || await generateCode(eid);
     const codeAux = b.code_auxiliaire || await generateCodeAux(eid);
 
-    const r = await pool.query(
+    const r = await client.query(
       `INSERT INTO fournisseurs (
         entreprise_id, code, code_auxiliaire, nom, type, email, telephone,
         contact_principal, adresse, ville, pays, ninea, rccm,
@@ -176,14 +178,28 @@ const createFournisseur = async (req, res) => {
       ]
     );
 
-    logAudit(req, 'CREATE', 'fournisseurs', r.rows[0].id, { code, nom: b.nom });
+    // Création du compte auxiliaire dans le plan comptable. Sans cette ligne,
+    // l'écriture comptable de paiement fournisseur échoue silencieusement avec
+    // COMPTE_INCONNU. ON CONFLICT : code aux saisi manuellement et déjà présent.
+    await client.query(
+      `INSERT INTO plan_comptable (entreprise_id, numero, libelle, classe, nature, parent_numero, est_lettrable)
+       VALUES ($1, $2, $3, 4, 'PASSIF', '4011', true)
+       ON CONFLICT (entreprise_id, numero) DO NOTHING`,
+      [eid, codeAux, `Fournisseur ${b.nom}`.slice(0, 200)]
+    );
+
+    await client.query('COMMIT');
+    logAudit(req, 'CREATE', 'fournisseurs', r.rows[0].id, { code, code_auxiliaire: codeAux, nom: b.nom });
     res.status(201).json({ success: true, data: r.rows[0] });
   } catch (err) {
+    await client.query('ROLLBACK');
     if (err.code === '23505') {
       return res.status(400).json({ success: false, message: 'Code déjà utilisé' });
     }
     console.error('Erreur createFournisseur:', err.message);
     res.status(500).json({ success: false, message: 'Erreur création' });
+  } finally {
+    client.release();
   }
 };
 

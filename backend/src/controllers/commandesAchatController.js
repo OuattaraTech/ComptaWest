@@ -422,9 +422,11 @@ const creerPaiementFournisseur = async (req, res) => {
     const datePaiement = b.date_paiement || new Date().toISOString().split('T')[0];
 
     // Récupère le fournisseur (nom + code auxiliaire pour l'écriture comptable)
+    // Filtre obligatoire sur entreprise_id : sans cela, n'importe qui peut piloter
+    // une écriture comptable contre un fournisseur d'un autre tenant.
     const fRes = await client.query(
-      `SELECT id, nom, code_auxiliaire FROM fournisseurs WHERE id = $1`,
-      [b.fournisseur_id]
+      `SELECT id, nom, code_auxiliaire FROM fournisseurs WHERE id = $1 AND entreprise_id = $2`,
+      [b.fournisseur_id, eid]
     );
     if (!fRes.rows[0]) {
       await client.query('ROLLBACK');

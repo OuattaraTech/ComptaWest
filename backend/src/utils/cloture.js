@@ -129,44 +129,85 @@ const verifierPreCloture = async (client, entrepriseId, exerciceId, dateFin) => 
     });
   }
 
-  // 5. Résultat prévisionnel
+  // 5. Soldes atypiques (compte 6 créditeur ou compte 7 débiteur) — informatif
   const soldes = await calculerSoldes(client, entrepriseId, exerciceId, ['6', '7']);
-  const totalCharges = soldes.filter(s => s.compte_numero.startsWith('6'))
-                              .reduce((sum, s) => sum + Math.max(s.solde, 0), 0);
-  const totalProduits = soldes.filter(s => s.compte_numero.startsWith('7'))
-                              .reduce((sum, s) => sum - Math.min(s.solde, 0), 0);
+  const atypiques = [
+    ...soldes.filter(s => s.compte_numero.startsWith('6') && s.solde < 0),
+    ...soldes.filter(s => s.compte_numero.startsWith('7') && s.solde > 0),
+  ];
+  if (atypiques.length > 0) {
+    checks.push({
+      code: 'SOLDES_ATYPIQUES', niveau: 'warning',
+      message: `${atypiques.length} solde(s) atypique(s) en classe 6/7 (${atypiques.map(a => a.compte_numero).join(', ')}). La clôture les traitera correctement mais vérifiez la cohérence métier.`,
+    });
+  }
+
+  // 6. Résultat prévisionnel — somme algébrique réelle (prend en compte les atypiques).
+  //    Pour la classe 6, on totalise les soldes débiteurs nets ; pour la classe 7,
+  //    les soldes créditeurs nets. Résultat = produits − charges.
+  const soldeNetClasse = (prefix) => soldes
+    .filter(s => s.compte_numero.startsWith(prefix))
+    .reduce((sum, s) => sum + s.solde, 0);
+  const totalCharges  = round2(soldeNetClasse('6'));     // > 0 si charges nettes débitrices (normal)
+  const totalProduits = round2(-soldeNetClasse('7'));    // > 0 si produits nets créditeurs (normal)
   const resultat = round2(totalProduits - totalCharges);
   checks.push({
     code: 'RESULTAT_PREVISIONNEL', niveau: 'ok',
     message: `Résultat prévisionnel : ${resultat} FCFA (${resultat >= 0 ? 'bénéfice' : 'perte'})`,
-    data: { totalCharges: round2(totalCharges), totalProduits: round2(totalProduits), resultat },
+    data: { totalCharges, totalProduits, resultat },
   });
 
   return checks;
 };
 
 /**
- * Génère l'écriture de virement des charges au compte de résultat.
- * Format : 13 (D total) / 60x, 61x, ... (C solde de chaque compte)
- * Ne génère rien si pas de charges à solder.
+ * Construit les lignes de virement d'un ensemble de soldes vers le compte 13.
+ * Gère les soldes typiques ET atypiques (compte 6 créditeur ou compte 7 débiteur,
+ * cas réels : avoir total dépassant les ventes du compte, OD de régularisation).
+ *
+ *   Pour chaque compte avec solde D > 0 : ligne (compte C |solde|) → vient en D du 13
+ *   Pour chaque compte avec solde C > 0 : ligne (compte D |solde|) → vient en C du 13
+ *   La contrepartie 13 a un solde net (D ou C) reflétant le total algébrique.
+ *
+ * Renvoie { lignes, netVersResultat } ; lignes inclut déjà la contrepartie 13.
+ * Renvoie null s'il n'y a aucun solde à virer.
+ */
+const _construireVirement = (aSolder, libelleSens) => {
+  if (aSolder.length === 0) return null;
+
+  let totalNet = 0; // > 0 = solde débiteur net de la classe → débit 13
+  const lignesComptes = aSolder.map(s => {
+    totalNet += s.solde;
+    return s.solde > 0
+      ? { compte: s.compte_numero, credit: round2(s.solde), libelle: `Solde ${s.compte_numero}` }
+      : { compte: s.compte_numero, debit: round2(-s.solde), libelle: `Solde atypique ${s.compte_numero}` };
+  });
+
+  if (Math.abs(totalNet) < 0.01) {
+    // Net algébriquement nul : on solde quand même chaque compte individuellement
+    // (les comptes atypiques et typiques se compensent au niveau classe). Pas de
+    // ligne 13 nécessaire. Mais creerEcriture exige >= 2 lignes équilibrées,
+    // donc si seulement 1 compte avec solde≈0 il n'y a rien à faire (early null).
+    if (lignesComptes.length < 2) return null;
+    return { lignes: lignesComptes, netVersResultat: 0 };
+  }
+
+  const ligne13 = totalNet > 0
+    ? { compte: COMPTE_RESULTAT, debit: round2(totalNet), libelle: `Virement ${libelleSens} au résultat` }
+    : { compte: COMPTE_RESULTAT, credit: round2(-totalNet), libelle: `Virement ${libelleSens} au résultat` };
+
+  return { lignes: [ligne13, ...lignesComptes], netVersResultat: round2(totalNet) };
+};
+
+/**
+ * Génère l'écriture de virement des charges (classe 6) au compte de résultat.
+ * Accepte les soldes atypiques (compte 6 créditeur après régularisation).
  */
 const ecritureSoldeCharges = async (client, { entrepriseId, utilisateurId, exercice }) => {
   const soldes = await calculerSoldes(client, entrepriseId, exercice.id, ['6']);
-  // On ne prend que les comptes à solde débiteur (cas normal des charges)
-  const aSolder = soldes.filter(s => s.solde > 0);
-  if (aSolder.length === 0) return null;
-
-  const total = aSolder.reduce((sum, s) => sum + s.solde, 0);
-  const lignes = [
-    {
-      compte: COMPTE_RESULTAT, debit: round2(total),
-      libelle: `Virement des charges au résultat`,
-    },
-    ...aSolder.map(s => ({
-      compte: s.compte_numero, credit: s.solde,
-      libelle: `Solde ${s.compte_numero}`,
-    })),
-  ];
+  const aSolder = soldes.filter(s => Math.abs(s.solde) > 0.01);
+  const virement = _construireVirement(aSolder, 'des charges');
+  if (!virement) return null;
 
   return creerEcriture(client, {
     entrepriseId, utilisateurId,
@@ -175,33 +216,23 @@ const ecritureSoldeCharges = async (client, { entrepriseId, utilisateurId, exerc
     libelle: `Clôture ${exercice.libelle} — solde des charges (classe 6)`,
     origine: 'AUTO_CLOTURE',
     origineId: exercice.id,
-    lignes,
+    lignes: virement.lignes,
   });
 };
 
 /**
- * Génère l'écriture de virement des produits au compte de résultat.
- * Format : 70x, 71x, ... (D solde de chaque compte) / 13 (C total)
+ * Génère l'écriture de virement des produits (classe 7) au compte de résultat.
+ * Accepte les soldes atypiques (compte 7 débiteur après avoir excédentaire).
  */
 const ecritureSoldeProduits = async (client, { entrepriseId, utilisateurId, exercice }) => {
   const soldes = await calculerSoldes(client, entrepriseId, exercice.id, ['7']);
-  // Produits = solde créditeur (négatif dans notre convention debit-credit)
-  const aSolder = soldes.filter(s => s.solde < 0).map(s => ({
-    compte_numero: s.compte_numero, solde: -s.solde, // on rebascule en positif
-  }));
-  if (aSolder.length === 0) return null;
+  const aSolder = soldes.filter(s => Math.abs(s.solde) > 0.01);
+  // Pour les produits, le sens "normal" est solde créditeur. _construireVirement
+  // produit naturellement ligne 13 au crédit dans ce cas (totalNet < 0).
+  const virement = _construireVirement(aSolder, 'des produits');
+  if (!virement) return null;
 
-  const total = aSolder.reduce((sum, s) => sum + s.solde, 0);
-  const lignes = [
-    ...aSolder.map(s => ({
-      compte: s.compte_numero, debit: s.solde,
-      libelle: `Solde ${s.compte_numero}`,
-    })),
-    {
-      compte: COMPTE_RESULTAT, credit: round2(total),
-      libelle: `Virement des produits au résultat`,
-    },
-  ];
+  const lignes = virement.lignes;
 
   return creerEcriture(client, {
     entrepriseId, utilisateurId,

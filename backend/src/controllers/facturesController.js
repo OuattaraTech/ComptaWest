@@ -135,6 +135,19 @@ const createFacture = async (req, res) => {
         message: "Un avoir doit obligatoirement référencer la facture d'origine",
       });
     }
+    // Vérifier que facture_origine_id, s'il est fourni, appartient à cette entreprise
+    // et est bien une facture (pas un devis/avoir). Sans cela, un utilisateur peut
+    // lier son avoir à une facture d'un autre tenant et exposer son numéro.
+    if (facture_origine_id) {
+      const orig = await client.query(
+        `SELECT id FROM factures WHERE id = $1 AND entreprise_id = $2 AND type = 'facture'`,
+        [facture_origine_id, eid]
+      );
+      if (!orig.rows[0]) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, message: "Facture d'origine introuvable" });
+      }
+    }
 
     // Devis et proforma ne sont jamais comptabilisés : statut bloqué à 'brouillon'
     const peutValider = type === 'facture' || type === 'avoir';
@@ -295,6 +308,16 @@ const updateFacture = async (req, res) => {
         message: "Un avoir doit obligatoirement référencer la facture d'origine",
       });
     }
+    if (facture_origine_id) {
+      const orig = await client.query(
+        `SELECT id FROM factures WHERE id = $1 AND entreprise_id = $2 AND type = 'facture'`,
+        [facture_origine_id, eid]
+      );
+      if (!orig.rows[0]) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, message: "Facture d'origine introuvable" });
+      }
+    }
 
     const clientCheck = await client.query(
       'SELECT id FROM clients WHERE id=$1 AND entreprise_id=$2 AND actif=true',
@@ -314,17 +337,40 @@ const updateFacture = async (req, res) => {
     const montant_tva = sous_total * (tvaNorm / 100);
     const total_ttc = sous_total + montant_tva;
 
+    // Régénérer le numéro si le type ou l'année d'émission changent.
+    // Sans cela, un brouillon F-2026-005 basculé en avoir reste F- (non SYSCOHADA),
+    // ou redaté en 2027 garde son préfixe 2026 (collision possible sur la séquence
+    // de l'ancienne année car cette facture ne contribue plus au COUNT).
+    let nouveauNumero = ancienne.numero;
+    const nouvelleDateEmission = date_emission || ancienne.date_emission;
+    const ancienneAnnee = new Date(ancienne.date_emission).getFullYear();
+    const nouvelleAnnee = new Date(nouvelleDateEmission).getFullYear();
+    const typeChange = type !== ancienne.type;
+    const anneeChange = ancienneAnnee !== nouvelleAnnee;
+    if (typeChange || anneeChange) {
+      await client.query('LOCK TABLE factures IN SHARE ROW EXCLUSIVE MODE');
+      const countRes = await client.query(
+        `SELECT COUNT(*) FROM factures
+          WHERE entreprise_id = $1
+            AND EXTRACT(YEAR FROM date_emission) = $2
+            AND id <> $3`,
+        [eid, nouvelleAnnee, id]
+      );
+      const prefix = type === 'devis' ? 'D' : type === 'avoir' ? 'AV' : type === 'proforma' ? 'PRO' : 'F';
+      nouveauNumero = `${prefix}-${nouvelleAnnee}-${String(parseInt(countRes.rows[0].count) + 1).padStart(3, '0')}`;
+    }
+
     const updateRes = await client.query(
       `UPDATE factures
-         SET client_id=$1, type=$2, date_emission=$3, date_echeance=$4,
-             sous_total=$5, taux_tva=$6, montant_tva=$7, total_ttc=$8,
-             notes=$9, conditions_paiement=$10, facture_origine_id=$11,
+         SET client_id=$1, type=$2, numero=$3, date_emission=$4, date_echeance=$5,
+             sous_total=$6, taux_tva=$7, montant_tva=$8, total_ttc=$9,
+             notes=$10, conditions_paiement=$11, facture_origine_id=$12,
              updated_at=NOW()
-       WHERE id=$12 AND entreprise_id=$13
+       WHERE id=$13 AND entreprise_id=$14
        RETURNING *`,
       [
-        client_id, type,
-        date_emission || ancienne.date_emission,
+        client_id, type, nouveauNumero,
+        nouvelleDateEmission,
         date_echeance || null,
         Math.round(sous_total * 100) / 100, tvaNorm,
         Math.round(montant_tva * 100) / 100,

@@ -37,13 +37,22 @@ const genererNumeroPiece = async (client, entrepriseId, journalCode, dateEcritur
 /**
  * Trouve l'exercice ouvert qui contient la date donnée.
  * Renvoie null si aucun exercice n'est ouvert pour cette date.
+ *
+ * `FOR SHARE` : sous READ COMMITTED (défaut PG), un SELECT simple ne voit pas
+ * une transaction de clôture en cours qui détient un `FOR UPDATE` sur la même
+ * ligne. Cela ouvre une race : une écriture concurrente peut se faufiler dans
+ * l'exercice pendant que cloturerExercice calcule les soldes 6/7, casser
+ * l'équilibre du virement et faire échouer l'à-nouveau. `FOR SHARE` bloque
+ * cet appel jusqu'au COMMIT/ROLLBACK de la clôture — qui verra alors
+ * `cloture=true` et lèvera EXERCICE_FERME.
  */
 const trouverExerciceOuvert = async (client, entrepriseId, date) => {
   const res = await client.query(
     `SELECT id FROM exercices
      WHERE entreprise_id = $1 AND cloture = false
        AND $2::date BETWEEN date_debut AND date_fin
-     LIMIT 1`,
+     LIMIT 1
+     FOR SHARE`,
     [entrepriseId, date]
   );
   return res.rows[0]?.id || null;
