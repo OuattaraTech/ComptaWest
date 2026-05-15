@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+// En dev : '/api' est proxifié vers localhost:5000 par vite.config.js.
+// En prod : VITE_API_URL doit pointer vers le backend (ex. https://comptawest-api.onrender.com/api).
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   headers: { 'Content-Type': 'application/json' },
   timeout: 30000,
 });
