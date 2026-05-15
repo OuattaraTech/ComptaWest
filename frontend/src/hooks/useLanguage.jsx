@@ -9,7 +9,7 @@
  *   si elle diffère du localStorage (la prochaine connexion respecte donc le
  *   choix précédent).
  */
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../utils/api.jsx';
 import { useAuth } from './useAuth.jsx';
@@ -22,18 +22,33 @@ export const LANGUES_DISPONIBLES = [
 export function useLanguage() {
   const { i18n } = useTranslation();
   const { user } = useAuth();
+  // On retient quel utilisateur a déjà été synchronisé avec sa préférence
+  // serveur. Sans cela, le useEffect ci-dessous reverrait i18n.language vers
+  // user.langue à chaque changement local (car user.langue ne suit que par
+  // un fetch /auth/me), créant une boucle qui annule tout switch manuel.
+  const syncedUserId = useRef(null);
 
-  // Au login : si l'utilisateur a une préférence serveur différente de la
-  // langue locale actuelle, on l'applique (priorité au choix sauvegardé).
+  // Au login (ou changement d'utilisateur) : applique la préférence serveur
+  // UNE SEULE FOIS pour ce user. Les changements manuels ultérieurs ne sont
+  // pas réécrasés par cet effet.
   useEffect(() => {
-    if (user?.langue && user.langue !== i18n.language) {
+    if (!user) {
+      syncedUserId.current = null;
+      return;
+    }
+    if (syncedUserId.current === user.id) return;
+    syncedUserId.current = user.id;
+    if (user.langue && user.langue !== i18n.language) {
       i18n.changeLanguage(user.langue);
     }
-  }, [user?.langue, i18n]);
+  }, [user, i18n]);
 
   const change = useCallback(async (code) => {
     await i18n.changeLanguage(code);
     if (user) {
+      // Met à jour le marqueur de sync pour éviter qu'un re-render
+      // ne déclenche un retour à l'ancienne valeur de user.langue.
+      syncedUserId.current = user.id;
       try {
         await api.put('/auth/me/langue', { langue: code });
       } catch {
