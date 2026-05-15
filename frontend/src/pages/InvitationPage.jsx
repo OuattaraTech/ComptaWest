@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useEntreprise } from '../hooks/useEntreprise.jsx';
 import { useTheme } from '../hooks/useTheme.jsx';
 import api from '../utils/api.jsx';
 import { Sun, Moon, ShieldCheck, ArrowRight, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import LanguageSwitcher from '../components/LanguageSwitcher.jsx';
 
 const getC = (dark) => dark ? {
   bg: '#0B0F1A', card: '#111827', border: '#1E2D40',
@@ -17,10 +19,7 @@ const getC = (dark) => dark ? {
   red: '#E03050', input: '#F8FAFC',
 };
 
-const ROLE_LABELS = {
-  proprietaire: 'Propriétaire', admin: 'Administrateur',
-  comptable: 'Comptable', user: 'Utilisateur', lecture: 'Lecture seule',
-};
+// Les libellés de rôles sont résolus via t('roles.<code>') au rendu.
 
 const Input = ({ label, type = 'text', value, onChange, placeholder, required, C }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -40,6 +39,7 @@ const Input = ({ label, type = 'text', value, onChange, placeholder, required, C
 );
 
 export default function InvitationPage() {
+  const { t } = useTranslation();
   const { token } = useParams();
   const { acceptInvitation } = useAuth();
   const { chargerEntreprises } = useEntreprise();
@@ -62,31 +62,31 @@ export default function InvitationPage() {
         setEtat('valide');
       })
       .catch(err => {
-        setErreur(err.response?.data?.message || 'Lien d\'invitation invalide');
+        setErreur(err.response?.data?.message || t('invitation.invalid'));
         setEtat('erreur');
       });
-  }, [token]);
+  }, [token, t]);
 
   const set = key => e => setForm(f => ({ ...f, [key]: e.target.value }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (form.mot_de_passe.length < 8) {
-      toast.error('Mot de passe : 8 caractères minimum');
+      toast.error(t('invitation.password_short'));
       return;
     }
     if (form.mot_de_passe !== form.confirmation) {
-      toast.error('Les deux mots de passe ne correspondent pas');
+      toast.error(t('invitation.password_mismatch'));
       return;
     }
     setLoading(true);
     try {
       await acceptInvitation(token, { nom: form.nom, mot_de_passe: form.mot_de_passe });
       await chargerEntreprises();
-      toast.success('Compte activé — bienvenue sur ComptaWest !');
+      toast.success(t('invitation.success'));
       navigate('/dashboard');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur lors de l\'activation');
+      toast.error(err.response?.data?.message || t('invitation.error'));
     } finally {
       setLoading(false);
     }
@@ -98,16 +98,21 @@ export default function InvitationPage() {
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
       transition: 'background 0.2s',
     }}>
-      {/* Toggle thème */}
-      <button onClick={toggle} style={{
+      {/* Sélecteur de langue + Toggle thème */}
+      <div style={{
         position: 'fixed', top: 16, right: 16,
-        padding: '8px 12px', borderRadius: 10, border: `1px solid ${C.border}`,
-        background: C.card, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-        fontSize: 12, fontWeight: 600, color: C.muted, transition: 'all 0.2s',
+        display: 'flex', alignItems: 'center', gap: 8,
       }}>
-        {dark ? <Sun size={14} color="#F5A623" /> : <Moon size={14} color="#4E8BF5" />}
-        {dark ? 'Mode clair' : 'Mode sombre'}
-      </button>
+        <LanguageSwitcher C={C} dark={dark} />
+        <button onClick={toggle} style={{
+          padding: '8px 12px', borderRadius: 10, border: `1px solid ${C.border}`,
+          background: C.card, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+          fontSize: 12, fontWeight: 600, color: C.muted, transition: 'all 0.2s',
+        }}>
+          {dark ? <Sun size={14} color="#F5A623" /> : <Moon size={14} color="#4E8BF5" />}
+          {dark ? t('parametres.theme_light') : t('parametres.theme_dark')}
+        </button>
+      </div>
 
       <div style={{
         background: C.card, border: `1px solid ${C.border}`, borderRadius: 22,
@@ -127,7 +132,7 @@ export default function InvitationPage() {
 
         {etat === 'chargement' && (
           <div style={{ textAlign: 'center', padding: '30px 0', color: C.muted, fontSize: 13 }}>
-            Vérification de l'invitation...
+            {t('invitation.loading')}
           </div>
         )}
 
@@ -140,16 +145,16 @@ export default function InvitationPage() {
               <AlertCircle size={24} color={C.red} />
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>
-              Invitation indisponible
+              {t('invitation.expired')}
             </div>
             <div style={{ fontSize: 13, color: C.muted, marginBottom: 22, lineHeight: 1.6 }}>
-              {erreur}
+              {erreur || t('invitation.invalid_help')}
             </div>
             <button onClick={() => navigate('/login')} style={{
               padding: '11px 24px', borderRadius: 10, border: `1px solid ${C.border}`,
               background: 'transparent', color: C.sub, fontSize: 13, fontWeight: 600, cursor: 'pointer',
             }}>
-              Aller à la page de connexion
+              {t('login.submit')}
             </button>
           </div>
         )}
@@ -163,29 +168,26 @@ export default function InvitationPage() {
             }}>
               <ShieldCheck size={18} color={C.accent} style={{ flexShrink: 0, marginTop: 1 }} />
               <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
-                  Vous êtes invité(e) à rejoindre
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: C.accent, margin: '2px 0' }}>
-                  {invitation.entreprise_nom}
+                <div style={{ fontSize: 14, fontWeight: 800, color: C.accent, marginBottom: 4 }}>
+                  {t('invitation.title', { company: invitation.entreprise_nom })}
                 </div>
                 <div style={{ fontSize: 12, color: C.sub }}>
-                  en tant que <strong>{ROLE_LABELS[invitation.role] || invitation.role}</strong>
+                  {t('invitation.as_role', { role: t(`roles.${invitation.role}`, { defaultValue: invitation.role }) })}
                   {' · '}{invitation.email}
                 </div>
               </div>
             </div>
 
             <div style={{ fontSize: 13, color: C.muted, marginBottom: 20, lineHeight: 1.6 }}>
-              Définissez votre mot de passe pour activer votre compte et accéder à l'application.
+              {t('invitation.set_password')}
             </div>
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <Input label="Nom complet" value={form.nom} onChange={set('nom')}
-                placeholder="Votre nom" required C={C} />
-              <Input label="Mot de passe" type="password" value={form.mot_de_passe}
-                onChange={set('mot_de_passe')} placeholder="8 caractères minimum" required C={C} />
-              <Input label="Confirmer le mot de passe" type="password" value={form.confirmation}
+              <Input label={t('login.name')} value={form.nom} onChange={set('nom')}
+                placeholder="" required C={C} />
+              <Input label={t('invitation.password')} type="password" value={form.mot_de_passe}
+                onChange={set('mot_de_passe')} placeholder="" required C={C} />
+              <Input label={t('invitation.confirm_password')} type="password" value={form.confirmation}
                 onChange={set('confirmation')} placeholder="••••••••" required C={C} />
 
               <button type="submit" disabled={loading} style={{
@@ -195,7 +197,7 @@ export default function InvitationPage() {
                 cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               }}>
-                {loading ? 'Activation...' : <>Activer mon compte <ArrowRight size={16} /></>}
+                {loading ? t('invitation.submitting') : <>{t('invitation.submit')} <ArrowRight size={16} /></>}
               </button>
             </form>
           </>

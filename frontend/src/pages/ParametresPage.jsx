@@ -195,48 +195,48 @@ export default function ParametresPage() {
       {tab === 'entreprise' && (
         <form data-onboarding="form-entreprise" onSubmit={handleSaveEntreprise} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 20 }}>Informations générales</div>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 20 }}>{t('parametres.company_info')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 16 }}>
-              <Input label="Raison sociale *" value={form.nom} onChange={set('nom')} placeholder="SARL MonEntreprise" />
-              <Input label="Sigle" value={form.sigle} onChange={set('sigle')} placeholder="ME" />
+              <Input label={`${t('parametres.company_name')} *`} value={form.nom} onChange={set('nom')} placeholder="SARL MonEntreprise" />
+              <Input label={t('parametres.sigle')} value={form.sigle} onChange={set('sigle')} placeholder="ME" />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Forme juridique</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('parametres.legal_form')}</label>
                 <select value={form.forme_juridique} onChange={set('forme_juridique')}
                   style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
                   {FORMES.map(f => <option key={f}>{f}</option>)}
                 </select>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Régime fiscal</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('parametres.tax_regime')}</label>
                 <select value={form.regime_fiscal} onChange={set('regime_fiscal')}
                   style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
                   {REGIMES.map(r => <option key={r}>{r}</option>)}
                 </select>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Taux TVA (%)</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('parametres.tva_rate')}</label>
                 <input type="number" value={form.taux_tva} onChange={set('taux_tva')} min="0" max="100"
                   style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
               </div>
             </div>
-            <Input label="Secteur d'activité" value={form.secteur} onChange={set('secteur')} placeholder="Services informatiques, Commerce..." />
+            <Input label={t('parametres.sector')} value={form.secteur} onChange={set('secteur')} placeholder="Services informatiques, Commerce..." />
           </div>
 
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 20 }}>Contact & Localisation</div>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 20 }}>{t('parametres.contact_section')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-              <Input label="Email" type="email" value={form.email} onChange={set('email')} placeholder="contact@entreprise.ci" />
-              <Input label="Téléphone" value={form.telephone} onChange={set('telephone')} placeholder="+225 27 00 00 00" />
+              <Input label={t('common.email')} type="email" value={form.email} onChange={set('email')} placeholder="contact@entreprise.ci" />
+              <Input label={t('common.phone')} value={form.telephone} onChange={set('telephone')} placeholder="+225 27 00 00 00" />
             </div>
             <div style={{ marginBottom: 16 }}>
-              <Input label="Adresse" value={form.adresse} onChange={set('adresse')} placeholder="Rue des Jardins, Cocody" />
+              <Input label={t('common.address')} value={form.adresse} onChange={set('adresse')} placeholder="Rue des Jardins, Cocody" />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <Input label="Ville" value={form.ville} onChange={set('ville')} placeholder="Abidjan" />
+              <Input label={t('common.city')} value={form.ville} onChange={set('ville')} placeholder="Abidjan" />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pays</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('common.country')}</label>
                 <select value={form.pays} onChange={set('pays')}
                   style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
                   {PAYS_LIST.map(p => <option key={p}>{p}</option>)}
@@ -246,10 +246,10 @@ export default function ParametresPage() {
           </div>
 
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 20 }}>Identification fiscale</div>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 20 }}>{t('parametres.fiscal_id_section')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <Input label="NINEA / NIF" value={form.ninea} onChange={set('ninea')} placeholder="CI-2020-A-12345" />
-              <Input label="RCCM" value={form.rccm} onChange={set('rccm')} placeholder="RCC/ABJ/2020/B/1234" />
+              <Input label={t('parametres.ninea')} value={form.ninea} onChange={set('ninea')} placeholder="CI-2020-A-12345" />
+              <Input label={t('parametres.rccm')} value={form.rccm} onChange={set('rccm')} placeholder="RCC/ABJ/2020/B/1234" />
             </div>
           </div>
 
@@ -258,7 +258,7 @@ export default function ParametresPage() {
             padding: '12px 32px', borderRadius: 12, border: 'none',
             background: C.accent, color: '#000', fontSize: 14, fontWeight: 700, cursor: 'pointer', width: 'fit-content',
           }}>
-            <Save size={16} /> {saving ? 'Sauvegarde...' : 'Sauvegarder les modifications'}
+            <Save size={16} /> {saving ? t('parametres.saving') : t('parametres.save_changes')}
           </button>
         </form>
       )}
@@ -271,7 +271,7 @@ export default function ParametresPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Légende des rôles */}
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 22 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Rôles et permissions</div>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>{t('parametres.roles_legend')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
               {Object.entries(ROLES).map(([key, r]) => (
                 <div key={key} style={{ background: C.hover, borderRadius: 10, padding: '12px 14px', border: `1px solid ${r.color}30` }}>
@@ -285,12 +285,12 @@ export default function ParametresPage() {
           {/* Liste membres */}
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: `1px solid ${C.border}` }}>
-              <div style={{ fontSize: 14, fontWeight: 700 }}>Membres de l'équipe ({membres.length})</div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>{t('parametres.team_members', { count: membres.length })}</div>
               <button onClick={() => setShowInvite(s => !s)} style={{
                 display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 9,
                 border: 'none', background: C.accent, color: '#000', fontSize: 12, fontWeight: 700, cursor: 'pointer',
               }}>
-                <Plus size={14} /> Inviter un membre
+                <Plus size={14} /> {t('parametres.invite_member')}
               </button>
             </div>
 

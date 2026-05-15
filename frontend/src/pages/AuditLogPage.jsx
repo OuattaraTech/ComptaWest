@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme.jsx';
 import { useEntreprise } from '../hooks/useEntreprise.jsx';
 import api from '../utils/api.jsx';
@@ -8,29 +9,9 @@ import { getC } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
 import { Shield, Filter, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 
-const ENTITES = [
-  { value: '',           label: 'Toutes' },
-  { value: 'factures',   label: 'Factures' },
-  { value: 'depenses',   label: 'Dépenses' },
-  { value: 'taxes',      label: 'Taxes' },
-  { value: 'clients',    label: 'Clients' },
-  { value: 'membres',    label: 'Membres' },
-  { value: 'entreprises',label: 'Entreprise' },
-  { value: 'auth',       label: 'Authentification' },
-];
-
-const ACTIONS = [
-  { value: '',            label: 'Toutes' },
-  { value: 'CREATE',      label: 'Création' },
-  { value: 'UPDATE',      label: 'Modification' },
-  { value: 'DELETE',      label: 'Suppression' },
-  { value: 'PAY',         label: 'Paiement' },
-  { value: 'LOGIN_OK',    label: 'Connexion réussie' },
-  { value: 'LOGIN_FAIL',  label: 'Échec de connexion' },
-  { value: 'INVITE',      label: 'Invitation membre' },
-  { value: 'REVOKE',      label: 'Retrait membre' },
-  { value: 'ROLE_CHANGE', label: 'Changement de rôle' },
-];
+// Listes : la valeur reste le code interne, le libellé est résolu via t().
+const ENTITES = ['', 'factures', 'depenses', 'taxes', 'clients', 'membres', 'entreprises', 'auth'];
+const ACTIONS = ['', 'CREATE', 'UPDATE', 'DELETE', 'PAY', 'LOGIN_OK', 'LOGIN_FAIL', 'INVITE', 'REVOKE', 'ROLE_CHANGE'];
 
 const ACTION_COULEURS = {
   CREATE:      '#00D4AA',
@@ -44,24 +25,26 @@ const ACTION_COULEURS = {
   ROLE_CHANGE: '#F5A623',
 };
 
-const labelAction = (a) => ACTIONS.find(x => x.value === a)?.label || a;
-const labelEntite = (e) => ENTITES.find(x => x.value === e)?.label || e;
-
-const formatDateTime = (d) => {
-  if (!d) return '—';
-  return new Date(d).toLocaleString('fr-FR', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  });
-};
-
 export default function AuditLogPage() {
+  const { t, i18n } = useTranslation();
   const { dark } = useTheme();
   const { actuelle } = useEntreprise();
   const C = getC(dark);
 
   const role = actuelle?.role;
   const peutVoir = role === 'proprietaire' || role === 'admin';
+
+  const labelAction = (a) => a ? (i18n.exists(`audit.actions.${a}`) ? t(`audit.actions.${a}`) : a) : t('audit.actions.all');
+  const labelEntite = (e) => e ? (i18n.exists(`audit.entites.${e}`) ? t(`audit.entites.${e}`) : e) : t('audit.entites.all');
+
+  const formatDateTime = (d) => {
+    if (!d) return '—';
+    const locale = i18n.language?.startsWith('en') ? 'en-US' : 'fr-FR';
+    return new Date(d).toLocaleString(locale, {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  };
 
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -79,7 +62,7 @@ export default function AuditLogPage() {
       setLogs(res.data.data);
       setPagination(res.data.pagination);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur chargement audit');
+      toast.error(err.response?.data?.message || t('audit.error_load'));
     } finally {
       setLoading(false);
     }
@@ -107,10 +90,10 @@ export default function AuditLogPage() {
         }}>
           <AlertTriangle size={36} color={C.gold} style={{ margin: '0 auto 16px' }} />
           <h2 style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 8 }}>
-            Accès restreint
+            {t('audit.restricted_title')}
           </h2>
           <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
-            La consultation du journal d'audit est réservée aux propriétaires et administrateurs de l'entreprise.
+            {t('audit.restricted_help')}
           </p>
         </div>
       </div>
@@ -131,10 +114,10 @@ export default function AuditLogPage() {
           </div>
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>
-              Journal d'audit
+              {t('audit.title')}
             </h1>
             <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
-              {pagination.total} action{pagination.total > 1 ? 's' : ''} enregistrée{pagination.total > 1 ? 's' : ''}
+              {t(pagination.total > 1 ? 'audit.count_other' : 'audit.count_one', { count: pagination.total })}
             </p>
           </div>
         </div>
@@ -148,15 +131,15 @@ export default function AuditLogPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <Filter size={14} color={C.muted} />
           <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            Filtres
+            {t('audit.filters')}
           </span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
           <select value={filtres.entite} onChange={updateFiltre('entite')} style={selectStyle}>
-            {ENTITES.map(o => <option key={o.value} value={o.value}>Entité — {o.label}</option>)}
+            {ENTITES.map(v => <option key={v} value={v}>{t('audit.entity_prefix', { label: labelEntite(v) })}</option>)}
           </select>
           <select value={filtres.action} onChange={updateFiltre('action')} style={selectStyle}>
-            {ACTIONS.map(o => <option key={o.value} value={o.value}>Action — {o.label}</option>)}
+            {ACTIONS.map(v => <option key={v} value={v}>{t('audit.action_prefix', { label: labelAction(v) })}</option>)}
           </select>
           <input type="date" value={filtres.date_debut} onChange={updateFiltre('date_debut')} style={selectStyle} />
           <input type="date" value={filtres.date_fin} onChange={updateFiltre('date_fin')} style={selectStyle} />
@@ -170,23 +153,23 @@ export default function AuditLogPage() {
       }}>
         {loading ? (
           <div style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 13 }}>
-            Chargement...
+            {t('common.loading')}
           </div>
         ) : logs.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 13 }}>
-            Aucune action enregistrée pour ces critères.
+            {t('audit.no_results')}
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: C.cardAlt, borderBottom: `1px solid ${C.border}` }}>
-                  <th style={th(C)}>Date</th>
-                  <th style={th(C)}>Utilisateur</th>
-                  <th style={th(C)}>Action</th>
-                  <th style={th(C)}>Entité</th>
-                  <th style={th(C)}>Détails</th>
-                  <th style={th(C)}>IP</th>
+                  <th style={th(C)}>{t('audit.col_date')}</th>
+                  <th style={th(C)}>{t('audit.col_user')}</th>
+                  <th style={th(C)}>{t('audit.col_action')}</th>
+                  <th style={th(C)}>{t('audit.col_entity')}</th>
+                  <th style={th(C)}>{t('audit.col_details')}</th>
+                  <th style={th(C)}>{t('audit.col_ip')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -240,7 +223,7 @@ export default function AuditLogPage() {
             padding: '12px 18px', borderTop: `1px solid ${C.border}`, background: C.cardAlt,
           }}>
             <span style={{ fontSize: 12, color: C.muted }}>
-              Page {page} sur {pagination.pages}
+              {t('common.page')} {page} {t('common.of')} {pagination.pages}
             </span>
             <div style={{ display: 'flex', gap: 6 }}>
               <button
