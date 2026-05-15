@@ -31,14 +31,30 @@ const COMPTES_TRESORERIE = {
 const compteTresorerie = (mode) => COMPTES_TRESORERIE[mode] || '5211';
 
 /**
+ * Codes d'erreur qui doivent ANNULER l'action métier appelante (rollback),
+ * et non être avalés. Une écriture sur un exercice clos ou une écriture
+ * déséquilibrée traduisent une contrainte forte du système comptable :
+ * laisser passer l'action métier sans son pendant comptable créerait une
+ * incohérence (facture vendue mais hors compta, par ex.).
+ */
+const ERREURS_BLOQUANTES = new Set(['EXERCICE_FERME', 'DESEQUILIBRE']);
+
+/**
  * Wrapper : exécute fn() en attrapant ComptaError pour les remonter en log lisible.
- * Les autres erreurs sont relancées (probablement bug).
+ * Les erreurs bloquantes (cf. ERREURS_BLOQUANTES) sont relancées pour annuler
+ * l'action métier. Les autres ComptaError (compte inconnu, journal absent, etc.)
+ * sont loguées mais n'empêchent pas l'action métier (l'utilisateur pourra passer
+ * l'écriture en OD manuel).
  */
 const safeAuto = async (label, fn) => {
   try {
     return await fn();
   } catch (err) {
     if (err instanceof ComptaError) {
+      if (ERREURS_BLOQUANTES.has(err.code)) {
+        // Propagation : l'action métier appelante doit faire ROLLBACK
+        throw err;
+      }
       logger.warn('Écriture automatique ignorée', {
         source: 'compta-auto', label, code: err.code, message: err.message,
       });
@@ -79,6 +95,33 @@ const ecritureFacture = async (client, { entrepriseId, utilisateurId, facture, c
         ...(round2(facture.montant_tva) > 0
           ? [{ compte: '4431', credit: round2(facture.montant_tva), libelle: `TVA collectée ${facture.numero}` }]
           : []),
+      ],
+    })
+  );
+};
+
+/**
+ * Écriture de paiement d'un fournisseur (décaissement) :
+ *   401 (D) compte fournisseur / 521|571|541 (C) trésorerie
+ * Utilise le code auxiliaire 4011XXX du fournisseur si disponible, sinon 401 collectif.
+ */
+const ecriturePaiementFournisseur = async (client, { entrepriseId, utilisateurId, fournisseur, paiement }) => {
+  const compteFournisseur = fournisseur.code_auxiliaire || '401';
+  return safeAuto(`paiement fournisseur ${fournisseur.nom}`, () =>
+    creerEcriture(client, {
+      entrepriseId,
+      utilisateurId,
+      journalCode: paiement.mode_paiement === 'cash' ? 'CAI'
+                : paiement.mode_paiement === 'mobile_money' ? 'MM'
+                : 'BNK',
+      date: paiement.date_paiement,
+      libelle: `Paiement ${fournisseur.nom}${paiement.reference ? ' - ' + paiement.reference : ''}`.slice(0, 250),
+      reference: paiement.reference,
+      origine: 'AUTO_PAIEMENT_FRN',
+      origineId: paiement.id,
+      lignes: [
+        { compte: compteFournisseur, debit: round2(paiement.montant), libelle: `Solde dette ${fournisseur.nom}` },
+        { compte: compteTresorerie(paiement.mode_paiement), credit: round2(paiement.montant), libelle: `Décaissement ${fournisseur.nom}` },
       ],
     })
   );
@@ -185,8 +228,103 @@ const ecriturePaiementTaxe = async (client, { entrepriseId, utilisateurId, taxe,
   );
 };
 
+/**
+ * Écriture de constat de la charge salariale d'un bulletin de paie (à la validation).
+ * Journal PAI. Date = fin de période (periode_fin).
+ *
+ * Schéma SYSCOHADA :
+ *   661 Rémunérations directes      (D) brut_total
+ *   664 Charges sociales patronales (D) total_cotisations_patronales
+ *       421 Personnel - rémun. dues  (C) net_a_payer
+ *       431 Sécurité sociale         (C) total_cotisations_salariales + total_cotisations_patronales
+ *       4471 État - ITS retenu       (C) total_impots
+ *
+ * Vérification d'équilibre :
+ *   brut + cot_pat = net + (cot_sal + cot_pat) + impots
+ *   brut + cot_pat = (brut - cot_sal - impots) + cot_sal + cot_pat + impots ✓
+ */
+const ecritureBulletinValidation = async (client, { entrepriseId, utilisateurId, bulletin }) => {
+  const brut    = round2(bulletin.brut_total);
+  const cotSal  = round2(bulletin.total_cotisations_salariales);
+  const cotPat  = round2(bulletin.total_cotisations_patronales);
+  const impots  = round2(bulletin.total_impots);
+  const net     = round2(bulletin.net_a_payer);
+
+  if (brut <= 0) return null;
+
+  const lignes = [];
+  // Débit : charges
+  lignes.push({ compte: '661', debit: brut, libelle: `Salaire brut ${bulletin.nom_complet}` });
+  if (cotPat > 0) {
+    lignes.push({ compte: '664', debit: cotPat, libelle: `Charges patronales ${bulletin.nom_complet}` });
+  }
+  // Crédit : dettes
+  if (net > 0) {
+    lignes.push({ compte: '421', credit: net, libelle: `Net à payer ${bulletin.nom_complet}` });
+  }
+  const totalCotisations = round2(cotSal + cotPat);
+  if (totalCotisations > 0) {
+    lignes.push({ compte: '431', credit: totalCotisations, libelle: `Cotisations sociales à reverser` });
+  }
+  if (impots > 0) {
+    lignes.push({ compte: '4471', credit: impots, libelle: `ITS retenu à la source` });
+  }
+
+  return safeAuto(`bulletin ${bulletin.nom_complet} ${bulletin.mois}/${bulletin.annee}`, () =>
+    creerEcriture(client, {
+      entrepriseId,
+      utilisateurId,
+      journalCode: 'PAI',
+      date: bulletin.periode_fin,
+      libelle: `Paie ${String(bulletin.mois).padStart(2, '0')}/${bulletin.annee} — ${bulletin.nom_complet}`,
+      reference: `BULL-${bulletin.matricule || bulletin.id.slice(0, 8)}-${bulletin.annee}${String(bulletin.mois).padStart(2, '0')}`,
+      origine: 'AUTO_PAIE',
+      origineId: bulletin.id,
+      lignes,
+    })
+  );
+};
+
+/**
+ * Écriture de paiement effectif d'un bulletin (versement du net au salarié).
+ *   421 (D) net_a_payer
+ *       521|571 (C) compte de trésorerie
+ *
+ * Le mode de paiement est dérivé du type de compte de trésorerie ; si on n'a pas
+ * cette info, on suppose un virement bancaire.
+ */
+const ecriturePaiementBulletin = async (client, { entrepriseId, utilisateurId, bulletin, datePaiement, typeCompte }) => {
+  const net = round2(bulletin.net_a_payer);
+  if (net <= 0) return null;
+
+  const modePaiement = typeCompte === 'caisse' ? 'cash'
+                     : typeCompte === 'mobile_money' ? 'mobile_money'
+                     : 'virement';
+  const journalCode = modePaiement === 'cash' ? 'CAI'
+                    : modePaiement === 'mobile_money' ? 'MM'
+                    : 'BNK';
+
+  return safeAuto(`paiement bulletin ${bulletin.nom_complet}`, () =>
+    creerEcriture(client, {
+      entrepriseId,
+      utilisateurId,
+      journalCode,
+      date: datePaiement,
+      libelle: `Versement salaire ${bulletin.nom_complet} (${String(bulletin.mois).padStart(2, '0')}/${bulletin.annee})`,
+      reference: `BULL-${bulletin.matricule || bulletin.id.slice(0, 8)}-${bulletin.annee}${String(bulletin.mois).padStart(2, '0')}`,
+      origine: 'AUTO_PAIE_VERSEMENT',
+      origineId: bulletin.id,
+      lignes: [
+        { compte: '421', debit: net, libelle: `Solde dette ${bulletin.nom_complet}` },
+        { compte: compteTresorerie(modePaiement), credit: net, libelle: `Versement ${bulletin.nom_complet}` },
+      ],
+    })
+  );
+};
+
 module.exports = {
-  ecritureFacture, ecriturePaiementFacture,
+  ecritureFacture, ecriturePaiementFacture, ecriturePaiementFournisseur,
   ecritureDepense, ecriturePaiementTaxe,
+  ecritureBulletinValidation, ecriturePaiementBulletin,
   COMPTES_TRESORERIE, COMPTE_TAXE,
 };

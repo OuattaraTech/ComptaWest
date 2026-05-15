@@ -120,8 +120,9 @@ const creerEcriture = async (client, data) => {
 
   const exerciceId = await trouverExerciceOuvert(client, entrepriseId, date);
   if (!exerciceId) {
+    const dateLisible = typeof date === 'string' ? date.slice(0, 10) : new Date(date).toISOString().slice(0, 10);
     throw new ComptaError(
-      `Aucun exercice ouvert ne contient la date ${date}. Ouvrez ou créez l'exercice correspondant.`,
+      `Aucun exercice ouvert ne contient la date ${dateLisible}. Ouvrez ou créez l'exercice correspondant.`,
       'EXERCICE_FERME'
     );
   }
@@ -168,4 +169,4 @@ const creerEcriture = async (client, data) => {
   return ecriture;
 };
 
-module.exports = { creerEcriture, trouverCompteParNumero, genererNumeroPiece, ComptaError, round2 };
+module.exports = { creerEcriture, trouverCompteParNumero, trouverExerciceOuvert, genererNumeroPiece, ComptaError, round2 };

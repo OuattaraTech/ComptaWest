@@ -1,5 +1,9 @@
 const pool = require('../../config/database');
 const { creerEcriture, ComptaError } = require('../utils/comptabilite');
+const {
+  verifierPreCloture, ecritureSoldeCharges, ecritureSoldeProduits,
+  creerExerciceSuivant, ecritureAANouveau,
+} = require('../utils/cloture');
 const { logAudit } = require('../utils/audit');
 
 // ─── PLAN COMPTABLE ────────────────────────────────────────────────────────
@@ -427,9 +431,129 @@ const exportFEC = async (req, res) => {
   }
 };
 
+// ─── CLÔTURE D'EXERCICE ────────────────────────────────────────────────────
+// GET /api/comptabilite/exercices/:id/pre-cloture
+// Renvoie la liste des contrôles préalables (ok / warning / error).
+const getClotureChecks = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const exRes = await client.query(
+      `SELECT id, libelle, date_debut, date_fin, cloture, date_cloture
+         FROM exercices WHERE id = $1 AND entreprise_id = $2`,
+      [req.params.id, req.entrepriseId]
+    );
+    if (exRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Exercice introuvable' });
+    }
+    const exercice = exRes.rows[0];
+    const checks = await verifierPreCloture(client, req.entrepriseId, exercice.id, exercice.date_fin);
+    res.json({ success: true, data: { exercice, checks } });
+  } catch (err) {
+    console.error('Erreur getClotureChecks:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  } finally {
+    client.release();
+  }
+};
+
+// POST /api/comptabilite/exercices/:id/cloturer
+// Orchestre la clôture : virements 6/7 → 13, marquage cloturé, exercice N+1, AN.
+const cloturerExercice = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const eid = req.entrepriseId;
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    // Récupère l'exercice et le verrouille pendant la transaction
+    const exRes = await client.query(
+      `SELECT * FROM exercices WHERE id = $1 AND entreprise_id = $2 FOR UPDATE`,
+      [id, eid]
+    );
+    if (exRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Exercice introuvable' });
+    }
+    const exercice = exRes.rows[0];
+    if (exercice.cloture) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Exercice déjà clôturé' });
+    }
+
+    // Vérifications bloquantes (toute erreur "error" empêche la clôture)
+    const checks = await verifierPreCloture(client, eid, id, exercice.date_fin);
+    const bloquants = checks.filter(c => c.niveau === 'error');
+    if (bloquants.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'Vérifications préalables non satisfaites',
+        checks: bloquants,
+      });
+    }
+
+    // Écritures de clôture des comptes de gestion (classes 6 et 7) vers le 13
+    const ecCharges  = await ecritureSoldeCharges(client,  { entrepriseId: eid, utilisateurId: userId, exercice });
+    const ecProduits = await ecritureSoldeProduits(client, { entrepriseId: eid, utilisateurId: userId, exercice });
+
+    // Marque l'exercice clôturé AVANT de créer l'exercice suivant et l'AN,
+    // pour qu'aucune nouvelle écriture ne puisse se glisser dans N.
+    await client.query(
+      `UPDATE exercices SET cloture = true, date_cloture = NOW(), cloture_par = $1 WHERE id = $2`,
+      [userId, id]
+    );
+
+    // Crée l'exercice N+1 (ou récupère l'existant) puis l'écriture à-nouveau
+    const exerciceSuivant = await creerExerciceSuivant(client, {
+      entrepriseId: eid, exerciceCloture: exercice,
+    });
+    const ecAN = await ecritureAANouveau(client, {
+      entrepriseId: eid, utilisateurId: userId,
+      exerciceCloture: exercice,
+      dateDebutN1: exerciceSuivant.date_debut,
+      libelleN1: exerciceSuivant.libelle,
+    });
+
+    await client.query('COMMIT');
+    logAudit(req, 'CLOSE', 'exercices', id, {
+      libelle: exercice.libelle,
+      ecritures: {
+        charges: ecCharges?.numero_piece || null,
+        produits: ecProduits?.numero_piece || null,
+        a_nouveau: ecAN?.numero_piece || null,
+      },
+      exercice_suivant: exerciceSuivant.libelle,
+    });
+    res.json({
+      success: true,
+      message: `${exercice.libelle} clôturé. ${exerciceSuivant.libelle} ouvert.`,
+      data: {
+        exercice_cloture: { id, libelle: exercice.libelle },
+        exercice_suivant: exerciceSuivant,
+        ecritures_generees: {
+          solde_charges: ecCharges?.numero_piece || null,
+          solde_produits: ecProduits?.numero_piece || null,
+          a_nouveau: ecAN?.numero_piece || null,
+        },
+      },
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err instanceof ComptaError) {
+      return res.status(400).json({ success: false, message: err.message, code: err.code });
+    }
+    console.error('Erreur cloturerExercice:', err.message, err.stack);
+    res.status(500).json({ success: false, message: 'Erreur serveur lors de la clôture' });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   getPlanComptable, getJournaux, getExercices,
   getEcritures, getEcritureById,
   getGrandLivre, getBalance, createEcritureManuelle,
   exportFEC,
+  getClotureChecks, cloturerExercice,
 };

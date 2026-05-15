@@ -1,6 +1,7 @@
 const pool = require('../../config/database');
 const { body } = require('express-validator');
 const { logAudit } = require('../utils/audit');
+const { trouverExerciceOuvert } = require('../utils/comptabilite');
 
 // ─── Catalogue des opérateurs supportés ────────────────────────────────────
 // Utilisé par le frontend pour pré-remplir la création de comptes.
@@ -436,6 +437,20 @@ const createMouvement = async (req, res) => {
     if (!check.rows[0]) {
       await client.query('ROLLBACK');
       return res.status(404).json({ success: false, message: 'Compte introuvable ou archivé' });
+    }
+
+    // Garde-fou clôture : pas de mouvement daté dans un exercice clos.
+    // (Le mouvement n'a pas d'écriture comptable automatique, donc le filet
+    // de sécurité de creerEcriture ne s'applique pas — on contrôle ici.)
+    const dateOp = date_operation || new Date().toISOString().split('T')[0];
+    const exId = await trouverExerciceOuvert(client, eid, dateOp);
+    if (!exId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: `Aucun exercice ouvert pour la date ${String(dateOp).slice(0, 10)}. L'exercice correspondant est clôturé.`,
+        code: 'EXERCICE_FERME',
+      });
     }
 
     // Contrôle de solde pour les sorties

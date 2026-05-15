@@ -12,7 +12,7 @@ const {
   getMembres, inviterMembre, updateRoleMembre, retirerMembre, entrepriseRules,
 } = require('../controllers/entreprisesController');
 const { getClients, getClientById, createClient, updateClient, deleteClient, clientRules } = require('../controllers/clientsController');
-const { getFactures, getFactureById, createFacture, updateStatut, addPaiement, deleteFacture, factureRules, paiementRules } = require('../controllers/facturesController');
+const { getFactures, getFactureById, createFacture, updateFacture, updateStatut, addPaiement, deleteFacture, factureRules, paiementRules } = require('../controllers/facturesController');
 const { getDevis, getStatsDevis, updateDevisStatut, convertirEnFacture, supprimerDevis, convertirRules } = require('../controllers/devisController');
 const { getStats, getTransactionsRecentes, getAnneesDisponibles } = require('../controllers/dashboardController');
 const { getBilan, getBilanPDF, getFacturePDF } = require('../controllers/rapportsController');
@@ -23,6 +23,7 @@ const {
   getPlanComptable, getJournaux, getExercices,
   getEcritures, getEcritureById, getGrandLivre, getBalance,
   createEcritureManuelle, exportFEC,
+  getClotureChecks, cloturerExercice,
 } = require('../controllers/comptabiliteController');
 const {
   getOperateurs, getComptes, getCompteById, createCompte, updateCompte, archiveCompte,
@@ -132,6 +133,7 @@ router.delete('/clients/:id', auth, eaAdmin, deleteClient);
 router.get('/factures', auth, ea, getFactures);
 router.get('/factures/:id', auth, ea, getFactureById);
 router.post('/factures', auth, eaWrite, factureRules, validate, createFacture);
+router.put('/factures/:id', auth, eaWrite, factureRules, validate, updateFacture);
 router.put('/factures/:id/statut', auth, eaWrite, updateStatut);
 router.post('/factures/:id/paiement', auth, eaWrite, paiementRules, validate, addPaiement);
 router.delete('/factures/:id', auth, eaAdmin, deleteFacture);
@@ -171,6 +173,8 @@ router.get('/audit-log', auth, eaAdmin, getAuditLog);
 router.get('/comptabilite/plan',         auth, ea,      getPlanComptable);
 router.get('/comptabilite/journaux',     auth, ea,      getJournaux);
 router.get('/comptabilite/exercices',    auth, ea,      getExercices);
+router.get('/comptabilite/exercices/:id/pre-cloture', auth, ea,       getClotureChecks);
+router.post('/comptabilite/exercices/:id/cloturer',   auth, eaAdmin,  cloturerExercice);
 router.get('/comptabilite/ecritures',    auth, ea,      getEcritures);
 router.get('/comptabilite/ecritures/:id',auth, ea,      getEcritureById);
 router.post('/comptabilite/ecritures',   auth, eaWrite, createEcritureManuelle);

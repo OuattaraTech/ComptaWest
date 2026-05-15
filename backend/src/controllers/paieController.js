@@ -5,6 +5,8 @@ const { body } = require('express-validator');
 const { logAudit } = require('../utils/audit');
 const { calculerBulletin, calculerParts, PARAMS_CI } = require('../utils/paie-ci');
 const { controlerSoldeAvantSortie, SoldeInsuffisantError } = require('./tresorerieController');
+const { ecritureBulletinValidation, ecriturePaiementBulletin } = require('../utils/comptabilite-auto');
+const { ComptaError } = require('../utils/comptabilite');
 
 // ─── Init pdfmake (réutilise les fontes Roboto déjà embarquées) ───────────
 const pdfmakeDir = path.dirname(require.resolve('pdfmake/package.json'));
@@ -720,20 +722,48 @@ const genererMois = async (req, res) => {
 
 // POST /api/paie/bulletins/:id/valider
 const validerBulletin = async (req, res) => {
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
     const { id } = req.params;
     const eid = req.entrepriseId;
-    const r = await pool.query(
+
+    const r = await client.query(
       `UPDATE bulletins_paie SET statut='valide', date_validation=NOW(), valide_par=$1
        WHERE id=$2 AND entreprise_id=$3 AND statut='brouillon' RETURNING *`,
       [req.user?.id, id, eid]
     );
-    if (!r.rows[0]) return res.status(400).json({ success: false, message: 'Bulletin non modifiable' });
-    logAudit(req, 'VALIDATE', 'bulletins_paie', id);
-    res.json({ success: true, data: r.rows[0] });
+    if (!r.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Bulletin non modifiable' });
+    }
+    const bulletin = r.rows[0];
+
+    // Écriture comptable de constatation de la charge (661/664 D / 421/431/4471 C)
+    const ecriture = await ecritureBulletinValidation(client, {
+      entrepriseId: eid,
+      utilisateurId: req.user?.id,
+      bulletin,
+    });
+    if (ecriture) {
+      await client.query(
+        `UPDATE bulletins_paie SET ecriture_id = $1 WHERE id = $2`,
+        [ecriture.id, id]
+      );
+    }
+
+    await client.query('COMMIT');
+    logAudit(req, 'VALIDATE', 'bulletins_paie', id, { ecriture: ecriture?.numero_piece });
+    res.json({ success: true, data: { ...bulletin, ecriture_id: ecriture?.id || null } });
   } catch (err) {
+    await client.query('ROLLBACK');
+    if (err instanceof ComptaError) {
+      return res.status(400).json({ success: false, message: err.message, code: err.code });
+    }
     console.error('Erreur validerBulletin:', err.message);
     res.status(500).json({ success: false, message: 'Erreur' });
+  } finally {
+    client.release();
   }
 };
 
@@ -802,6 +832,19 @@ const payerBulletin = async (req, res) => {
        id, req.user?.id]
     );
 
+    // Écriture comptable du versement (421 D / 521|571 C). Le type du compte
+    // de trésorerie détermine le journal (BNK, CAI ou MM).
+    const compteInfo = await client.query(
+      `SELECT type FROM comptes_tresorerie WHERE id = $1`, [compteId]
+    );
+    await ecriturePaiementBulletin(client, {
+      entrepriseId: eid,
+      utilisateurId: req.user?.id,
+      bulletin: bul,
+      datePaiement: dateP,
+      typeCompte: compteInfo.rows[0]?.type,
+    });
+
     await client.query(
       `UPDATE bulletins_paie SET
         statut='paye', date_paiement=$1, compte_tresorerie_id=$2, mouvement_tresorerie_id=$3
@@ -816,6 +859,9 @@ const payerBulletin = async (req, res) => {
     await client.query('ROLLBACK');
     if (err instanceof SoldeInsuffisantError) {
       return res.status(400).json({ success: false, message: err.message, code: err.code, details: err.details });
+    }
+    if (err instanceof ComptaError) {
+      return res.status(400).json({ success: false, message: err.message, code: err.code });
     }
     console.error('Erreur payerBulletin:', err.message);
     res.status(500).json({ success: false, message: 'Erreur paiement bulletin' });

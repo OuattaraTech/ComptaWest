@@ -2,6 +2,7 @@ const pool = require('../../config/database');
 const { body } = require('express-validator');
 const { logAudit } = require('../utils/audit');
 const { ecritureFacture, ecriturePaiementFacture } = require('../utils/comptabilite-auto');
+const { ComptaError } = require('../utils/comptabilite');
 const { appliquerMouvement } = require('./produitsController');
 
 const factureRules = [
@@ -20,7 +21,7 @@ const factureRules = [
 const paiementRules = [
   body('montant').isFloat({ min: 0.01 }).withMessage('Montant invalide'),
   body('mode_paiement').optional().isIn(['cash','virement','cheque','mobile_money','carte']),
-  body('compte_tresorerie_id').optional({ nullable: true }).isUUID().withMessage('Compte trésorerie invalide'),
+  body('compte_tresorerie_id').optional({ nullable: true, checkFalsy: true }).isUUID().withMessage('Compte trésorerie invalide'),
 ];
 
 // GET /api/factures
@@ -150,8 +151,10 @@ const createFacture = async (req, res) => {
     }
 
     // Numéro auto — LOCK TABLE pour éviter les doublons concurrents (pas de FOR UPDATE sur COUNT)
+    // Le préfixe d'année reflète la date d'émission (date_emission), pas la date système,
+    // pour qu'une facture datée 2027 reçoive bien F-2027-001 (cas après clôture de N).
     await client.query('LOCK TABLE factures IN SHARE ROW EXCLUSIVE MODE');
-    const year = new Date().getFullYear();
+    const year = new Date(date_emission || new Date()).getFullYear();
     const countRes = await client.query(
       `SELECT COUNT(*) FROM factures WHERE entreprise_id=$1 AND EXTRACT(YEAR FROM date_emission)=$2`,
       [eid, year]
@@ -242,7 +245,124 @@ const createFacture = async (req, res) => {
     res.status(201).json({ success: true, data: facture });
   } catch (err) {
     await client.query('ROLLBACK');
+    if (err instanceof ComptaError) {
+      return res.status(400).json({ success: false, message: err.message, code: err.code });
+    }
     console.error('Erreur createFacture:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  } finally {
+    client.release();
+  }
+};
+
+// PUT /api/factures/:id — modification d'une facture EN BROUILLON uniquement.
+// Une facture validée (envoyée/payée/etc.) est déjà comptabilisée et ne peut
+// pas être modifiée : il faut alors émettre un avoir (SYSCOHADA).
+const updateFacture = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { id } = req.params;
+    const eid = req.entrepriseId;
+    const {
+      client_id, type = 'facture', date_emission, date_echeance,
+      lignes = [], taux_tva = 18, notes, conditions_paiement,
+      facture_origine_id = null,
+    } = req.body;
+
+    const factureRes = await client.query(
+      'SELECT * FROM factures WHERE id=$1 AND entreprise_id=$2 FOR UPDATE',
+      [id, eid]
+    );
+    if (factureRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Facture introuvable' });
+    }
+    const ancienne = factureRes.rows[0];
+
+    if (ancienne.statut !== 'brouillon') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: "Seules les factures en brouillon peuvent être modifiées. Émettez un avoir pour corriger une facture validée.",
+      });
+    }
+
+    if (type === 'avoir' && !facture_origine_id) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: "Un avoir doit obligatoirement référencer la facture d'origine",
+      });
+    }
+
+    const clientCheck = await client.query(
+      'SELECT id FROM clients WHERE id=$1 AND entreprise_id=$2 AND actif=true',
+      [client_id, eid]
+    );
+    if (clientCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Client introuvable ou inactif' });
+    }
+
+    let sous_total = 0;
+    for (const l of lignes) {
+      const remise = Math.min(100, Math.max(0, parseFloat(l.remise) || 0));
+      sous_total += (parseFloat(l.quantite) || 1) * (parseFloat(l.prix_unitaire) || 0) * (1 - remise / 100);
+    }
+    const tvaNorm = Math.min(100, Math.max(0, parseFloat(taux_tva)));
+    const montant_tva = sous_total * (tvaNorm / 100);
+    const total_ttc = sous_total + montant_tva;
+
+    const updateRes = await client.query(
+      `UPDATE factures
+         SET client_id=$1, type=$2, date_emission=$3, date_echeance=$4,
+             sous_total=$5, taux_tva=$6, montant_tva=$7, total_ttc=$8,
+             notes=$9, conditions_paiement=$10, facture_origine_id=$11,
+             updated_at=NOW()
+       WHERE id=$12 AND entreprise_id=$13
+       RETURNING *`,
+      [
+        client_id, type,
+        date_emission || ancienne.date_emission,
+        date_echeance || null,
+        Math.round(sous_total * 100) / 100, tvaNorm,
+        Math.round(montant_tva * 100) / 100,
+        Math.round(total_ttc * 100) / 100,
+        notes || null, conditions_paiement || 'Paiement à 30 jours',
+        facture_origine_id || null,
+        id, eid,
+      ]
+    );
+    const facture = updateRes.rows[0];
+
+    // Brouillon = pas d'écriture comptable ni de mouvement de stock à annuler :
+    // on remplace simplement les lignes.
+    await client.query('DELETE FROM lignes_facture WHERE facture_id=$1', [id]);
+    for (let i = 0; i < lignes.length; i++) {
+      const l = lignes[i];
+      const remise = Math.min(100, Math.max(0, parseFloat(l.remise) || 0));
+      const qte = parseFloat(l.quantite) || 1;
+      const pu = parseFloat(l.prix_unitaire) || 0;
+      const total = Math.round(qte * pu * (1 - remise / 100) * 100) / 100;
+      await client.query(
+        `INSERT INTO lignes_facture (facture_id, description, quantite, unite, prix_unitaire, remise, total, ordre, produit_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [id, l.description.trim(), qte, l.unite || 'unité', pu, remise, total, i, l.produit_id || null]
+      );
+    }
+
+    await client.query('COMMIT');
+    logAudit(req, 'UPDATE', 'factures', id, {
+      numero: facture.numero, type: facture.type, total_ttc: facture.total_ttc, client_id,
+    });
+    res.json({ success: true, data: facture });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err instanceof ComptaError) {
+      return res.status(400).json({ success: false, message: err.message, code: err.code });
+    }
+    console.error('Erreur updateFacture:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   } finally {
     client.release();
@@ -319,6 +439,9 @@ const updateStatut = async (req, res) => {
     res.json({ success: true, data: facture });
   } catch (err) {
     await client.query('ROLLBACK');
+    if (err instanceof ComptaError) {
+      return res.status(400).json({ success: false, message: err.message, code: err.code });
+    }
     console.error('Erreur updateStatut:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   } finally {
@@ -430,6 +553,9 @@ const addPaiement = async (req, res) => {
     res.json({ success: true, statut: nouveauStatut, montant_paye: nouveauPaye });
   } catch (err) {
     await client.query('ROLLBACK');
+    if (err instanceof ComptaError) {
+      return res.status(400).json({ success: false, message: err.message, code: err.code });
+    }
     console.error('Erreur addPaiement:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   } finally {
@@ -457,4 +583,4 @@ const deleteFacture = async (req, res) => {
   }
 };
 
-module.exports = { getFactures, getFactureById, createFacture, updateStatut, addPaiement, deleteFacture, factureRules, paiementRules };
+module.exports = { getFactures, getFactureById, createFacture, updateFacture, updateStatut, addPaiement, deleteFacture, factureRules, paiementRules };

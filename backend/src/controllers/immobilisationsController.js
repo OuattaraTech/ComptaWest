@@ -4,7 +4,7 @@ const pdfmake = require('pdfmake');
 const { body } = require('express-validator');
 const { logAudit } = require('../utils/audit');
 const { planAmortissement, dotationPourAnnee, coefficientDegressifStandard } = require('../utils/amortissements');
-const { creerEcriture, round2: round2Compta } = require('../utils/comptabilite');
+const { creerEcriture, round2: round2Compta, ComptaError } = require('../utils/comptabilite');
 
 // ─── PDF (réutilise les fontes Roboto) ─────────────────────────────────────
 const pdfmakeDir = path.dirname(require.resolve('pdfmake/package.json'));
@@ -419,8 +419,13 @@ const genererDotationsAnnee = async (req, res) => {
           );
         }
       } catch (err) {
-        // Si l'écriture comptable échoue (ex : exercice clos), on garde les dotations
-        // mais on remonte l'info.
+        // Un exercice clos est une vraie contrainte métier : on ne peut pas générer
+        // des dotations sans leur pendant comptable. On annule donc l'opération.
+        // Les autres erreurs comptables (compte manquant, etc.) sont tolérées :
+        // les dotations restent calculées, l'écriture pourra être passée en OD manuel.
+        if (err instanceof ComptaError && err.code === 'EXERCICE_FERME') {
+          throw err;
+        }
         erreurs.push({ etape: 'ecriture_comptable', message: err.message });
       }
     }
@@ -435,6 +440,9 @@ const genererDotationsAnnee = async (req, res) => {
     });
   } catch (err) {
     await client.query('ROLLBACK');
+    if (err instanceof ComptaError) {
+      return res.status(400).json({ success: false, message: err.message, code: err.code });
+    }
     console.error('Erreur genererDotationsAnnee:', err.message);
     res.status(500).json({ success: false, message: 'Erreur génération dotations' });
   } finally {

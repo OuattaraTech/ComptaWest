@@ -36,13 +36,24 @@ const getFournisseurs = async (req, res) => {
     const actifBool = actif !== 'false';
     const offset = (Math.max(1, parseInt(page)) - 1) * parseInt(limit);
 
+    // Encours = balance du compte auxiliaire fournisseur (solde 4011XXX) :
+    //   total facturé (dépenses non annulées) − total payé (tous les paiements).
+    // On utilise des sous-requêtes scalaires pour éviter l'explosion cartésienne
+    // d'un double LEFT JOIN sur dépenses + paiements_fournisseur.
     let query = `
       SELECT f.*,
-        COUNT(d.id) AS nb_depenses,
-        COALESCE(SUM(d.montant_ttc), 0) AS total_facture,
-        COALESCE(SUM(CASE WHEN d.statut IN ('en_attente','en_retard') THEN d.montant_ttc ELSE 0 END), 0) AS encours
+        (SELECT COUNT(*) FROM depenses
+           WHERE fournisseur_id = f.id AND statut != 'annulee') AS nb_depenses,
+        (SELECT COALESCE(SUM(montant_ttc), 0) FROM depenses
+           WHERE fournisseur_id = f.id AND statut != 'annulee') AS total_facture,
+        GREATEST(
+          (SELECT COALESCE(SUM(montant_ttc), 0) FROM depenses
+             WHERE fournisseur_id = f.id AND statut != 'annulee')
+          - (SELECT COALESCE(SUM(montant), 0) FROM paiements_fournisseur
+               WHERE fournisseur_id = f.id),
+          0
+        ) AS encours
       FROM fournisseurs f
-      LEFT JOIN depenses d ON d.fournisseur_id = f.id AND d.statut != 'annulee'
       WHERE f.entreprise_id = $1 AND f.archived_at IS NULL AND f.actif = $2
     `;
     const params = [eid, actifBool];
@@ -62,7 +73,7 @@ const getFournisseurs = async (req, res) => {
     }
     const countRes = await pool.query(countQuery, countParams);
 
-    query += ` GROUP BY f.id ORDER BY f.nom LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    query += ` ORDER BY f.nom LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(parseInt(limit), offset);
 
     const result = await pool.query(query, params);
@@ -105,11 +116,19 @@ const getFournisseurById = async (req, res) => {
       [id]
     );
 
-    // Solde fournisseur (somme des dépenses non payées)
+    // Solde fournisseur (balance auxiliaire 4011XXX) :
+    //   encours = total facturé non annulé − tous les paiements (imputés ou non).
     const solde = await pool.query(
-      `SELECT COALESCE(SUM(CASE WHEN statut IN ('en_attente','en_retard') THEN montant_ttc ELSE 0 END), 0) AS encours,
-              COALESCE(SUM(montant_ttc), 0) AS total_facture
-       FROM depenses WHERE fournisseur_id = $1 AND statut != 'annulee'`,
+      `SELECT
+         COALESCE((SELECT SUM(montant_ttc) FROM depenses
+                    WHERE fournisseur_id = $1 AND statut != 'annulee'), 0) AS total_facture,
+         GREATEST(
+           COALESCE((SELECT SUM(montant_ttc) FROM depenses
+                      WHERE fournisseur_id = $1 AND statut != 'annulee'), 0)
+           - COALESCE((SELECT SUM(montant) FROM paiements_fournisseur
+                        WHERE fournisseur_id = $1), 0),
+           0
+         ) AS encours`,
       [id]
     );
 
@@ -229,13 +248,22 @@ const getStatsFournisseurs = async (req, res) => {
     const eid = req.entrepriseId;
     const annee = parseInt(req.query.annee) || new Date().getFullYear();
 
+    // Encours total = somme des soldes auxiliaires des fournisseurs actifs.
+    // Solde par fournisseur = total facturé − total payé (avec plancher à 0).
     const synth = await pool.query(
-      `SELECT COUNT(*) AS nb_actifs,
-        COALESCE(SUM(CASE WHEN d.statut IN ('en_attente','en_retard')
-                        THEN d.montant_ttc ELSE 0 END), 0) AS encours_total,
-        COUNT(CASE WHEN d.statut = 'en_retard' THEN 1 END) AS nb_retard
+      `SELECT
+         (SELECT COUNT(*) FROM fournisseurs
+            WHERE entreprise_id = $1 AND archived_at IS NULL) AS nb_actifs,
+         (SELECT COUNT(*) FROM depenses
+            WHERE entreprise_id = $1 AND statut = 'en_retard') AS nb_retard,
+         COALESCE(SUM(GREATEST(
+           (SELECT COALESCE(SUM(montant_ttc), 0) FROM depenses
+              WHERE fournisseur_id = f.id AND statut != 'annulee')
+           - (SELECT COALESCE(SUM(montant), 0) FROM paiements_fournisseur
+                WHERE fournisseur_id = f.id),
+           0
+         )), 0) AS encours_total
        FROM fournisseurs f
-       LEFT JOIN depenses d ON d.fournisseur_id = f.id AND d.statut != 'annulee'
        WHERE f.entreprise_id = $1 AND f.archived_at IS NULL`,
       [eid]
     );

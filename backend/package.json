@@ -5,6 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "predev": "fuser -k 5000/tcp 2>/dev/null || true",
     "dev": "nodemon src/index.js",
     "test": "node --test tests/",
     "migrate": "node scripts/migrate.js",

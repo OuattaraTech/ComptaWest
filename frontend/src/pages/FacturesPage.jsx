@@ -2,7 +2,7 @@
 import api from '../utils/api.jsx';
 import { formatFCFA, formatDate, truncate } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
-import { Plus, Search, X, Download, CreditCard, Filter } from 'lucide-react';
+import { Plus, Search, X, Download, CreditCard, Filter, Edit2, Trash2 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme.jsx';
 import { getC, Input, Modal, StatutBadge } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
@@ -35,6 +35,7 @@ export default function FacturesPage() {
   const [showDetail, setShowDetail] = useState(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
+  const [editingId, setEditingId] = useState(null);
 
   const [paiementForm, setPaiementForm] = useState({ montant: '', date_paiement: new Date().toISOString().split('T')[0], mode_paiement: 'virement', reference: '', compte_tresorerie_id: '' });
   const [comptesTresorerie, setComptesTresorerie] = useState([]);
@@ -117,22 +118,64 @@ export default function FacturesPage() {
   const tva = sousTotal * (parseFloat(form.taux_tva) / 100);
   const ttc = sousTotal + tva;
 
+  const openEdit = async (id) => {
+    try {
+      const res = await api.get(`/factures/${id}`);
+      const f = res.data.data;
+      setEditingId(id);
+      setForm({
+        client_id: f.client_id,
+        type: f.type || 'facture',
+        date_emission: (f.date_emission || '').split('T')[0] || new Date().toISOString().split('T')[0],
+        date_echeance: (f.date_echeance || '').split('T')[0] || '',
+        taux_tva: parseFloat(f.taux_tva) || 18,
+        notes: f.notes || '',
+        conditions_paiement: f.conditions_paiement || 'Paiement à 30 jours',
+        facture_origine_id: f.facture_origine_id || '',
+        lignes: (f.lignes && f.lignes.length ? f.lignes : [emptyLigne]).map(l => ({
+          description: l.description || '',
+          quantite: parseFloat(l.quantite) || 1,
+          unite: l.unite || 'unité',
+          prix_unitaire: parseFloat(l.prix_unitaire) || '',
+          remise: parseFloat(l.remise) || 0,
+          produit_id: l.produit_id || null,
+        })),
+      });
+      setShowModal(true);
+    } catch {
+      toast.error('Erreur chargement facture');
+    }
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingId(null);
+    setForm({ ...emptyForm });
+  };
+
   const handleSave = async (valider_immediatement) => {
     if (!form.client_id) return toast.error('Sélectionnez un client');
     if (form.type === 'avoir' && !form.facture_origine_id) return toast.error("Sélectionnez la facture d'origine (obligatoire pour un avoir)");
     if (form.lignes.some(l => !l.description || !l.prix_unitaire)) return toast.error('Complétez toutes les lignes');
     setSaving(true);
     try {
-      const payload = { ...form, valider_immediatement };
+      const payload = { ...form };
       // Ne pas envoyer facture_origine_id pour les autres types
       if (form.type !== 'avoir') delete payload.facture_origine_id;
-      await api.post('/factures', payload);
-      toast.success(valider_immediatement ? 'Facture créée et validée' : 'Facture enregistrée en brouillon');
-      setShowModal(false);
-      setForm({ ...emptyForm });
+
+      if (editingId) {
+        await api.put(`/factures/${editingId}`, payload);
+        toast.success('Facture modifiée');
+      } else {
+        payload.valider_immediatement = valider_immediatement;
+        await api.post('/factures', payload);
+        toast.success(valider_immediatement ? 'Facture créée et validée' : 'Facture enregistrée en brouillon');
+      }
+      closeModal();
       fetchFactures();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur création');
+      const msg = err.response?.data?.errors?.[0]?.message || err.response?.data?.message || (editingId ? 'Erreur modification' : 'Erreur création');
+      toast.error(msg);
     } finally { setSaving(false); }
   };
 
@@ -144,8 +187,21 @@ export default function FacturesPage() {
       toast.success('Paiement enregistré');
       setShowPaiement(null);
       fetchFactures();
-    } catch { toast.error('Erreur paiement'); }
-    finally { setSaving(false); }
+    } catch (err) {
+      const msg = err.response?.data?.errors?.[0]?.message || err.response?.data?.message || 'Erreur paiement';
+      toast.error(msg);
+    } finally { setSaving(false); }
+  };
+
+  const handleDelete = async (f) => {
+    if (!confirm(`Supprimer définitivement le brouillon ${f.numero} ?`)) return;
+    try {
+      await api.delete(`/factures/${f.id}`);
+      toast.success('Brouillon supprimé');
+      fetchFactures();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur suppression');
+    }
   };
 
   const handleStatutChange = async (id, s) => {
@@ -248,6 +304,20 @@ export default function FacturesPage() {
                   <td style={{ padding: '12px 14px' }}><StatutBadge statut={f.statut} /></td>
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', gap: 5 }}>
+                      {/* Modifier (brouillon uniquement) */}
+                      {f.statut === 'brouillon' && (
+                        <button onClick={() => openEdit(f.id)} title="Modifier la facture"
+                          style={{ padding: '5px 8px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.sub }}>
+                          <Edit2 size={13} />
+                        </button>
+                      )}
+                      {/* Supprimer (brouillon uniquement) */}
+                      {f.statut === 'brouillon' && (
+                        <button onClick={() => handleDelete(f)} title="Supprimer le brouillon"
+                          style={{ padding: '5px 8px', background: `${C.red}15`, border: `1px solid ${C.red}40`, borderRadius: 7, cursor: 'pointer', color: C.red }}>
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                       {/* Enregistrer paiement */}
                       {['en_attente', 'retard', 'envoyee'].includes(f.statut) && (
                         <button onClick={() => { setShowPaiement(f); setPaiementForm(p => ({ ...p, montant: reste.toFixed(0) })); }}
@@ -287,8 +357,12 @@ export default function FacturesPage() {
 
       {/* Modal nouvelle facture */}
       {showModal && (
-        <Modal title={form.type === 'avoir' ? 'Avoir / Note de credit' : 'Nouvelle Facture'}
-          onClose={() => { setShowModal(false); setForm({ ...emptyForm }); }} width={720}>
+        <Modal title={
+            editingId
+              ? (form.type === 'avoir' ? 'Modifier l\'avoir' : 'Modifier la facture')
+              : (form.type === 'avoir' ? 'Avoir / Note de credit' : 'Nouvelle Facture')
+          }
+          onClose={closeModal} width={720}>
           <form onSubmit={(e) => { e.preventDefault(); handleSave(false); }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Selecteur type SYSCOHADA — les devis/proformas ont leur propre page */}
@@ -508,31 +582,45 @@ export default function FacturesPage() {
             </div>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-              <button type="button" onClick={() => { setShowModal(false); setForm({ ...emptyForm }); }}
+              <button type="button" onClick={closeModal}
                 style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`, background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Annuler
               </button>
 
-              <button type="button" onClick={() => handleSave(false)} disabled={saving}
-                style={{
-                  flex: 1.5, padding: '11px 0', borderRadius: 10,
-                  border: `1.5px solid ${C.border}`,
-                  background: 'transparent',
-                  color: saving ? C.muted : C.sub,
-                  fontSize: 13, fontWeight: 600,
-                  cursor: saving ? 'not-allowed' : 'pointer',
-                }}>
-                {saving ? '...' : 'Enregistrer en brouillon'}
-              </button>
-              <button type="button" onClick={() => handleSave(true)} disabled={saving}
-                style={{
-                  flex: 1.5, padding: '11px 0', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 700,
-                  cursor: saving ? 'not-allowed' : 'pointer',
-                  background: saving ? C.border : form.type === 'avoir' ? C.red : C.accent,
-                  color: saving ? C.muted : '#000',
-                }}>
-                {saving ? 'Creation...' : form.type === 'avoir' ? "Creer & Valider l'Avoir" : 'Creer & Valider'}
-              </button>
+              {editingId ? (
+                <button type="button" onClick={() => handleSave(false)} disabled={saving}
+                  style={{
+                    flex: 3, padding: '11px 0', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 700,
+                    cursor: saving ? 'not-allowed' : 'pointer',
+                    background: saving ? C.border : C.accent,
+                    color: saving ? C.muted : '#000',
+                  }}>
+                  {saving ? 'Enregistrement...' : 'Enregistrer les modifications'}
+                </button>
+              ) : (
+                <>
+                  <button type="button" onClick={() => handleSave(false)} disabled={saving}
+                    style={{
+                      flex: 1.5, padding: '11px 0', borderRadius: 10,
+                      border: `1.5px solid ${C.border}`,
+                      background: 'transparent',
+                      color: saving ? C.muted : C.sub,
+                      fontSize: 13, fontWeight: 600,
+                      cursor: saving ? 'not-allowed' : 'pointer',
+                    }}>
+                    {saving ? '...' : 'Enregistrer en brouillon'}
+                  </button>
+                  <button type="button" onClick={() => handleSave(true)} disabled={saving}
+                    style={{
+                      flex: 1.5, padding: '11px 0', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 700,
+                      cursor: saving ? 'not-allowed' : 'pointer',
+                      background: saving ? C.border : form.type === 'avoir' ? C.red : C.accent,
+                      color: saving ? C.muted : '#000',
+                    }}>
+                    {saving ? 'Creation...' : form.type === 'avoir' ? "Creer & Valider l'Avoir" : 'Creer & Valider'}
+                  </button>
+                </>
+              )}
             </div>
           </form>
         </Modal>

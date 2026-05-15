@@ -3,6 +3,8 @@ const { body } = require('express-validator');
 const { logAudit } = require('../utils/audit');
 const { appliquerMouvement } = require('./produitsController');
 const { controlerSoldeAvantSortie, SoldeInsuffisantError } = require('./tresorerieController');
+const { ecriturePaiementFournisseur } = require('../utils/comptabilite-auto');
+const { ComptaError } = require('../utils/comptabilite');
 
 const round2 = (n) => Math.round((parseFloat(n) || 0) * 100) / 100;
 const round3 = (n) => Math.round((parseFloat(n) || 0) * 1000) / 1000;
@@ -419,9 +421,17 @@ const creerPaiementFournisseur = async (req, res) => {
     const montant = round2(b.montant);
     const datePaiement = b.date_paiement || new Date().toISOString().split('T')[0];
 
-    // Récupère le fournisseur pour le libellé
-    const fRes = await client.query(`SELECT nom FROM fournisseurs WHERE id = $1`, [b.fournisseur_id]);
-    const fournisseurNom = fRes.rows[0]?.nom || 'Fournisseur';
+    // Récupère le fournisseur (nom + code auxiliaire pour l'écriture comptable)
+    const fRes = await client.query(
+      `SELECT id, nom, code_auxiliaire FROM fournisseurs WHERE id = $1`,
+      [b.fournisseur_id]
+    );
+    if (!fRes.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Fournisseur introuvable' });
+    }
+    const fournisseur = fRes.rows[0];
+    const fournisseurNom = fournisseur.nom;
 
     // Si une dépense est désignée, on vérifie le reste à payer
     let depenseSoldeApres = null;
@@ -480,6 +490,16 @@ const creerPaiementFournisseur = async (req, res) => {
       );
     }
 
+    // Écriture comptable automatique : 401 (D) / 521|571|541 (C).
+    // En cas d'exercice clos sur la date de paiement, safeAuto relance l'erreur
+    // et la transaction est annulée — empêchant un paiement sans contrepartie comptable.
+    await ecriturePaiementFournisseur(client, {
+      entrepriseId: eid,
+      utilisateurId: req.user?.id,
+      fournisseur,
+      paiement: pRes.rows[0],
+    });
+
     await client.query('COMMIT');
     logAudit(req, 'PAY', 'fournisseurs', b.fournisseur_id,
       { montant, mode: b.mode_paiement, depense_id: b.depense_id });
@@ -488,6 +508,9 @@ const creerPaiementFournisseur = async (req, res) => {
     await client.query('ROLLBACK');
     if (err instanceof SoldeInsuffisantError) {
       return res.status(400).json({ success: false, message: err.message, code: err.code, details: err.details });
+    }
+    if (err instanceof ComptaError) {
+      return res.status(400).json({ success: false, message: err.message, code: err.code });
     }
     console.error('Erreur creerPaiementFournisseur:', err.message);
     res.status(500).json({ success: false, message: 'Erreur paiement' });

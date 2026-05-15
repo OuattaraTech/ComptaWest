@@ -2,6 +2,7 @@ const pool = require('../../config/database');
 const { body } = require('express-validator');
 const { logAudit } = require('../utils/audit');
 const { ecriturePaiementTaxe } = require('../utils/comptabilite-auto');
+const { ComptaError } = require('../utils/comptabilite');
 
 // ── Règles de validation ──────────────────────────────────────────────────
 const taxeRules = [
@@ -12,7 +13,7 @@ const taxeRules = [
   body('montant_base').isFloat({ min: 0 }).withMessage('Montant de base invalide'),
   body('taux').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0, max: 100 }).withMessage('Taux invalide'),
   body('montant_du').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Montant dû invalide'),
-  body('organisme').optional({ nullable: true }).trim().isLength({ max: 80 }).withMessage('Organisme trop long'),
+  body('organisme').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 80 }).withMessage('Organisme trop long'),
 ];
 
 const paiementTaxeRules = [
@@ -264,6 +265,9 @@ const payerTaxe = async (req, res) => {
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     await client.query('ROLLBACK');
+    if (err instanceof ComptaError) {
+      return res.status(400).json({ success: false, message: err.message, code: err.code });
+    }
     console.error('Erreur payerTaxe:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   } finally {

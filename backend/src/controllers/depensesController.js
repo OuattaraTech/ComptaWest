@@ -2,6 +2,7 @@ const pool = require('../../config/database');
 const { body } = require('express-validator');
 const { logAudit } = require('../utils/audit');
 const { ecritureDepense } = require('../utils/comptabilite-auto');
+const { ComptaError } = require('../utils/comptabilite');
 const { controlerSoldeAvantSortie, SoldeInsuffisantError } = require('./tresorerieController');
 
 // ── Règles de validation ──────────────────────────────────────────────────
@@ -15,7 +16,7 @@ const depenseRules = [
   body('date_echeance').optional({ nullable: true, checkFalsy: true }).isISO8601().withMessage("Date d'échéance invalide"),
   body('statut').optional().isIn(['payee', 'en_attente', 'annulee']).withMessage('Statut invalide'),
   body('mode_paiement').optional().isIn(['cash', 'virement', 'cheque', 'mobile_money', 'carte']).withMessage('Mode de paiement invalide'),
-  body('fournisseur').optional({ nullable: true }).trim().isLength({ max: 200 }).withMessage('Nom de fournisseur trop long'),
+  body('fournisseur').optional({ nullable: true, checkFalsy: true }).trim().isLength({ max: 200 }).withMessage('Nom de fournisseur trop long'),
 ];
 
 const categorieDepenseRules = [
@@ -271,6 +272,9 @@ const createDepense = async (req, res) => {
     await client.query('ROLLBACK');
     if (err instanceof SoldeInsuffisantError) {
       return res.status(400).json({ success: false, message: err.message, code: err.code, details: err.details });
+    }
+    if (err instanceof ComptaError) {
+      return res.status(400).json({ success: false, message: err.message, code: err.code });
     }
     console.error('Erreur createDepense:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });

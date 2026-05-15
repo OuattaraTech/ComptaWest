@@ -9,6 +9,7 @@ import Onboarding from '../components/Onboarding.jsx';
 import {
   BookOpen, FileSpreadsheet, BookMarked, Scale, Plus, Download,
   Search, ChevronLeft, ChevronRight, Trash2, AlertTriangle,
+  Lock, CheckCircle2, XCircle, AlertCircle,
 } from 'lucide-react';
 
 const TABS = [
@@ -16,6 +17,7 @@ const TABS = [
   { id: 'journal',  label: 'Journal',        icon: FileSpreadsheet },
   { id: 'gl',       label: 'Grand livre',    icon: BookMarked },
   { id: 'balance',  label: 'Balance',        icon: Scale },
+  { id: 'cloture',  label: 'Clôture',        icon: Lock },
 ];
 
 const CLASSES = [
@@ -142,6 +144,7 @@ export default function ComptabilitePage() {
         {tab === 'journal' && <JournalGeneral C={C} journaux={journaux} />}
         {tab === 'gl'      && <GrandLivre C={C} />}
         {tab === 'balance' && <BalanceGenerale C={C} />}
+        {tab === 'cloture' && <ClotureExercices C={C} peutEcrire={peutEcrire} />}
       </div>
 
       {/* Modale OD */}
@@ -530,6 +533,214 @@ function DetailEcritureModal({ C, ecriture, onClose }) {
 }
 
 // ─── MODALE OD MANUELLE ───────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// CLÔTURE D'EXERCICE
+// ═══════════════════════════════════════════════════════════════════════════
+function ClotureExercices({ C, peutEcrire }) {
+  const [exercices, setExercices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null); // exercice en cours d'audit pré-clôture
+
+  const charger = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.get('/comptabilite/exercices');
+      setExercices(r.data.data);
+    } catch { toast.error('Erreur chargement exercices'); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { charger(); }, [charger]);
+
+  if (selected) {
+    return <ClotureDetail exercice={selected} C={C} peutEcrire={peutEcrire}
+                          onBack={() => setSelected(null)}
+                          onCloture={() => { setSelected(null); charger(); }} />;
+  }
+
+  if (loading) return <Loading C={C} />;
+
+  return (
+    <div>
+      <Card C={C}>
+        <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Exercices comptables</div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
+            La clôture verrouille les écritures de l'exercice et génère automatiquement le solde des comptes 6/7 vers le résultat (compte 13), puis ouvre l'exercice suivant avec la reprise à nouveau.
+          </div>
+        </div>
+        {exercices.length === 0 ? (
+          <Empty C={C} message="Aucun exercice" />
+        ) : (
+          <table style={tableStyle}>
+            <thead>
+              <tr style={{ background: C.cardAlt, borderBottom: `1px solid ${C.border}` }}>
+                <th style={th(C)}>Libellé</th>
+                <th style={th(C)}>Période</th>
+                <th style={th(C)}>Statut</th>
+                <th style={th(C)}>Clôturé le</th>
+                <th style={{ ...th(C), textAlign: 'right' }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {exercices.map(ex => (
+                <tr key={ex.id} style={{ borderBottom: `1px solid ${C.border}22` }}>
+                  <td style={{ ...td(C), fontWeight: 700 }}>{ex.libelle}</td>
+                  <td style={{ ...td(C), fontSize: 11, color: C.muted }}>
+                    {formatDate(ex.date_debut)} → {formatDate(ex.date_fin)}
+                  </td>
+                  <td style={td(C)}>
+                    {ex.cloture ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 7, background: `${C.muted}20`, color: C.muted, fontSize: 10, fontWeight: 700 }}>
+                        <Lock size={11} /> CLÔTURÉ
+                      </span>
+                    ) : (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 7, background: `${C.accent}20`, color: C.accent, fontSize: 10, fontWeight: 700 }}>
+                        OUVERT
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ ...td(C), fontSize: 11, color: C.muted }}>
+                    {ex.date_cloture ? formatDate(ex.date_cloture) : '—'}
+                  </td>
+                  <td style={{ ...td(C), textAlign: 'right' }}>
+                    {!ex.cloture && peutEcrire && (
+                      <button onClick={() => setSelected(ex)} style={{
+                        padding: '6px 12px', borderRadius: 8, border: `1px solid ${C.accent}40`,
+                        background: `${C.accent}15`, color: C.accent, fontSize: 11, fontWeight: 700,
+                        cursor: 'pointer',
+                      }}>
+                        Préparer la clôture →
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function ClotureDetail({ exercice, C, peutEcrire, onBack, onCloture }) {
+  const [checks, setChecks] = useState([]);
+  const [info, setInfo] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const charger = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.get(`/comptabilite/exercices/${exercice.id}/pre-cloture`);
+      setChecks(r.data.data.checks);
+      setInfo(r.data.data.exercice);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur chargement contrôles');
+    } finally { setLoading(false); }
+  }, [exercice.id]);
+
+  useEffect(() => { charger(); }, [charger]);
+
+  const bloquants = checks.filter(c => c.niveau === 'error').length;
+  const warnings = checks.filter(c => c.niveau === 'warning').length;
+  const resultat = checks.find(c => c.code === 'RESULTAT_PREVISIONNEL')?.data;
+
+  const cloturer = async () => {
+    if (!confirm(`Clôturer définitivement ${exercice.libelle} ? Cette action est IRRÉVERSIBLE : aucune nouvelle écriture comptable ne pourra être ajoutée à cet exercice.`)) return;
+    setSaving(true);
+    try {
+      const r = await api.post(`/comptabilite/exercices/${exercice.id}/cloturer`);
+      const e = r.data.data.ecritures_generees;
+      toast.success(`${exercice.libelle} clôturé. Écritures : ${e.solde_charges || '—'}, ${e.solde_produits || '—'}, ${e.a_nouveau || '—'}.`);
+      onCloture();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur clôture');
+    } finally { setSaving(false); }
+  };
+
+  if (loading || !info) return <Loading C={C} />;
+
+  return (
+    <div>
+      <button onClick={onBack} style={{
+        display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9,
+        border: `1px solid ${C.border}`, background: 'transparent', color: C.muted,
+        fontSize: 12, fontWeight: 600, cursor: 'pointer', marginBottom: 16,
+      }}><ChevronLeft size={14} /> Retour</button>
+
+      <Card C={C}>
+        <div style={{ padding: '18px 22px', borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: C.text }}>Clôture de {info.libelle}</div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
+                Période {formatDate(info.date_debut)} → {formatDate(info.date_fin)}
+              </div>
+            </div>
+            {resultat && (
+              <div style={{
+                padding: '10px 16px', borderRadius: 10,
+                background: resultat.resultat >= 0 ? `${C.accent}15` : '#FF5C6B15',
+                border: `1px solid ${resultat.resultat >= 0 ? C.accent : '#FF5C6B'}30`,
+              }}>
+                <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                  Résultat prévisionnel
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'monospace', color: resultat.resultat >= 0 ? C.accent : '#FF5C6B' }}>
+                  {formatFCFA(resultat.resultat)} <span style={{ fontSize: 10, fontWeight: 500 }}>FCFA</span>
+                </div>
+                <div style={{ fontSize: 10, color: C.muted }}>
+                  Produits {formatFCFA(resultat.totalProduits)} − Charges {formatFCFA(resultat.totalCharges)}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ padding: '8px 0' }}>
+          {checks.map((c, i) => {
+            const Icon = c.niveau === 'ok' ? CheckCircle2 : c.niveau === 'error' ? XCircle : AlertCircle;
+            const color = c.niveau === 'ok' ? C.accent : c.niveau === 'error' ? '#FF5C6B' : '#F5A623';
+            return (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 12,
+                padding: '12px 22px', borderBottom: i < checks.length - 1 ? `1px solid ${C.border}22` : 'none',
+              }}>
+                <Icon size={18} color={color} style={{ flexShrink: 0, marginTop: 1 }} />
+                <div style={{ flex: 1, fontSize: 13, color: C.text }}>{c.message}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ padding: '16px 22px', background: C.cardAlt, borderTop: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 12, lineHeight: 1.6 }}>
+            <strong style={{ color: C.text }}>Effets de la clôture :</strong> deux écritures de virement (charges classe 6 et produits classe 7) vers le compte <strong style={{ fontFamily: 'monospace' }}>13</strong> sont passées au journal OD. L'exercice suivant est créé automatiquement avec une écriture de reprise à nouveau (journal AN) reportant les soldes de bilan. Plus aucune écriture comptable ne pourra être ajoutée à <strong>{info.libelle}</strong>.
+          </div>
+          {peutEcrire && (
+            <button onClick={cloturer} disabled={bloquants > 0 || saving} style={{
+              padding: '11px 22px', borderRadius: 10, border: 'none',
+              background: (bloquants > 0 || saving) ? C.border : '#FF5C6B',
+              color: (bloquants > 0 || saving) ? C.muted : '#fff',
+              fontSize: 13, fontWeight: 700,
+              cursor: (bloquants > 0 || saving) ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <Lock size={14} />
+              {saving ? 'Clôture en cours...'
+                : bloquants > 0 ? `Corrigez d'abord les ${bloquants} bloquant(s)`
+                : warnings > 0 ? `Clôturer malgré ${warnings} avertissement(s)`
+                : `Clôturer ${info.libelle}`}
+            </button>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 const ligneVide = () => ({ compte: '', libelle: '', debit: '', credit: '' });
 
 function OperationDiverseModal({ C, journaux, onClose, onSaved }) {

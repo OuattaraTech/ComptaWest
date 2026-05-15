@@ -168,6 +168,10 @@ const getAnneesDisponibles = async (req, res) => {
         SELECT EXTRACT(YEAR FROM date_depense)::int AS annee FROM depenses WHERE entreprise_id = $1
         UNION
         SELECT EXTRACT(YEAR FROM periode_fin)::int AS annee FROM declarations_taxes WHERE entreprise_id = $1
+        UNION
+        -- Inclure les exercices comptables (notamment l'exercice N+1 ouvert
+        -- automatiquement à la clôture, qui n'a pas encore de transaction métier)
+        SELECT EXTRACT(YEAR FROM date_debut)::int AS annee FROM exercices WHERE entreprise_id = $1
       ) sub
       ORDER BY annee DESC
     `, [eid]);
