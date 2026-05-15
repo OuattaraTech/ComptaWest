@@ -128,7 +128,7 @@ const login = async (req, res) => {
 const me = async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, nom, email, telephone, created_at FROM utilisateurs WHERE id = $1 AND actif = true',
+      'SELECT id, nom, email, telephone, langue, created_at FROM utilisateurs WHERE id = $1 AND actif = true',
       [req.user.id]
     );
     if (result.rows.length === 0) {
@@ -137,6 +137,28 @@ const me = async (req, res) => {
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     console.error('Erreur me:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+};
+
+// PUT /api/auth/me/langue — préférence de langue de l'utilisateur connecté
+const LANGUES_SUPPORTEES = ['fr', 'en'];
+const updateLangue = async (req, res) => {
+  try {
+    const { langue } = req.body;
+    if (!LANGUES_SUPPORTEES.includes(langue)) {
+      return res.status(400).json({
+        success: false,
+        message: `Langue invalide. Valeurs acceptées : ${LANGUES_SUPPORTEES.join(', ')}`,
+      });
+    }
+    await pool.query(
+      'UPDATE utilisateurs SET langue = $1, updated_at = NOW() WHERE id = $2',
+      [langue, req.user.id]
+    );
+    res.json({ success: true, data: { langue } });
+  } catch (err) {
+    console.error('Erreur updateLangue:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 };
@@ -288,6 +310,6 @@ const accepterInvitation = async (req, res) => {
 };
 
 module.exports = {
-  register, login, me, loginDemo, getInvitation, accepterInvitation,
+  register, login, me, updateLangue, loginDemo, getInvitation, accepterInvitation,
   registerRules, loginRules,
 };

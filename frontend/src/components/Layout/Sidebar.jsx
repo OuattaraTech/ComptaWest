@@ -1,9 +1,11 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { useEntreprise } from '../../hooks/useEntreprise.jsx';
 import { useTheme } from '../../hooks/useTheme.jsx';
 import { initiales } from '../../utils/helpers.jsx';
+import LanguageSwitcher from '../LanguageSwitcher.jsx';
 import {
   LayoutDashboard, Users, FileText, BarChart3, LogOut,
   Settings, ChevronRight, Receipt, Calculator, Plus,
@@ -15,25 +17,27 @@ import {
 // tous les autres modules portent rolesRequis SANS_RH pour le masquer.
 const SANS_RH = ['proprietaire', 'admin', 'comptable', 'user', 'lecture'];
 
+// Items de navigation : on stocke la clé i18n à côté d'un libellé fallback
+// (utilisé si la traduction est absente). Le label final est résolu par t().
 const navItems = [
-  { to: '/dashboard',       icon: LayoutDashboard, label: 'Tableau de bord' },
-  { to: '/clients',         icon: Users,            label: 'Clients',           rolesRequis: SANS_RH },
-  { to: '/fournisseurs',    icon: Truck,            label: 'Fournisseurs',      rolesRequis: SANS_RH },
-  { to: '/produits',        icon: Box,              label: 'Produits & Stocks', rolesRequis: SANS_RH },
-  { to: '/devis',           icon: FileSignature,    label: 'Devis & Proformas', rolesRequis: SANS_RH },
-  { to: '/factures',        icon: FileText,         label: 'Factures',          rolesRequis: SANS_RH },
-  { to: '/depenses',        icon: Receipt,          label: 'Dépenses',          rolesRequis: SANS_RH },
-  { to: '/tresorerie',      icon: Wallet,           label: 'Trésorerie',        rolesRequis: SANS_RH },
-  { to: '/immobilisations', icon: Package,          label: 'Immobilisations',   rolesRequis: ['proprietaire','admin','comptable'] },
-  { to: '/paie',            icon: UserCheck,        label: 'Paie & RH',         rolesRequis: ['proprietaire','admin','comptable','rh'] },
-  { to: '/taxes',           icon: Calculator,       label: 'Taxes & Impôts',    rolesRequis: SANS_RH },
-  { to: '/comptabilite',    icon: BookMarked,       label: 'Comptabilité',      rolesRequis: ['proprietaire','admin','comptable'] },
-  { to: '/rapports',        icon: BarChart3,        label: 'Rapports',          rolesRequis: SANS_RH },
+  { to: '/dashboard',       icon: LayoutDashboard, i18nKey: 'nav.dashboard',        label: 'Tableau de bord' },
+  { to: '/clients',         icon: Users,           i18nKey: 'nav.clients',          label: 'Clients',           rolesRequis: SANS_RH },
+  { to: '/fournisseurs',    icon: Truck,           i18nKey: 'nav.fournisseurs',     label: 'Fournisseurs',      rolesRequis: SANS_RH },
+  { to: '/produits',        icon: Box,             i18nKey: 'nav.produits',         label: 'Produits & Stocks', rolesRequis: SANS_RH },
+  { to: '/devis',           icon: FileSignature,   i18nKey: 'nav.devis',            label: 'Devis & Proformas', rolesRequis: SANS_RH },
+  { to: '/factures',        icon: FileText,        i18nKey: 'nav.factures',         label: 'Factures',          rolesRequis: SANS_RH },
+  { to: '/depenses',        icon: Receipt,         i18nKey: 'nav.depenses',         label: 'Dépenses',          rolesRequis: SANS_RH },
+  { to: '/tresorerie',      icon: Wallet,          i18nKey: 'nav.tresorerie',       label: 'Trésorerie',        rolesRequis: SANS_RH },
+  { to: '/immobilisations', icon: Package,         i18nKey: 'nav.immobilisations',  label: 'Immobilisations',   rolesRequis: ['proprietaire','admin','comptable'] },
+  { to: '/paie',            icon: UserCheck,       i18nKey: 'nav.paie',             label: 'Paie & RH',         rolesRequis: ['proprietaire','admin','comptable','rh'] },
+  { to: '/taxes',           icon: Calculator,      i18nKey: 'nav.taxes',            label: 'Taxes & Impôts',    rolesRequis: SANS_RH },
+  { to: '/comptabilite',    icon: BookMarked,      i18nKey: 'nav.comptabilite',     label: 'Comptabilité',      rolesRequis: ['proprietaire','admin','comptable'] },
+  { to: '/rapports',        icon: BarChart3,       i18nKey: 'nav.rapports',         label: 'Rapports',          rolesRequis: SANS_RH },
 ];
 
 // Visible uniquement pour propriétaires et administrateurs
 const adminItems = [
-  { to: '/audit-log',  icon: Shield,           label: 'Journal d’audit' },
+  { to: '/audit-log',  icon: Shield,  i18nKey: 'nav.audit_log',  label: 'Journal d’audit' },
 ];
 
 const ROLE_COLORS = {
@@ -46,6 +50,7 @@ const ROLE_COLORS = {
 };
 
 export default function Sidebar() {
+  const { t } = useTranslation();
   const { user, logout } = useAuth();
   const { entreprises, actuelle, switchEntreprise, ajouterEntreprise } = useEntreprise();
   const { dark, toggle } = useTheme();
@@ -192,7 +197,7 @@ export default function Sidebar() {
         </div>
         {navItems
           .filter(item => !item.rolesRequis || item.rolesRequis.includes(actuelle?.role))
-          .map(({ to, icon: Icon, label }) => (
+          .map(({ to, icon: Icon, label, i18nKey }) => (
           <NavLink key={to} to={to} style={({ isActive }) => ({
             display: 'flex', alignItems: 'center', gap: 9,
             padding: '9px 10px', borderRadius: 9, textDecoration: 'none',
@@ -205,7 +210,7 @@ export default function Sidebar() {
             {({ isActive }) => (
               <>
                 <Icon size={16} />
-                <span style={{ flex: 1 }}>{label}</span>
+                <span style={{ flex: 1 }}>{i18nKey ? t(i18nKey) : label}</span>
                 {isActive && <ChevronRight size={13} />}
               </>
             )}
@@ -217,7 +222,7 @@ export default function Sidebar() {
             <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: '0.1em', padding: '14px 8px 3px', textTransform: 'uppercase' }}>
               Administration
             </div>
-            {adminItems.map(({ to, icon: Icon, label }) => (
+            {adminItems.map(({ to, icon: Icon, label, i18nKey }) => (
               <NavLink key={to} to={to} style={({ isActive }) => ({
                 display: 'flex', alignItems: 'center', gap: 9,
                 padding: '9px 10px', borderRadius: 9, textDecoration: 'none',
@@ -230,7 +235,7 @@ export default function Sidebar() {
                 {({ isActive }) => (
                   <>
                     <Icon size={16} />
-                    <span style={{ flex: 1 }}>{label}</span>
+                    <span style={{ flex: 1 }}>{i18nKey ? t(i18nKey) : label}</span>
                     {isActive && <ChevronRight size={13} />}
                   </>
                 )}
@@ -254,7 +259,7 @@ export default function Sidebar() {
               : <Moon size={15} color="#4E8BF5" />
             }
             <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>
-              Mode {dark ? 'clair' : 'sombre'}
+              {dark ? t('parametres.theme_light') : t('parametres.theme_dark')}
             </span>
           </div>
           {/* Toggle switch */}
@@ -273,12 +278,17 @@ export default function Sidebar() {
           </div>
         </button>
 
+        {/* Sélecteur de langue compact */}
+        <div style={{ marginBottom: 6, display: 'flex', justifyContent: 'center' }}>
+          <LanguageSwitcher C={{ ...C, accent: '#00D4AA' }} dark={dark} />
+        </div>
+
         <NavLink to="/parametres" style={{
           display: 'flex', alignItems: 'center', gap: 9,
           padding: '8px 10px', borderRadius: 9, textDecoration: 'none',
           fontSize: 12, fontWeight: 500, color: C.muted, marginBottom: 4,
         }}>
-          <Settings size={15} /> Paramètres
+          <Settings size={15} /> {t('common.settings')}
         </NavLink>
 
         <div style={{
@@ -306,7 +316,7 @@ export default function Sidebar() {
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#FF5C6B50'; e.currentTarget.style.color = '#FF5C6B'; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; }}
         >
-          <LogOut size={13} /> Déconnexion
+          <LogOut size={13} /> {t('common.logout')}
         </button>
       </div>
     </aside>

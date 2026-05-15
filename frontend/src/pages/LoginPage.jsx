@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useEntreprise } from '../hooks/useEntreprise.jsx';
 import { useTheme } from '../hooks/useTheme.jsx';
@@ -9,6 +10,7 @@ import {
   Truck, Box, UserCheck, Package, BookMarked,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import LanguageSwitcher from '../components/LanguageSwitcher.jsx';
 
 const getC = (dark) => dark ? {
   bg: '#0B0F1A', card: '#111827', border: '#1E2D40',
@@ -49,6 +51,7 @@ const Input = ({ label, type = 'text', value, onChange, placeholder, required, C
 );
 
 export default function LoginPage() {
+  const { t } = useTranslation();
   const { login, register } = useAuth();
   const { chargerEntreprises } = useEntreprise();
   const { dark, toggle } = useTheme();
@@ -107,16 +110,21 @@ export default function LoginPage() {
       minHeight: '100vh', background: C.bg, transition: 'background 0.2s',
       display: 'flex', flexDirection: 'column',
     }}>
-      {/* Toggle thème */}
-      <button onClick={toggle} style={{
+      {/* Sélecteur langue + Toggle thème */}
+      <div style={{
         position: 'fixed', top: 16, right: 16, zIndex: 10,
-        padding: '8px 12px', borderRadius: 10, border: `1px solid ${C.border}`,
-        background: C.card, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-        fontSize: 12, fontWeight: 600, color: C.muted, transition: 'all 0.2s',
+        display: 'flex', alignItems: 'center', gap: 8,
       }}>
-        {dark ? <Sun size={14} color="#F5A623" /> : <Moon size={14} color="#4E8BF5" />}
-        {dark ? 'Mode clair' : 'Mode sombre'}
-      </button>
+        <LanguageSwitcher C={C} dark={dark} />
+        <button onClick={toggle} style={{
+          padding: '8px 12px', borderRadius: 10, border: `1px solid ${C.border}`,
+          background: C.card, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+          fontSize: 12, fontWeight: 600, color: C.muted, transition: 'all 0.2s',
+        }}>
+          {dark ? <Sun size={14} color="#F5A623" /> : <Moon size={14} color="#4E8BF5" />}
+          {dark ? (t('parametres.theme_light')) : (t('parametres.theme_dark'))}
+        </button>
+      </div>
 
       <div style={{
         flex: 1,
@@ -258,7 +266,7 @@ export default function LoginPage() {
                   background: mode === m ? C.accent : 'transparent',
                   color: mode === m ? '#000' : C.muted,
                 }}>
-                  {m === 'login' ? 'Connexion' : 'Inscription'}
+                  {m === 'login' ? t('login.submit') : t('login.register_submit')}
                 </button>
               ))}
             </div>
@@ -266,12 +274,12 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {mode === 'register' && (
                 <>
-                  <Input label="Nom complet" value={form.nom} onChange={set('nom')} placeholder="Ouattara Koffi" required C={C} />
-                  <Input label="Nom de l'entreprise" value={form.entreprise} onChange={set('entreprise')} placeholder="SARL MonEntreprise" C={C} />
+                  <Input label={t('login.name')} value={form.nom} onChange={set('nom')} placeholder="Ouattara Koffi" required C={C} />
+                  <Input label={t('login.company_name')} value={form.entreprise} onChange={set('entreprise')} placeholder="SARL MonEntreprise" C={C} />
                 </>
               )}
-              <Input label="Email" type="email" value={form.email} onChange={set('email')} placeholder="vous@exemple.ci" required C={C} />
-              <Input label="Mot de passe" type="password" value={form.mot_de_passe} onChange={set('mot_de_passe')} placeholder="••••••••" required C={C} />
+              <Input label={t('login.email')} type="email" value={form.email} onChange={set('email')} placeholder="vous@exemple.ci" required C={C} />
+              <Input label={t('login.password')} type="password" value={form.mot_de_passe} onChange={set('mot_de_passe')} placeholder="••••••••" required C={C} />
 
               <button type="submit" disabled={loading} style={{
                 marginTop: 6, padding: '13px 0', borderRadius: 12, border: 'none',
@@ -280,9 +288,9 @@ export default function LoginPage() {
                 cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               }}>
-                {loading ? 'Chargement...' : (
+                {loading ? t('login.submitting') : (
                   <>
-                    {mode === 'login' ? 'Se connecter' : 'Créer mon compte'}
+                    {mode === 'login' ? t('login.submit') : t('login.register_submit')}
                     <ArrowRight size={16} />
                   </>
                 )}

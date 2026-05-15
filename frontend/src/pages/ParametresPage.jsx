@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useEntreprise } from '../hooks/useEntreprise.jsx';
 import api from '../utils/api.jsx';
 import { formatDate, initiales } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
-import { Users, Building2, Plus, X, Edit2, Trash2, Shield, Save, Copy, Link2 } from 'lucide-react';
+import { Users, Building2, Plus, X, Edit2, Trash2, Shield, Save, Copy, Link2, Globe } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme.jsx';
 import { getC, Input } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
+import LanguageSwitcher from '../components/LanguageSwitcher.jsx';
 
 // ─── Référentiels ──────────────────────────────────────────────────────────
 // Formes juridiques courantes en zone OHADA / Côte d'Ivoire
@@ -41,7 +43,28 @@ const ROLES = {
   lecture:      { label: 'Lecture seule', color: '#6B7A99', desc: 'Consultation uniquement, aucune modification.' },
 };
 
+function PreferencesTab({ C }) {
+  const { t } = useTranslation();
+  return (
+    <div data-onboarding="form-preferences" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+          <Globe size={18} color={C.accent} />
+          <div style={{ fontSize: 14, fontWeight: 700 }}>{t('parametres.language_label')}</div>
+        </div>
+        <div style={{ fontSize: 12, color: C.muted, marginBottom: 16, lineHeight: 1.5 }}>
+          {t('parametres.language_help')}
+        </div>
+        <div style={{ maxWidth: 320 }}>
+          <LanguageSwitcher variant="dropdown" C={C} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ParametresPage() {
+  const { t } = useTranslation();
   const { dark } = useTheme();
   const C = getC(dark);
   const { actuelle, chargerEntreprises } = useEntreprise();
@@ -147,15 +170,16 @@ export default function ParametresPage() {
   return (
     <div style={{ padding: '32px 36px', minHeight: '100vh', maxWidth: 900 }}>
       <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>Paramètres</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>{t('parametres.title')}</h1>
         <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{actuelle.nom}</p>
       </div>
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 28 }}>
         {[
-          { id: 'entreprise', icon: Building2, label: 'Entreprise' },
-          { id: 'membres', icon: Users, label: `Membres (${membres.length})` },
+          { id: 'entreprise',  icon: Building2, label: t('parametres.company') },
+          { id: 'membres',     icon: Users,     label: `${t('parametres.members')} (${membres.length})` },
+          { id: 'preferences', icon: Globe,     label: t('parametres.preferences') },
         ].map(({ id, icon: Icon, label }) => (
           <button key={id} onClick={() => setTab(id)} style={{
             display: 'flex', alignItems: 'center', gap: 7,
@@ -238,6 +262,9 @@ export default function ParametresPage() {
           </button>
         </form>
       )}
+
+      {/* Tab Préférences */}
+      {tab === 'preferences' && <PreferencesTab C={C} />}
 
       {/* Tab Membres */}
       {tab === 'membres' && (
