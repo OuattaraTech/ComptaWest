@@ -17,6 +17,7 @@
  * son écriture échoue — l'utilisateur pourra la passer en OD manuel).
  */
 const { creerEcriture, ComptaError, round2 } = require('./comptabilite');
+const logger = require('./logger');
 
 // ─── Mapping mode de paiement → compte SYSCOHADA ──────────────────────────
 const COMPTES_TRESORERIE = {
@@ -38,10 +39,14 @@ const safeAuto = async (label, fn) => {
     return await fn();
   } catch (err) {
     if (err instanceof ComptaError) {
-      console.warn(`[compta-auto] ${label} : ${err.message} (${err.code})`);
+      logger.warn('Écriture automatique ignorée', {
+        source: 'compta-auto', label, code: err.code, message: err.message,
+      });
       return null;
     }
-    console.error(`[compta-auto] ${label} : erreur inattendue`, err);
+    logger.error('Écriture automatique en échec inattendu', {
+      source: 'compta-auto', label, message: err.message, stack: err.stack,
+    });
     return null;
   }
 };

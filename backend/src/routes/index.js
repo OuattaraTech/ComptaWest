@@ -79,6 +79,16 @@ const authLimiter = rateLimit({
   skipSuccessfulRequests: true,
 });
 
+// Limiteur pour la route publique du compte démo : chaque appel déclenche un
+// upsert + potentiellement la création d'une entreprise complète.
+const demoLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Trop de connexions au compte démo. Réessayez dans quelques minutes.' },
+});
+
 const ea      = entrepriseAccess();
 const eaWrite = entrepriseAccess(['proprietaire', 'admin', 'comptable']);
 const eaAdmin = entrepriseAccess(['proprietaire', 'admin']);
@@ -91,7 +101,7 @@ const eaPaieAdmin = entrepriseAccess(['proprietaire', 'admin', 'rh']);
 // ─── AUTH ──────────────────────────────────────────────────────────────────
 router.post('/auth/register', authLimiter, registerRules, validate, register);
 router.post('/auth/login',    authLimiter, loginRules,    validate, login);
-router.post('/auth/demo',     loginDemo);
+router.post('/auth/demo',     demoLimiter, loginDemo);
 router.get('/auth/me', auth, me);
 // Invitations — routes publiques (pas d'auth : l'invité n'a pas encore de compte actif)
 router.get('/auth/invitation/:token',  getInvitation);

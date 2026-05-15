@@ -129,9 +129,12 @@ const getTableauBordTaxes = async (req, res) => {
 
     // Calcul automatique TVA à déclarer depuis les factures
     const tvaCollecteeRes = await pool.query(`
-      SELECT COALESCE(SUM(montant_tva), 0) AS collectee
+      SELECT COALESCE(SUM(
+               CASE WHEN type = 'avoir' THEN -montant_tva ELSE montant_tva END
+             ), 0) AS collectee
       FROM factures
       WHERE entreprise_id=$1
+        AND type IN ('facture','avoir')
         AND statut IN ('payee','envoyee','en_attente','retard')
         AND EXTRACT(YEAR FROM date_emission)=$2
     `, [eid, annee]);
@@ -275,10 +278,15 @@ const calculerTVA = async (req, res) => {
     const eid = req.entrepriseId;
 
     const collecteeRes = await pool.query(`
-      SELECT COALESCE(SUM(montant_tva), 0) AS total,
-             COALESCE(SUM(total_ttc), 0) AS ca_ttc
+      SELECT COALESCE(SUM(
+               CASE WHEN type = 'avoir' THEN -montant_tva ELSE montant_tva END
+             ), 0) AS total,
+             COALESCE(SUM(
+               CASE WHEN type = 'avoir' THEN -total_ttc ELSE total_ttc END
+             ), 0) AS ca_ttc
       FROM factures
       WHERE entreprise_id=$1
+        AND type IN ('facture','avoir')
         AND date_emission BETWEEN $2 AND $3
         AND statut NOT IN ('annulee','brouillon')
     `, [eid, periode_debut, periode_fin]);
