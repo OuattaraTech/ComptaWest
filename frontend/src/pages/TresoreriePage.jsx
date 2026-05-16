@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme.jsx';
 import api from '../utils/api.jsx';
 import { formatFCFA, formatDate } from '../utils/helpers.jsx';
@@ -12,14 +13,15 @@ import {
 } from 'lucide-react';
 
 const TYPE_CONFIG = {
-  banque:       { label: 'Banque',       icon: Banknote,   color: '#4E8BF5' },
-  mobile_money: { label: 'Mobile Money', icon: Smartphone, color: '#A855F7' },
-  caisse:       { label: 'Caisse',       icon: Wallet,     color: '#F5A623' },
+  banque:       { labelKey: 'tresorerie.type_banque',       icon: Banknote,   color: '#4E8BF5' },
+  mobile_money: { labelKey: 'tresorerie.type_mobile_money', icon: Smartphone, color: '#A855F7' },
+  caisse:       { labelKey: 'tresorerie.type_caisse',       icon: Wallet,     color: '#F5A623' },
 };
 
 const fmt = (n) => formatFCFA(n, false);
 
 export default function TresoreriePage() {
+  const { t } = useTranslation();
   const { dark } = useTheme();
   const C = getC(dark);
 
@@ -34,9 +36,9 @@ export default function TresoreriePage() {
     try {
       const res = await api.get('/tresorerie/comptes');
       setComptes(res.data.data);
-    } catch { toast.error('Erreur chargement des comptes'); }
+    } catch { toast.error(t('tresorerie.load_accounts_error')); }
     finally { setLoading(false); }
-  }, []);
+  }, [t]);
 
   useEffect(() => { fetchComptes(); }, [fetchComptes]);
 
@@ -66,9 +68,9 @@ export default function TresoreriePage() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>Trésorerie</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>{t('tresorerie.title')}</h1>
           <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
-            Comptes bancaires · Mobile Money · Caisses
+            {t('tresorerie.subtitle')}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -77,14 +79,14 @@ export default function TresoreriePage() {
             border: `1.5px solid ${C.border}`, background: 'transparent',
             color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer',
           }}>
-            <ArrowLeftRight size={14} /> Transfert
+            <ArrowLeftRight size={14} /> {t('tresorerie.transfer_btn')}
           </button>
           <button data-onboarding="btn-nouveau" onClick={() => setShowCreate(true)} style={{
             display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
             border: 'none', background: C.accent, color: dark ? '#000' : '#fff',
             fontSize: 13, fontWeight: 700, cursor: 'pointer',
           }}>
-            <Plus size={15} /> Nouveau compte
+            <Plus size={15} /> {t('tresorerie.new_account')}
           </button>
         </div>
       </div>
@@ -96,19 +98,19 @@ export default function TresoreriePage() {
           border: `1.5px solid ${C.accent}40`, borderRadius: 14, padding: '20px 22px',
         }}>
           <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
-            Solde total
+            {t('tresorerie.total_balance')}
           </div>
           <div style={{ fontSize: 22, fontWeight: 800, color: C.accent, fontFamily: 'monospace' }}>
-            {fmt(totalGlobal)} <span style={{ fontSize: 11, color: C.muted, fontWeight: 400 }}>FCFA</span>
+            {fmt(totalGlobal)} <span style={{ fontSize: 11, color: C.muted, fontWeight: 400 }}>{t('common.currency')}</span>
           </div>
-          <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{comptes.length} compte(s) actif(s)</div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{t('tresorerie.accounts_active', { count: comptes.length })}</div>
         </div>
-        {['banque', 'mobile_money', 'caisse'].map(t => {
-          const cfg = TYPE_CONFIG[t];
-          const tot = totauxParType[t] || { total: 0, nb: 0 };
+        {['banque', 'mobile_money', 'caisse'].map(type => {
+          const cfg = TYPE_CONFIG[type];
+          const tot = totauxParType[type] || { total: 0, nb: 0 };
           const Icon = cfg.icon;
           return (
-            <div key={t} style={{
+            <div key={type} style={{
               background: C.card, border: `1px solid ${C.border}`, borderRadius: 14,
               padding: '20px 22px', position: 'relative', overflow: 'hidden',
               boxShadow: C.shadow,
@@ -120,14 +122,14 @@ export default function TresoreriePage() {
               }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                 <span style={{ fontSize: 10, color: C.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                  {cfg.label}
+                  {t(cfg.labelKey)}
                 </span>
                 <Icon size={15} color={cfg.color} />
               </div>
               <div style={{ fontSize: 18, fontWeight: 800, color: C.text, fontFamily: 'monospace' }}>
                 {fmt(tot.total)}
               </div>
-              <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{tot.nb} compte(s)</div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{t('tresorerie.accounts_count', { count: tot.nb })}</div>
             </div>
           );
         })}
@@ -135,7 +137,7 @@ export default function TresoreriePage() {
 
       {/* Liste comptes par type */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: C.muted }}>Chargement...</div>
+        <div style={{ textAlign: 'center', padding: '60px', color: C.muted }}>{t('tresorerie.loading')}</div>
       ) : comptes.length === 0 ? (
         <div style={{
           background: C.card, border: `1.5px dashed ${C.border}`, borderRadius: 16,
@@ -143,16 +145,16 @@ export default function TresoreriePage() {
         }}>
           <Wallet size={36} color={C.muted} style={{ margin: '0 auto 14px' }} />
           <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>
-            Aucun compte de trésorerie
+            {t('tresorerie.empty_title')}
           </div>
           <div style={{ fontSize: 13, color: C.muted, marginBottom: 18 }}>
-            Créez votre premier compte pour suivre vos flux d'argent.
+            {t('tresorerie.empty_desc')}
           </div>
           <button onClick={() => setShowCreate(true)} style={{
             padding: '10px 22px', borderRadius: 10, border: 'none',
             background: C.accent, color: dark ? '#000' : '#fff',
             fontSize: 13, fontWeight: 700, cursor: 'pointer',
-          }}>+ Créer un compte</button>
+          }}>{t('tresorerie.empty_btn')}</button>
         </div>
       ) : (
         <div data-onboarding="liste-comptes" style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
@@ -166,7 +168,7 @@ export default function TresoreriePage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                   <Icon size={16} color={cfg.color} />
                   <h2 style={{ fontSize: 13, fontWeight: 700, color: C.text, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                    {cfg.label}
+                    {t(cfg.labelKey)}
                   </h2>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
@@ -183,7 +185,7 @@ export default function TresoreriePage() {
       {showCreate && (
         <CompteFormModal
           onClose={() => setShowCreate(false)}
-          onSaved={() => { setShowCreate(false); fetchComptes(); toast.success('Compte créé'); }}
+          onSaved={() => { setShowCreate(false); fetchComptes(); toast.success(t('tresorerie.toast_created')); }}
           C={C} dark={dark}
         />
       )}
@@ -191,7 +193,7 @@ export default function TresoreriePage() {
         <TransfertModal
           comptes={comptes}
           onClose={() => setShowTransfert(false)}
-          onSaved={() => { setShowTransfert(false); fetchComptes(); toast.success('Transfert effectué'); }}
+          onSaved={() => { setShowTransfert(false); fetchComptes(); toast.success(t('tresorerie.transfer_success')); }}
           C={C} dark={dark}
         />
       )}
@@ -203,6 +205,7 @@ export default function TresoreriePage() {
 
 // ─── Carte compte ──────────────────────────────────────────────────────────
 function CompteCard({ compte, onClick, C, dark }) {
+  const { t } = useTranslation();
   const cfg = TYPE_CONFIG[compte.type];
   const Icon = cfg.icon;
   const solde = parseFloat(compte.solde_actuel) || 0;
@@ -222,7 +225,7 @@ function CompteCard({ compte, onClick, C, dark }) {
           position: 'absolute', top: 10, right: 10,
           fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
           background: `${cfg.color}20`, color: cfg.color,
-        }}>Par défaut</div>
+        }}>{t('tresorerie.default_badge')}</div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
         <div style={{
@@ -236,16 +239,16 @@ function CompteCard({ compte, onClick, C, dark }) {
             {compte.nom}
           </div>
           <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
-            {compte.operateur || cfg.label}{compte.numero_compte ? ` · ${compte.numero_compte.slice(-4).padStart(8, '*')}` : ''}
+            {compte.operateur || t(cfg.labelKey)}{compte.numero_compte ? ` · ${compte.numero_compte.slice(-4).padStart(8, '*')}` : ''}
           </div>
         </div>
       </div>
       <div style={{ fontSize: 19, fontWeight: 800, color: solde >= 0 ? C.text : C.red, fontFamily: 'monospace' }}>
-        {fmt(solde)} <span style={{ fontSize: 10, color: C.muted, fontWeight: 400 }}>{compte.devise || 'FCFA'}</span>
+        {fmt(solde)} <span style={{ fontSize: 10, color: C.muted, fontWeight: 400 }}>{compte.devise || t('common.currency')}</span>
       </div>
       {nbAlertes > 0 && (
         <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: C.gold }}>
-          <AlertCircle size={12} /> {nbAlertes} mouvement(s) non rapproché(s)
+          <AlertCircle size={12} /> {t('tresorerie.unmatched_movements', { count: nbAlertes })}
         </div>
       )}
     </div>
@@ -254,6 +257,7 @@ function CompteCard({ compte, onClick, C, dark }) {
 
 // ─── Modal création / édition de compte ────────────────────────────────────
 function CompteFormModal({ onClose, onSaved, C, dark, compte: editing }) {
+  const { t, i18n } = useTranslation();
   const [operateurs, setOperateurs] = useState({ banque: [], mobile_money: [], caisse: [] });
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(editing || {
@@ -270,7 +274,7 @@ function CompteFormModal({ onClose, onSaved, C, dark, compte: editing }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.nom.trim()) { toast.error('Nom requis'); return; }
+    if (!form.nom.trim()) { toast.error(t('tresorerie.err_name_required')); return; }
     setSaving(true);
     try {
       if (editing) {
@@ -280,7 +284,7 @@ function CompteFormModal({ onClose, onSaved, C, dark, compte: editing }) {
       }
       onSaved();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur enregistrement');
+      toast.error(err.response?.data?.message || t('tresorerie.err_save'));
     } finally { setSaving(false); }
   };
 
@@ -291,22 +295,25 @@ function CompteFormModal({ onClose, onSaved, C, dark, compte: editing }) {
     fontFamily: 'inherit', cursor: 'pointer', width: '100%',
   };
 
+  const typeLabel = (type) => t(TYPE_CONFIG[type].labelKey).toLowerCase();
+  const numberLocale = i18n.language?.startsWith('en') ? 'en-US' : 'fr-FR';
+
   return (
-    <Modal title={editing ? 'Modifier le compte' : 'Nouveau compte de trésorerie'} onClose={onClose} width={520}>
+    <Modal title={editing ? t('tresorerie.form_title_edit') : t('tresorerie.form_title_new')} onClose={onClose} width={520}>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {/* Type */}
         <div>
           <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-            Type de compte
+            {t('tresorerie.form_account_type')}
           </label>
           <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-            {['banque', 'mobile_money', 'caisse'].map(t => {
-              const cfg = TYPE_CONFIG[t];
+            {['banque', 'mobile_money', 'caisse'].map(type => {
+              const cfg = TYPE_CONFIG[type];
               const Icon = cfg.icon;
-              const active = form.type === t;
+              const active = form.type === type;
               return (
-                <button key={t} type="button"
-                  onClick={() => setForm(f => ({ ...f, type: t, operateur: '' }))}
+                <button key={type} type="button"
+                  onClick={() => setForm(f => ({ ...f, type, operateur: '' }))}
                   disabled={!!editing}
                   style={{
                     flex: 1, padding: '10px 12px', borderRadius: 9,
@@ -317,24 +324,24 @@ function CompteFormModal({ onClose, onSaved, C, dark, compte: editing }) {
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                     opacity: editing ? 0.7 : 1,
                   }}>
-                  <Icon size={13} /> {cfg.label}
+                  <Icon size={13} /> {t(cfg.labelKey)}
                 </button>
               );
             })}
           </div>
         </div>
 
-        <Input label="Nom du compte" value={form.nom} onChange={set('nom')}
-          placeholder={form.type === 'mobile_money' ? 'Wave principal' : 'Compte courant BICICI'} required />
+        <Input label={t('tresorerie.form_account_name')} value={form.nom} onChange={set('nom')}
+          placeholder={form.type === 'mobile_money' ? t('tresorerie.form_account_name_placeholder_mm') : t('tresorerie.form_account_name_placeholder_bk')} required />
 
         {/* Opérateur */}
         {operateursDisponibles.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-              {form.type === 'banque' ? 'Banque' : form.type === 'mobile_money' ? 'Opérateur' : 'Emplacement'}
+              {form.type === 'banque' ? t('tresorerie.form_bank') : form.type === 'mobile_money' ? t('tresorerie.form_operator') : t('tresorerie.form_location')}
             </label>
             <select value={form.operateur || ''} onChange={set('operateur')} style={selectStyle}>
-              <option value="">— Sélectionner —</option>
+              <option value="">{t('tresorerie.form_select')}</option>
               {operateursDisponibles.map(op => (
                 <option key={op.code} value={op.code}>{op.nom}</option>
               ))}
@@ -343,16 +350,16 @@ function CompteFormModal({ onClose, onSaved, C, dark, compte: editing }) {
         )}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Input label={form.type === 'mobile_money' ? 'Numéro mobile' : 'Numéro / IBAN'}
+          <Input label={form.type === 'mobile_money' ? t('tresorerie.form_number_mm') : t('tresorerie.form_number_bank')}
             value={form.numero_compte || ''} onChange={set('numero_compte')}
-            placeholder={form.type === 'mobile_money' ? '+225 07 00 00 00 00' : 'CI00 0000 0000 0000'} />
-          <Input label="Titulaire" value={form.titulaire || ''} onChange={set('titulaire')} placeholder="Nom du titulaire" />
+            placeholder={form.type === 'mobile_money' ? t('tresorerie.form_number_mm_placeholder') : t('tresorerie.form_number_bank_placeholder')} />
+          <Input label={t('tresorerie.form_holder')} value={form.titulaire || ''} onChange={set('titulaire')} placeholder={t('tresorerie.form_holder_placeholder')} />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Input label="Solde initial" type="number" value={form.solde_initial}
+          <Input label={t('tresorerie.form_initial_balance')} type="number" value={form.solde_initial}
             onChange={set('solde_initial')} placeholder="0" />
-          <Input label="Devise" value={form.devise || 'XOF'} onChange={set('devise')} placeholder="XOF" />
+          <Input label={t('tresorerie.form_currency')} value={form.devise || 'XOF'} onChange={set('devise')} placeholder="XOF" />
         </div>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', padding: '8px 0' }}>
@@ -360,7 +367,7 @@ function CompteFormModal({ onClose, onSaved, C, dark, compte: editing }) {
             onChange={e => setForm(f => ({ ...f, par_defaut: e.target.checked }))}
             style={{ width: 16, height: 16, accentColor: C.accent }} />
           <span style={{ fontSize: 12, color: C.sub }}>
-            Définir comme compte par défaut pour les {TYPE_CONFIG[form.type].label.toLowerCase()}
+            {t('tresorerie.form_set_default', { type: typeLabel(form.type) })}
           </span>
         </label>
 
@@ -371,22 +378,25 @@ function CompteFormModal({ onClose, onSaved, C, dark, compte: editing }) {
               onChange={e => setForm(f => ({ ...f, decouvert_autorise: e.target.checked }))}
               style={{ width: 16, height: 16, accentColor: C.accent }} />
             <span style={{ fontSize: 12, color: C.sub, fontWeight: 600 }}>
-              Autoriser le découvert
-              {form.type !== 'banque' && <span style={{ color: C.gold }}> (déconseillé pour {TYPE_CONFIG[form.type].label.toLowerCase()})</span>}
+              {t('tresorerie.form_overdraft_authorize')}
+              {form.type !== 'banque' && <span style={{ color: C.gold }}> {t('tresorerie.form_overdraft_notrecommended', { type: typeLabel(form.type) })}</span>}
             </span>
           </label>
           {form.decouvert_autorise && (
             <div style={{ marginTop: 10 }}>
-              <Input label="Découvert maximum autorisé (FCFA)" type="number"
+              <Input label={t('tresorerie.form_overdraft_max')} type="number"
                 value={form.decouvert_max} onChange={set('decouvert_max')} placeholder="0" />
               <div style={{ fontSize: 10, color: C.muted, marginTop: 4, fontStyle: 'italic' }}>
-                Le solde ne pourra pas descendre sous −{new Intl.NumberFormat('fr-FR').format(parseFloat(form.decouvert_max) || 0)} {form.devise || 'FCFA'}.
+                {t('tresorerie.form_overdraft_info', {
+                  amount: new Intl.NumberFormat(numberLocale).format(parseFloat(form.decouvert_max) || 0),
+                  currency: form.devise || t('common.currency'),
+                })}
               </div>
             </div>
           )}
           {!form.decouvert_autorise && (
             <div style={{ fontSize: 10, color: C.muted, marginTop: 6, fontStyle: 'italic' }}>
-              Blocage strict : aucune sortie ne pourra rendre le solde négatif.
+              {t('tresorerie.form_no_overdraft_info')}
             </div>
           )}
         </div>
@@ -395,12 +405,12 @@ function CompteFormModal({ onClose, onSaved, C, dark, compte: editing }) {
           <button type="button" onClick={onClose} style={{
             flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`,
             background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          }}>Annuler</button>
+          }}>{t('common.cancel')}</button>
           <button type="submit" disabled={saving} style={{
             flex: 2, padding: '11px 0', borderRadius: 10, border: 'none',
             background: saving ? C.border : C.accent, color: saving ? C.muted : (dark ? '#000' : '#fff'),
             fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer',
-          }}>{saving ? 'Enregistrement...' : editing ? 'Mettre à jour' : 'Créer le compte'}</button>
+          }}>{saving ? t('common.saving') : editing ? t('tresorerie.form_update') : t('tresorerie.form_create')}</button>
         </div>
       </form>
     </Modal>
@@ -409,6 +419,7 @@ function CompteFormModal({ onClose, onSaved, C, dark, compte: editing }) {
 
 // ─── Modal transfert inter-comptes ─────────────────────────────────────────
 function TransfertModal({ comptes, onClose, onSaved, C, dark }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState({
     compte_source_id: '', compte_destination_id: '', montant: '',
     date_operation: new Date().toISOString().split('T')[0],
@@ -420,20 +431,20 @@ function TransfertModal({ comptes, onClose, onSaved, C, dark }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.compte_source_id || !form.compte_destination_id) {
-      toast.error('Sélectionnez les deux comptes'); return;
+      toast.error(t('tresorerie.err_select_two_accounts')); return;
     }
     if (form.compte_source_id === form.compte_destination_id) {
-      toast.error('Les comptes doivent être différents'); return;
+      toast.error(t('tresorerie.err_same_accounts')); return;
     }
     if (!parseFloat(form.montant) || parseFloat(form.montant) <= 0) {
-      toast.error('Montant invalide'); return;
+      toast.error(t('tresorerie.err_invalid_amount')); return;
     }
     setSaving(true);
     try {
       await api.post('/tresorerie/transfert', form);
       onSaved();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur transfert');
+      toast.error(err.response?.data?.message || t('tresorerie.err_transfer'));
     } finally { setSaving(false); }
   };
 
@@ -444,14 +455,14 @@ function TransfertModal({ comptes, onClose, onSaved, C, dark }) {
   };
 
   return (
-    <Modal title="Transfert entre comptes" onClose={onClose} width={500}>
+    <Modal title={t('tresorerie.transfer_title')} onClose={onClose} width={500}>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-            Depuis le compte
+            {t('tresorerie.transfer_from')}
           </label>
           <select value={form.compte_source_id} onChange={set('compte_source_id')} style={selectStyle} required>
-            <option value="">— Sélectionner —</option>
+            <option value="">{t('tresorerie.form_select')}</option>
             {comptes.map(c => (
               <option key={c.id} value={c.id}>
                 {c.nom} · {fmt(c.solde_actuel)} {c.devise}
@@ -464,21 +475,21 @@ function TransfertModal({ comptes, onClose, onSaved, C, dark }) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-            Vers le compte
+            {t('tresorerie.transfer_to')}
           </label>
           <select value={form.compte_destination_id} onChange={set('compte_destination_id')} style={selectStyle} required>
-            <option value="">— Sélectionner —</option>
+            <option value="">{t('tresorerie.form_select')}</option>
             {comptes.filter(c => c.id !== form.compte_source_id).map(c => (
               <option key={c.id} value={c.id}>{c.nom} · {c.devise}</option>
             ))}
           </select>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Input label="Montant" type="number" value={form.montant} onChange={set('montant')} placeholder="100000" required />
-          <Input label="Date" type="date" value={form.date_operation} onChange={set('date_operation')} />
+          <Input label={t('common.amount')} type="number" value={form.montant} onChange={set('montant')} placeholder="100000" required />
+          <Input label={t('common.date')} type="date" value={form.date_operation} onChange={set('date_operation')} />
         </div>
-        <Input label="Libellé (optionnel)" value={form.libelle} onChange={set('libelle')} placeholder="Approvisionnement caisse" />
-        <Input label="Référence (optionnelle)" value={form.reference} onChange={set('reference')} placeholder="Ref bancaire" />
+        <Input label={t('tresorerie.transfer_label_optional')} value={form.libelle} onChange={set('libelle')} placeholder={t('tresorerie.transfer_label_placeholder')} />
+        <Input label={t('tresorerie.transfer_ref_optional')} value={form.reference} onChange={set('reference')} placeholder={t('tresorerie.transfer_ref_placeholder')} />
 
         {(() => {
           const compteSource = comptes.find(c => c.id === form.compte_source_id);
@@ -490,7 +501,7 @@ function TransfertModal({ comptes, onClose, onSaved, C, dark }) {
           <button type="button" onClick={onClose} style={{
             flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`,
             background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          }}>Annuler</button>
+          }}>{t('common.cancel')}</button>
           {(() => {
             const compteSource = comptes.find(c => c.id === form.compte_source_id);
             const bloque = compteSource ? evaluerSortie(compteSource, form.montant).bloquant : false;
@@ -499,7 +510,7 @@ function TransfertModal({ comptes, onClose, onSaved, C, dark }) {
                 flex: 2, padding: '11px 0', borderRadius: 10, border: 'none',
                 background: (saving || bloque) ? C.border : C.accent, color: (saving || bloque) ? C.muted : (dark ? '#000' : '#fff'),
                 fontSize: 13, fontWeight: 700, cursor: (saving || bloque) ? 'not-allowed' : 'pointer',
-              }}>{saving ? 'Transfert...' : bloque ? 'Solde insuffisant' : 'Confirmer le transfert'}</button>
+              }}>{saving ? t('tresorerie.transfer_progress') : bloque ? t('tresorerie.transfer_balance_low') : t('tresorerie.transfer_confirm')}</button>
             );
           })()}
         </div>
@@ -510,6 +521,7 @@ function TransfertModal({ comptes, onClose, onSaved, C, dark }) {
 
 // ─── Vue détail d'un compte ────────────────────────────────────────────────
 function DetailCompte({ compte: compteInit, onBack, C, dark }) {
+  const { t } = useTranslation();
   const cfg = TYPE_CONFIG[compteInit.type];
   const Icon = cfg.icon;
 
@@ -537,20 +549,20 @@ function DetailCompte({ compte: compteInit, onBack, C, dark }) {
       setMouvements(m.data.data);
       setPagination(m.data.pagination);
       setCompte(c.data.data);
-    } catch { toast.error('Erreur chargement'); }
+    } catch { toast.error(t('tresorerie.load_error')); }
     finally { setLoading(false); }
-  }, [compte.id, page, filtres]);
+  }, [compte.id, page, filtres, t]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleDeleteMouvement = async (id) => {
-    if (!confirm('Supprimer ce mouvement ?')) return;
+    if (!confirm(t('tresorerie.confirm_delete_movement'))) return;
     try {
       await api.delete(`/tresorerie/mouvements/${id}`);
-      toast.success('Mouvement supprimé');
+      toast.success(t('tresorerie.movement_deleted'));
       fetchData();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur suppression');
+      toast.error(err.response?.data?.message || t('tresorerie.err_delete'));
     }
   };
 
@@ -562,7 +574,7 @@ function DetailCompte({ compte: compteInit, onBack, C, dark }) {
         border: `1px solid ${C.border}`, background: 'transparent', color: C.muted,
         fontSize: 12, fontWeight: 600, cursor: 'pointer', marginBottom: 18,
       }}>
-        <ChevronLeft size={14} /> Retour
+        <ChevronLeft size={14} /> {t('common.back')}
       </button>
 
       <div style={{
@@ -580,20 +592,20 @@ function DetailCompte({ compte: compteInit, onBack, C, dark }) {
             <div>
               <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: '-0.02em' }}>{compte.nom}</h1>
               <p style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>
-                {cfg.label}{compte.operateur ? ` · ${compte.operateur}` : ''}
+                {t(cfg.labelKey)}{compte.operateur ? ` · ${compte.operateur}` : ''}
                 {compte.numero_compte ? ` · ${compte.numero_compte}` : ''}
               </p>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={() => setShowEdit(true)} style={btnSec(C)}>Modifier</button>
+            <button onClick={() => setShowEdit(true)} style={btnSec(C)}>{t('tresorerie.btn_edit')}</button>
             {compte.type !== 'caisse' && (
               <>
                 <button onClick={() => setShowReleves(true)} style={btnSec(C)}>
-                  <FileSpreadsheet size={13} /> Relevés
+                  <FileSpreadsheet size={13} /> {t('tresorerie.btn_statements')}
                 </button>
                 <button onClick={() => setShowImport(true)} style={btnSec(C)}>
-                  <Upload size={13} /> Importer
+                  <Upload size={13} /> {t('tresorerie.btn_import')}
                 </button>
               </>
             )}
@@ -603,7 +615,7 @@ function DetailCompte({ compte: compteInit, onBack, C, dark }) {
               fontSize: 12, fontWeight: 700, cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 6,
             }}>
-              <Plus size={13} /> Mouvement
+              <Plus size={13} /> {t('tresorerie.btn_movement')}
             </button>
           </div>
         </div>
@@ -611,10 +623,10 @@ function DetailCompte({ compte: compteInit, onBack, C, dark }) {
         {/* Stats du compte */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginTop: 24 }}>
           {[
-            { label: 'Solde actuel',    val: compte.solde_actuel, color: parseFloat(compte.solde_actuel) >= 0 ? cfg.color : C.red },
-            { label: 'Total entrées',   val: compte.total_entrees, color: C.accent },
-            { label: 'Total sorties',   val: compte.total_sorties, color: C.red },
-            { label: 'Solde rapproché', val: compte.solde_rapproche, color: C.blue, sub: `${compte.nb_non_rapproches || 0} non rapproché(s)` },
+            { label: t('tresorerie.stat_current_balance'),    val: compte.solde_actuel, color: parseFloat(compte.solde_actuel) >= 0 ? cfg.color : C.red },
+            { label: t('tresorerie.stat_total_in'),   val: compte.total_entrees, color: C.accent },
+            { label: t('tresorerie.stat_total_out'),   val: compte.total_sorties, color: C.red },
+            { label: t('tresorerie.stat_reconciled_balance'), val: compte.solde_rapproche, color: C.blue, sub: t('tresorerie.stat_unmatched', { count: compte.nb_non_rapproches || 0 }) },
           ].map((stat, i) => (
             <div key={i} style={{ padding: 14, background: dark ? '#0D1220' : C.cardAlt, borderRadius: 11 }}>
               <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>
@@ -632,9 +644,9 @@ function DetailCompte({ compte: compteInit, onBack, C, dark }) {
       {/* Filtres */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
         {[
-          { v: '',        l: 'Tous' },
-          { v: 'entree',  l: 'Entrées' },
-          { v: 'sortie',  l: 'Sorties' },
+          { v: '',        l: t('tresorerie.filter_all') },
+          { v: 'entree',  l: t('tresorerie.filter_in') },
+          { v: 'sortie',  l: t('tresorerie.filter_out') },
         ].map(({ v, l }) => (
           <button key={v} onClick={() => { setFiltres(f => ({ ...f, sens: v })); setPage(1); }} style={{
             padding: '7px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600,
@@ -645,9 +657,9 @@ function DetailCompte({ compte: compteInit, onBack, C, dark }) {
         ))}
         <div style={{ width: 1, background: C.border, margin: '0 4px' }} />
         {[
-          { v: '',               l: 'Tout statut' },
-          { v: 'non_rapproche',  l: 'Non rapprochés' },
-          { v: 'rapproche',      l: 'Rapprochés' },
+          { v: '',               l: t('tresorerie.filter_all_status') },
+          { v: 'non_rapproche',  l: t('tresorerie.filter_unmatched') },
+          { v: 'rapproche',      l: t('tresorerie.filter_matched') },
         ].map(({ v, l }) => (
           <button key={v} onClick={() => { setFiltres(f => ({ ...f, statut_rapprochement: v })); setPage(1); }} style={{
             padding: '7px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600,
@@ -663,16 +675,16 @@ function DetailCompte({ compte: compteInit, onBack, C, dark }) {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: dark ? '#0D1220' : C.cardAlt, borderBottom: `1px solid ${C.border}` }}>
-              {['Date', 'Libellé', 'Référence', 'Source', 'Sens', 'Montant', 'Rapproché', ''].map(h => (
-                <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
+              {[t('tresorerie.th_date'), t('tresorerie.th_label'), t('tresorerie.th_reference'), t('tresorerie.th_source'), t('tresorerie.th_direction'), t('tresorerie.th_amount'), t('tresorerie.th_reconciled'), ''].map((h, idx) => (
+                <th key={idx} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: C.muted }}>Chargement...</td></tr>
+              <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: C.muted }}>{t('tresorerie.loading')}</td></tr>
             ) : mouvements.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 13 }}>Aucun mouvement</td></tr>
+              <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 13 }}>{t('tresorerie.no_movements')}</td></tr>
             ) : mouvements.map(m => (
               <tr key={m.id} style={{ borderBottom: `1px solid ${C.border}` }}
                 onMouseEnter={e => e.currentTarget.style.background = C.hover}
@@ -684,7 +696,7 @@ function DetailCompte({ compte: compteInit, onBack, C, dark }) {
                 <td style={{ padding: '11px 14px', fontSize: 11, color: C.muted, fontFamily: 'monospace' }}>{m.reference || '—'}</td>
                 <td style={{ padding: '11px 14px' }}>
                   <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: C.hover, color: C.muted }}>
-                    {{ paiement_facture: 'Facture', depense: 'Dépense', manuel: 'Manuel', transfert: 'Transfert', releve: 'Relevé' }[m.source_type] || m.source_type}
+                    {{ paiement_facture: t('tresorerie.source_facture'), depense: t('tresorerie.source_depense'), manuel: t('tresorerie.source_manuel'), transfert: t('tresorerie.source_transfert'), releve: t('tresorerie.source_releve') }[m.source_type] || m.source_type}
                   </span>
                 </td>
                 <td style={{ padding: '11px 14px' }}>
@@ -719,7 +731,7 @@ function DetailCompte({ compte: compteInit, onBack, C, dark }) {
 
         {pagination.pages > 1 && (
           <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 11, color: C.muted }}>Page {page} sur {pagination.pages} · {pagination.total} mouvements</span>
+            <span style={{ fontSize: 11, color: C.muted }}>{t('tresorerie.pagination_info', { page, pages: pagination.pages, total: pagination.total })}</span>
             <div style={{ display: 'flex', gap: 4 }}>
               {[...Array(Math.min(pagination.pages, 6))].map((_, i) => (
                 <button key={i} onClick={() => setPage(i + 1)} style={{
@@ -736,7 +748,7 @@ function DetailCompte({ compte: compteInit, onBack, C, dark }) {
 
       {showMouvement && (
         <MouvementFormModal compte={compte} onClose={() => setShowMouvement(false)}
-          onSaved={() => { setShowMouvement(false); fetchData(); toast.success('Mouvement enregistré'); }}
+          onSaved={() => { setShowMouvement(false); fetchData(); toast.success(t('tresorerie.movement_saved')); }}
           C={C} dark={dark} />
       )}
       {showImport && (
@@ -749,7 +761,7 @@ function DetailCompte({ compte: compteInit, onBack, C, dark }) {
       )}
       {showEdit && (
         <CompteFormModal compte={compte} onClose={() => setShowEdit(false)}
-          onSaved={() => { setShowEdit(false); fetchData(); toast.success('Compte mis à jour'); }}
+          onSaved={() => { setShowEdit(false); fetchData(); toast.success(t('tresorerie.toast_updated')); }}
           C={C} dark={dark} />
       )}
 
@@ -766,6 +778,7 @@ const btnSec = (C) => ({
 
 // ─── Modal saisie mouvement manuel ─────────────────────────────────────────
 function MouvementFormModal({ compte, onClose, onSaved, C, dark }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState({
     sens: 'entree', montant: '', libelle: '', reference: '',
     date_operation: new Date().toISOString().split('T')[0],
@@ -775,24 +788,24 @@ function MouvementFormModal({ compte, onClose, onSaved, C, dark }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.libelle.trim()) { toast.error('Libellé requis'); return; }
-    if (!parseFloat(form.montant) || parseFloat(form.montant) <= 0) { toast.error('Montant invalide'); return; }
+    if (!form.libelle.trim()) { toast.error(t('tresorerie.err_label_required')); return; }
+    if (!parseFloat(form.montant) || parseFloat(form.montant) <= 0) { toast.error(t('tresorerie.err_invalid_amount')); return; }
     setSaving(true);
     try {
       await api.post(`/tresorerie/comptes/${compte.id}/mouvements`, form);
       onSaved();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur enregistrement');
+      toast.error(err.response?.data?.message || t('tresorerie.err_save'));
     } finally { setSaving(false); }
   };
 
   return (
-    <Modal title={`Mouvement · ${compte.nom}`} onClose={onClose} width={460}>
+    <Modal title={t('tresorerie.movement_title', { name: compte.nom })} onClose={onClose} width={460}>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', gap: 6 }}>
           {[
-            { v: 'entree', l: 'Encaissement (+)', icon: ArrowDownCircle, color: C.accent },
-            { v: 'sortie', l: 'Décaissement (−)', icon: ArrowUpCircle, color: C.red },
+            { v: 'entree', l: t('tresorerie.movement_in'), icon: ArrowDownCircle, color: C.accent },
+            { v: 'sortie', l: t('tresorerie.movement_out'), icon: ArrowUpCircle, color: C.red },
           ].map(({ v, l, icon: Icon, color }) => (
             <button key={v} type="button" onClick={() => setForm(f => ({ ...f, sens: v }))} style={{
               flex: 1, padding: '11px 0', borderRadius: 9,
@@ -808,11 +821,11 @@ function MouvementFormModal({ compte, onClose, onSaved, C, dark }) {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
-          <Input label="Montant" type="number" value={form.montant} onChange={set('montant')} placeholder="0" required />
-          <Input label="Date" type="date" value={form.date_operation} onChange={set('date_operation')} />
+          <Input label={t('common.amount')} type="number" value={form.montant} onChange={set('montant')} placeholder="0" required />
+          <Input label={t('common.date')} type="date" value={form.date_operation} onChange={set('date_operation')} />
         </div>
-        <Input label="Libellé" value={form.libelle} onChange={set('libelle')} placeholder="Description du mouvement" required />
-        <Input label="Référence (optionnelle)" value={form.reference} onChange={set('reference')} placeholder="N° transaction" />
+        <Input label={t('tresorerie.th_label')} value={form.libelle} onChange={set('libelle')} placeholder={t('tresorerie.movement_label_placeholder')} required />
+        <Input label={t('tresorerie.transfer_ref_optional')} value={form.reference} onChange={set('reference')} placeholder={t('tresorerie.movement_ref_placeholder')} />
 
         {form.sens === 'sortie' && <AlerteSolde compte={compte} montant={form.montant} />}
 
@@ -820,7 +833,7 @@ function MouvementFormModal({ compte, onClose, onSaved, C, dark }) {
           <button type="button" onClick={onClose} style={{
             flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`,
             background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          }}>Annuler</button>
+          }}>{t('common.cancel')}</button>
           {(() => {
             const bloque = form.sens === 'sortie' && evaluerSortie(compte, form.montant).bloquant;
             return (
@@ -828,7 +841,7 @@ function MouvementFormModal({ compte, onClose, onSaved, C, dark }) {
                 flex: 2, padding: '11px 0', borderRadius: 10, border: 'none',
                 background: (saving || bloque) ? C.border : C.accent, color: (saving || bloque) ? C.muted : (dark ? '#000' : '#fff'),
                 fontSize: 13, fontWeight: 700, cursor: (saving || bloque) ? 'not-allowed' : 'pointer',
-              }}>{saving ? '...' : bloque ? 'Solde insuffisant' : 'Enregistrer'}</button>
+              }}>{saving ? '...' : bloque ? t('tresorerie.transfer_balance_low') : t('tresorerie.movement_save')}</button>
             );
           })()}
         </div>
@@ -839,6 +852,7 @@ function MouvementFormModal({ compte, onClose, onSaved, C, dark }) {
 
 // ─── Modal import de relevé ────────────────────────────────────────────────
 function ImportReleveModal({ compte, onClose, onSaved, C, dark }) {
+  const { t } = useTranslation();
   const [contenu, setContenu] = useState('');
   const [fichierNom, setFichierNom] = useState('');
   const [loading, setLoading] = useState(false);
@@ -853,34 +867,33 @@ function ImportReleveModal({ compte, onClose, onSaved, C, dark }) {
   };
 
   const handleImport = async () => {
-    if (!contenu.trim()) { toast.error('Sélectionnez un fichier CSV'); return; }
+    if (!contenu.trim()) { toast.error(t('tresorerie.err_no_file')); return; }
     setLoading(true);
     try {
       const res = await api.post(`/tresorerie/comptes/${compte.id}/releves`, {
         contenu_csv: contenu, fichier_nom: fichierNom || 'releve.csv',
       });
-      toast.success(`${res.data.data.nb_lignes} ligne(s) importée(s)`);
+      toast.success(t('tresorerie.import_success', { count: res.data.data.nb_lignes }));
       onSaved();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur import');
+      toast.error(err.response?.data?.message || t('tresorerie.err_import'));
     } finally { setLoading(false); }
   };
 
   return (
-    <Modal title={`Importer un relevé · ${compte.nom}`} onClose={onClose} width={520}>
+    <Modal title={t('tresorerie.import_title', { name: compte.nom })} onClose={onClose} width={520}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{
           background: dark ? '#0D1220' : C.cardAlt, borderRadius: 10,
           padding: '14px 16px', border: `1px solid ${C.border}`,
         }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Format attendu
+            {t('tresorerie.import_format_label')}
           </div>
           <div style={{ fontSize: 12, color: C.sub, lineHeight: 1.6 }}>
-            Fichier <strong>CSV</strong> (séparateur point-virgule, virgule ou tabulation).<br />
-            En-têtes reconnues : <strong>Date</strong>, <strong>Libellé</strong>, <strong>Débit</strong>, <strong>Crédit</strong>
-            ou <strong>Montant</strong> (+ <em>Référence</em>, <em>Date valeur</em> optionnels).<br />
-            Dates acceptées : JJ/MM/AAAA ou AAAA-MM-JJ.
+            <span dangerouslySetInnerHTML={{ __html: t('tresorerie.import_format_csv') }} /><br />
+            <span dangerouslySetInnerHTML={{ __html: t('tresorerie.import_format_headers') }} /><br />
+            {t('tresorerie.import_format_dates')}
           </div>
         </div>
 
@@ -893,11 +906,11 @@ function ImportReleveModal({ compte, onClose, onSaved, C, dark }) {
             style={{ display: 'none' }} />
           <Upload size={26} color={C.accent} style={{ margin: '0 auto 10px' }} />
           <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
-            {fichierNom || 'Cliquez pour choisir un fichier CSV'}
+            {fichierNom || t('tresorerie.import_choose_file')}
           </div>
           {fichierNom && (
             <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
-              Cliquez pour changer · {Math.round(contenu.length / 1024)} Ko
+              {t('tresorerie.import_change_file', { kb: Math.round(contenu.length / 1024) })}
             </div>
           )}
         </label>
@@ -906,13 +919,13 @@ function ImportReleveModal({ compte, onClose, onSaved, C, dark }) {
           <button type="button" onClick={onClose} style={{
             flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`,
             background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          }}>Annuler</button>
+          }}>{t('common.cancel')}</button>
           <button type="button" onClick={handleImport} disabled={loading || !contenu} style={{
             flex: 2, padding: '11px 0', borderRadius: 10, border: 'none',
             background: (loading || !contenu) ? C.border : C.accent,
             color: (loading || !contenu) ? C.muted : (dark ? '#000' : '#fff'),
             fontSize: 13, fontWeight: 700, cursor: (loading || !contenu) ? 'not-allowed' : 'pointer',
-          }}>{loading ? 'Import en cours...' : 'Importer le relevé'}</button>
+          }}>{loading ? t('tresorerie.import_progress') : t('tresorerie.import_submit')}</button>
         </div>
       </div>
     </Modal>
@@ -921,6 +934,7 @@ function ImportReleveModal({ compte, onClose, onSaved, C, dark }) {
 
 // ─── Modal liste des relevés + rapprochement ───────────────────────────────
 function RelevesModal({ compte, onClose, C, dark }) {
+  const { t } = useTranslation();
   const [releves, setReleves] = useState([]);
   const [loading, setLoading] = useState(true);
   const [releveActif, setReleveActif] = useState(null);
@@ -930,19 +944,19 @@ function RelevesModal({ compte, onClose, C, dark }) {
     try {
       const res = await api.get(`/tresorerie/comptes/${compte.id}/releves`);
       setReleves(res.data.data);
-    } catch { toast.error('Erreur chargement'); }
+    } catch { toast.error(t('tresorerie.load_error')); }
     finally { setLoading(false); }
-  }, [compte.id]);
+  }, [compte.id, t]);
 
   useEffect(() => { fetchReleves(); }, [fetchReleves]);
 
   const handleDeleteReleve = async (id) => {
-    if (!confirm('Supprimer ce relevé ? Les rapprochements seront annulés.')) return;
+    if (!confirm(t('tresorerie.statements_confirm_delete'))) return;
     try {
       await api.delete(`/tresorerie/releves/${id}`);
-      toast.success('Relevé supprimé');
+      toast.success(t('tresorerie.statements_deleted'));
       fetchReleves();
-    } catch (err) { toast.error(err.response?.data?.message || 'Erreur'); }
+    } catch (err) { toast.error(err.response?.data?.message || t('tresorerie.err_generic')); }
   };
 
   if (releveActif) {
@@ -955,12 +969,12 @@ function RelevesModal({ compte, onClose, C, dark }) {
   }
 
   return (
-    <Modal title={`Relevés bancaires · ${compte.nom}`} onClose={onClose} width={680}>
+    <Modal title={t('tresorerie.statements_title', { name: compte.nom })} onClose={onClose} width={680}>
       {loading ? (
-        <div style={{ padding: 30, textAlign: 'center', color: C.muted }}>Chargement...</div>
+        <div style={{ padding: 30, textAlign: 'center', color: C.muted }}>{t('tresorerie.loading')}</div>
       ) : releves.length === 0 ? (
         <div style={{ padding: 30, textAlign: 'center', color: C.muted, fontSize: 13 }}>
-          Aucun relevé importé pour ce compte.
+          {t('tresorerie.statements_empty')}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -979,13 +993,13 @@ function RelevesModal({ compte, onClose, C, dark }) {
                     {r.fichier_nom}
                   </div>
                   <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
-                    {formatDate(r.date_debut)} → {formatDate(r.date_fin)} · {total} lignes
+                    {t('tresorerie.statements_period', { from: formatDate(r.date_debut), to: formatDate(r.date_fin), count: total })}
                   </div>
                   <div style={{ marginTop: 8, height: 4, background: C.border, borderRadius: 2, overflow: 'hidden' }}>
                     <div style={{ width: `${pct}%`, height: '100%', background: pct === 100 ? C.accent : C.gold, borderRadius: 2 }} />
                   </div>
                   <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>
-                    {matches} / {total} rapprochées ({pct}%)
+                    {t('tresorerie.statements_match_progress', { matches, total, pct })}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -995,7 +1009,7 @@ function RelevesModal({ compte, onClose, C, dark }) {
                     fontSize: 12, fontWeight: 700, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', gap: 5,
                   }}>
-                    <Eye size={12} /> Rapprocher
+                    <Eye size={12} /> {t('tresorerie.statements_reconcile')}
                   </button>
                   <button onClick={() => handleDeleteReleve(r.id)} style={{
                     padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`,
@@ -1015,6 +1029,7 @@ function RelevesModal({ compte, onClose, C, dark }) {
 
 // ─── Modal rapprochement d'un relevé (2 colonnes) ─────────────────────────
 function RapprochementModal({ releveId, onClose, onFini, C, dark }) {
+  const { t } = useTranslation();
   const [data, setData] = useState({ releve: null, lignes: [], candidats: [] });
   const [loading, setLoading] = useState(true);
   const [matching, setMatching] = useState(false);
@@ -1025,9 +1040,9 @@ function RapprochementModal({ releveId, onClose, onFini, C, dark }) {
     try {
       const res = await api.get(`/tresorerie/releves/${releveId}`);
       setData(res.data.data);
-    } catch { toast.error('Erreur'); }
+    } catch { toast.error(t('tresorerie.err_generic')); }
     finally { setLoading(false); }
-  }, [releveId]);
+  }, [releveId, t]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -1035,9 +1050,9 @@ function RapprochementModal({ releveId, onClose, onFini, C, dark }) {
     setMatching(true);
     try {
       const res = await api.post(`/tresorerie/releves/${releveId}/auto-match`);
-      toast.success(`${res.data.data.nb_matches} ligne(s) rapprochée(s) automatiquement`);
+      toast.success(t('tresorerie.reconcile_auto_success', { count: res.data.data.nb_matches }));
       fetchData();
-    } catch { toast.error('Erreur matching auto'); }
+    } catch { toast.error(t('tresorerie.err_auto_match')); }
     finally { setMatching(false); }
   };
 
@@ -1046,29 +1061,29 @@ function RapprochementModal({ releveId, onClose, onFini, C, dark }) {
       await api.post(`/tresorerie/lignes-releve/${ligneId}/rapprocher`, { mouvement_id: mouvementId });
       setSelectedLigne(null);
       fetchData();
-    } catch (err) { toast.error(err.response?.data?.message || 'Erreur'); }
+    } catch (err) { toast.error(err.response?.data?.message || t('tresorerie.err_generic')); }
   };
 
   const handleDelier = async (ligneId) => {
     try {
       await api.post(`/tresorerie/lignes-releve/${ligneId}/delier`);
       fetchData();
-    } catch { toast.error('Erreur'); }
+    } catch { toast.error(t('tresorerie.err_generic')); }
   };
 
   const handleCreerMouvement = async (ligneId) => {
-    if (!confirm('Créer un nouveau mouvement de trésorerie à partir de cette ligne ?')) return;
+    if (!confirm(t('tresorerie.reconcile_confirm_create'))) return;
     try {
       await api.post(`/tresorerie/lignes-releve/${ligneId}/creer-mouvement`);
-      toast.success('Mouvement créé et rapproché');
+      toast.success(t('tresorerie.reconcile_movement_created'));
       fetchData();
-    } catch (err) { toast.error(err.response?.data?.message || 'Erreur'); }
+    } catch (err) { toast.error(err.response?.data?.message || t('tresorerie.err_generic')); }
   };
 
   if (loading || !data.releve) {
     return (
-      <Modal title="Rapprochement" onClose={onClose} width={900}>
-        <div style={{ padding: 30, textAlign: 'center', color: C.muted }}>Chargement...</div>
+      <Modal title={t('tresorerie.reconcile_title')} onClose={onClose} width={900}>
+        <div style={{ padding: 30, textAlign: 'center', color: C.muted }}>{t('tresorerie.loading')}</div>
       </Modal>
     );
   }
@@ -1087,10 +1102,10 @@ function RapprochementModal({ releveId, onClose, onFini, C, dark }) {
     : [];
 
   return (
-    <Modal title={`Rapprochement · ${data.releve.fichier_nom}`} onClose={onClose} width={1000}>
+    <Modal title={t('tresorerie.reconcile_title_named', { name: data.releve.fichier_nom })} onClose={onClose} width={1000}>
       <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
         <div style={{ fontSize: 12, color: C.muted }}>
-          {data.lignes.length} lignes · <strong style={{ color: C.accent }}>{lignesMatchees.length} rapprochées</strong> · {lignesNonMatchees.length} en attente
+          {t('tresorerie.reconcile_summary', { total: data.lignes.length, matches: lignesMatchees.length, pending: lignesNonMatchees.length })}
         </div>
         <button onClick={handleAutoMatch} disabled={matching || lignesNonMatchees.length === 0} style={{
           padding: '9px 16px', borderRadius: 9, border: 'none',
@@ -1100,7 +1115,7 @@ function RapprochementModal({ releveId, onClose, onFini, C, dark }) {
           cursor: (matching || lignesNonMatchees.length === 0) ? 'not-allowed' : 'pointer',
           display: 'flex', alignItems: 'center', gap: 6,
         }}>
-          <Link2 size={13} /> {matching ? 'Matching...' : 'Matching automatique'}
+          <Link2 size={13} /> {matching ? t('tresorerie.reconcile_matching_progress') : t('tresorerie.reconcile_auto_match')}
         </button>
       </div>
 
@@ -1108,10 +1123,10 @@ function RapprochementModal({ releveId, onClose, onFini, C, dark }) {
         {/* COLONNE GAUCHE : lignes du relevé */}
         <div style={{ background: dark ? '#0D1220' : C.cardAlt, borderRadius: 11, padding: 14, overflowY: 'auto', maxHeight: '60vh' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 10, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-            Lignes du relevé bancaire
+            {t('tresorerie.reconcile_left_title')}
           </div>
           {data.lignes.length === 0 ? (
-            <div style={{ padding: 20, textAlign: 'center', color: C.muted, fontSize: 12 }}>Aucune ligne</div>
+            <div style={{ padding: 20, textAlign: 'center', color: C.muted, fontSize: 12 }}>{t('tresorerie.reconcile_empty_lines')}</div>
           ) : data.lignes.map(l => (
             <div key={l.id} onClick={() => l.statut_matching === 'non_matche' && setSelectedLigne(l.id)} style={{
               background: C.card, border: `1.5px solid ${selectedLigne === l.id ? C.accent : (l.statut_matching === 'matche' ? C.accent + '50' : C.border)}`,
@@ -1136,12 +1151,12 @@ function RapprochementModal({ releveId, onClose, onFini, C, dark }) {
                     fontSize: 10, padding: '3px 8px', borderRadius: 6,
                     background: 'transparent', border: `1px solid ${C.border}`, color: C.muted, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', gap: 4,
-                  }}><Unlink size={10} /> Délier</button>
+                  }}><Unlink size={10} /> {t('tresorerie.reconcile_unlink')}</button>
                 ) : (
                   <button onClick={(e) => { e.stopPropagation(); handleCreerMouvement(l.id); }} style={{
                     fontSize: 10, padding: '3px 8px', borderRadius: 6,
                     background: 'transparent', border: `1px solid ${C.border}`, color: C.muted, cursor: 'pointer',
-                  }}>+ Créer</button>
+                  }}>{t('tresorerie.reconcile_create')}</button>
                 )}
               </div>
             </div>
@@ -1151,15 +1166,15 @@ function RapprochementModal({ releveId, onClose, onFini, C, dark }) {
         {/* COLONNE DROITE : mouvements de l'app */}
         <div style={{ background: dark ? '#0D1220' : C.cardAlt, borderRadius: 11, padding: 14, overflowY: 'auto', maxHeight: '60vh' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 10, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-            {ligneSel ? `Candidats pour ${fmt(ligneSel.montant)}` : 'Sélectionnez une ligne'}
+            {ligneSel ? t('tresorerie.reconcile_candidates_for', { amount: fmt(ligneSel.montant) }) : t('tresorerie.reconcile_select_line')}
           </div>
           {!ligneSel ? (
             <div style={{ padding: 30, textAlign: 'center', color: C.muted, fontSize: 12 }}>
-              ← Cliquez sur une ligne non rapprochée à gauche
+              {t('tresorerie.reconcile_click_left')}
             </div>
           ) : candidatsTries.length === 0 ? (
             <div style={{ padding: 20, textAlign: 'center', color: C.muted, fontSize: 12 }}>
-              Aucun mouvement candidat dans la période
+              {t('tresorerie.reconcile_no_candidates')}
             </div>
           ) : candidatsTries.map(c => {
             const match = c.sens === ligneSel.sens && Math.abs(parseFloat(c.montant) - parseFloat(ligneSel.montant)) < 0.01;
@@ -1170,7 +1185,7 @@ function RapprochementModal({ releveId, onClose, onFini, C, dark }) {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                   <span style={{ fontSize: 11, color: C.muted }}>{formatDate(c.date_operation)}</span>
-                  {match && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 12, background: `${C.accent}25`, color: C.accent }}>EXACT</span>}
+                  {match && <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 12, background: `${C.accent}25`, color: C.accent }}>{t('tresorerie.reconcile_exact')}</span>}
                 </div>
                 <div style={{ fontSize: 12, color: C.text, fontWeight: 600, marginBottom: 4 }}>{c.libelle}</div>
                 <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'monospace',

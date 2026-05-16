@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme.jsx';
 import api from '../utils/api.jsx';
 import { formatFCFA, formatDate } from '../utils/helpers.jsx';
@@ -12,21 +13,22 @@ import {
   TrendingUp, Wallet,
 } from 'lucide-react';
 
-const MOIS_NOMS = [
-  'Janvier','Février','Mars','Avril','Mai','Juin',
-  'Juillet','Août','Septembre','Octobre','Novembre','Décembre',
+const MOIS_KEYS = [
+  'rh.month_january','rh.month_february','rh.month_march','rh.month_april','rh.month_may','rh.month_june',
+  'rh.month_july','rh.month_august','rh.month_september','rh.month_october','rh.month_november','rh.month_december',
 ];
 
 const STATUT_CFG = {
-  brouillon: { label: 'Brouillon', bg: '#6B7A9920', color: '#6B7A99', border: '#6B7A9940' },
-  valide:    { label: 'Validé',    bg: '#4E8BF520', color: '#1A52B0', border: '#4E8BF540' },
-  paye:      { label: 'Payé',      bg: '#00D4AA20', color: '#00A882', border: '#00D4AA40' },
-  annule:    { label: 'Annulé',    bg: '#FF5C6B20', color: '#C01833', border: '#FF5C6B40' },
+  brouillon: { labelKey: 'rh.statut_brouillon', bg: '#6B7A9920', color: '#6B7A99', border: '#6B7A9940' },
+  valide:    { labelKey: 'rh.statut_valide',    bg: '#4E8BF520', color: '#1A52B0', border: '#4E8BF540' },
+  paye:      { labelKey: 'rh.statut_paye',      bg: '#00D4AA20', color: '#00A882', border: '#00D4AA40' },
+  annule:    { labelKey: 'rh.statut_annule',    bg: '#FF5C6B20', color: '#C01833', border: '#FF5C6B40' },
 };
 
 const fmt = (n) => formatFCFA(n, false);
 
 export default function RHPage() {
+  const { t } = useTranslation();
   const { dark } = useTheme();
   const C = getC(dark);
   const [tab, setTab] = useState('employes');
@@ -35,9 +37,9 @@ export default function RHPage() {
     <div style={{ padding: '32px 36px', minHeight: '100vh', background: C.bg, transition: 'background 0.2s' }}>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>Paie & RH</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>{t('rh.title')}</h1>
         <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
-          Gestion du personnel, bulletins de paie SYSCOHADA et déclarations sociales
+          {t('rh.subtitle')}
         </p>
       </div>
 
@@ -47,10 +49,10 @@ export default function RHPage() {
         background: C.card, border: `1px solid ${C.border}`, marginBottom: 20, width: 'fit-content',
       }}>
         {[
-          { id: 'employes',   label: 'Employés',     icon: Users },
-          { id: 'bulletins',  label: 'Bulletins',    icon: FileText },
-          { id: 'rubriques',  label: 'Rubriques',    icon: Receipt },
-          { id: 'stats',      label: 'Statistiques', icon: BarChart3 },
+          { id: 'employes',   label: t('rh.tab_employes'),  icon: Users },
+          { id: 'bulletins',  label: t('rh.tab_bulletins'), icon: FileText },
+          { id: 'rubriques',  label: t('rh.tab_rubriques'), icon: Receipt },
+          { id: 'stats',      label: t('rh.tab_stats'),     icon: BarChart3 },
         ].map(({ id, label, icon: Icon }) => {
           const active = tab === id;
           return (
@@ -82,6 +84,7 @@ export default function RHPage() {
 // ONGLET EMPLOYÉS
 // ═══════════════════════════════════════════════════════════════════════════
 function EmployesTab({ C, dark }) {
+  const { t } = useTranslation();
   const [employes, setEmployes] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -93,19 +96,19 @@ function EmployesTab({ C, dark }) {
     try {
       const res = await api.get(`/paie/employes?search=${encodeURIComponent(search)}&limit=100`);
       setEmployes(res.data.data);
-    } catch { toast.error('Erreur chargement employés'); }
+    } catch { toast.error(t('rh.load_employees_error')); }
     finally { setLoading(false); }
-  }, [search]);
+  }, [search, t]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleDelete = async (id, nom) => {
-    if (!confirm(`Archiver ${nom} ?`)) return;
+    if (!confirm(t('rh.archive_confirm', { name: nom }))) return;
     try {
       await api.delete(`/paie/employes/${id}`);
-      toast.success('Employé archivé');
+      toast.success(t('rh.employee_archived'));
       fetchData();
-    } catch { toast.error('Erreur'); }
+    } catch { toast.error(t('rh.err_generic')); }
   };
 
   return (
@@ -113,7 +116,7 @@ function EmployesTab({ C, dark }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: '1 0 280px', maxWidth: 380 }}>
           <Search size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: C.muted }} />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un employé..."
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('rh.search_placeholder')}
             style={{
               width: '100%', background: C.card, border: `1.5px solid ${C.border}`,
               borderRadius: 10, padding: '10px 12px 10px 36px', color: C.text, fontSize: 13,
@@ -125,7 +128,7 @@ function EmployesTab({ C, dark }) {
           border: 'none', background: C.accent, color: dark ? '#000' : '#fff',
           fontSize: 13, fontWeight: 700, cursor: 'pointer',
         }}>
-          <Plus size={15} /> Nouvel employé
+          <Plus size={15} /> {t('rh.new_employee')}
         </button>
       </div>
 
@@ -133,17 +136,17 @@ function EmployesTab({ C, dark }) {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: dark ? '#0D1220' : C.cardAlt, borderBottom: `1px solid ${C.border}` }}>
-              {['Matricule', 'Nom', 'Poste', 'Contrat', 'Salaire base', 'Embauche', 'Statut', ''].map(h => (
-                <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
+              {[t('rh.th_matricule'), t('rh.th_nom'), t('rh.th_poste'), t('rh.th_contrat'), t('rh.th_salaire_base'), t('rh.th_embauche'), t('rh.th_statut'), ''].map((h, idx) => (
+                <th key={idx} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: C.muted }}>Chargement...</td></tr>
+              <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: C.muted }}>{t('rh.loading')}</td></tr>
             ) : employes.length === 0 ? (
               <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 13 }}>
-                {search ? 'Aucun résultat' : 'Aucun employé enregistré'}
+                {search ? t('rh.no_result') : t('rh.no_employee')}
               </td></tr>
             ) : employes.map(e => (
               <tr key={e.id} style={{ borderBottom: `1px solid ${C.border}` }}
@@ -168,7 +171,7 @@ function EmployesTab({ C, dark }) {
                 <td style={{ padding: '12px 14px' }}>
                   {e.actif
                     ? <CheckCircle size={14} color={C.accent} />
-                    : <span style={{ fontSize: 11, color: C.muted }}>Inactif</span>}
+                    : <span style={{ fontSize: 11, color: C.muted }}>{t('rh.inactif')}</span>}
                 </td>
                 <td style={{ padding: '12px 14px' }}>
                   <div style={{ display: 'flex', gap: 5 }}>
@@ -191,7 +194,7 @@ function EmployesTab({ C, dark }) {
       {showForm && (
         <EmployeFormModal employe={editing}
           onClose={() => setShowForm(false)}
-          onSaved={() => { setShowForm(false); fetchData(); toast.success(editing ? 'Mis à jour' : 'Employé créé'); }}
+          onSaved={() => { setShowForm(false); fetchData(); toast.success(editing ? t('rh.toast_updated') : t('rh.toast_created')); }}
           C={C} dark={dark} />
       )}
     </div>
@@ -200,6 +203,7 @@ function EmployesTab({ C, dark }) {
 
 // ─── Formulaire création / édition employé ────────────────────────────────
 function EmployeFormModal({ employe, onClose, onSaved, C, dark }) {
+  const { t } = useTranslation();
   const isEdit = !!employe;
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -232,7 +236,7 @@ function EmployeFormModal({ employe, onClose, onSaved, C, dark }) {
 
   const handleSubmit = async () => {
     if (!form.matricule || !form.nom || !form.salaire_base) {
-      toast.error('Matricule, nom et salaire requis'); return;
+      toast.error(t('rh.err_matricule_required')); return;
     }
     setSaving(true);
     try {
@@ -243,18 +247,18 @@ function EmployeFormModal({ employe, onClose, onSaved, C, dark }) {
       }
       onSaved();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur');
+      toast.error(err.response?.data?.message || t('rh.err_generic'));
     } finally { setSaving(false); }
   };
 
-  const etapes = ['Identité', 'Contrat', 'Rémunération', 'Sécurité sociale'];
+  const etapes = [t('rh.step_identite'), t('rh.step_contrat'), t('rh.step_remuneration'), t('rh.step_securite_sociale')];
 
   return (
-    <Modal title={isEdit ? `Modifier ${employe.nom}` : 'Nouvel employé'} onClose={onClose} width={620}>
+    <Modal title={isEdit ? t('rh.form_edit_title', { name: employe.nom }) : t('rh.form_new_title')} onClose={onClose} width={620}>
       {/* Stepper */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 20, padding: 4, background: dark ? '#0D1220' : C.cardAlt, borderRadius: 10 }}>
         {etapes.map((e, i) => (
-          <button key={e} type="button" onClick={() => setStep(i)} style={{
+          <button key={i} type="button" onClick={() => setStep(i)} style={{
             flex: 1, padding: '8px 0', borderRadius: 7, border: 'none', cursor: 'pointer',
             fontSize: 11, fontWeight: 700,
             background: step === i ? C.accent : 'transparent',
@@ -269,47 +273,47 @@ function EmployeFormModal({ employe, onClose, onSaved, C, dark }) {
         {step === 0 && (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 12 }}>
-              <Input label="Matricule *" value={form.matricule} onChange={set('matricule')} placeholder="EMP-001" required />
+              <Input label={t('rh.field_matricule')} value={form.matricule} onChange={set('matricule')} placeholder="EMP-001" required />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Civilité</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('rh.field_civilite')}</label>
                 <select value={form.civilite} onChange={set('civilite')} style={selectStyle}>
                   <option>M.</option><option>Mme</option><option>Mlle</option>
                 </select>
               </div>
-              <Input label="Nom *" value={form.nom} onChange={set('nom')} placeholder="Kouassi" required />
+              <Input label={t('rh.field_nom')} value={form.nom} onChange={set('nom')} placeholder="Kouassi" required />
             </div>
-            <Input label="Prénoms" value={form.prenoms} onChange={set('prenoms')} placeholder="Yao Désiré" />
+            <Input label={t('rh.field_prenoms')} value={form.prenoms} onChange={set('prenoms')} placeholder="Yao Désiré" />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-              <Input label="Date de naissance" type="date" value={form.date_naissance} onChange={set('date_naissance')} />
+              <Input label={t('rh.field_date_naissance')} type="date" value={form.date_naissance} onChange={set('date_naissance')} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Sexe</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('rh.field_sexe')}</label>
                 <select value={form.sexe} onChange={set('sexe')} style={selectStyle}>
-                  <option value="M">Masculin</option><option value="F">Féminin</option>
+                  <option value="M">{t('rh.sexe_m')}</option><option value="F">{t('rh.sexe_f')}</option>
                 </select>
               </div>
-              <Input label="Lieu de naissance" value={form.lieu_naissance} onChange={set('lieu_naissance')} placeholder="Abidjan" />
+              <Input label={t('rh.field_lieu_naissance')} value={form.lieu_naissance} onChange={set('lieu_naissance')} placeholder="Abidjan" />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Input label="Nationalité" value={form.nationalite} onChange={set('nationalite')} />
-              <Input label="N° CNI / Passeport" value={form.cni} onChange={set('cni')} />
+              <Input label={t('rh.field_nationalite')} value={form.nationalite} onChange={set('nationalite')} />
+              <Input label={t('rh.field_cni')} value={form.cni} onChange={set('cni')} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Situation</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('rh.field_situation')}</label>
                 <select value={form.situation_matrimoniale} onChange={set('situation_matrimoniale')} style={selectStyle}>
-                  <option value="celibataire">Célibataire</option>
-                  <option value="marie">Marié(e)</option>
-                  <option value="divorce">Divorcé(e)</option>
-                  <option value="veuf">Veuf(ve)</option>
+                  <option value="celibataire">{t('rh.situation_celibataire')}</option>
+                  <option value="marie">{t('rh.situation_marie')}</option>
+                  <option value="divorce">{t('rh.situation_divorce')}</option>
+                  <option value="veuf">{t('rh.situation_veuf')}</option>
                 </select>
               </div>
-              <Input label="Conjoints" type="number" value={form.nb_conjoints} onChange={set('nb_conjoints')} />
-              <Input label="Enfants à charge" type="number" value={form.nb_enfants_charge} onChange={set('nb_enfants_charge')} />
+              <Input label={t('rh.field_conjoints')} type="number" value={form.nb_conjoints} onChange={set('nb_conjoints')} />
+              <Input label={t('rh.field_enfants_charge')} type="number" value={form.nb_enfants_charge} onChange={set('nb_enfants_charge')} />
             </div>
-            <Input label="Adresse" value={form.adresse} onChange={set('adresse')} />
+            <Input label={t('rh.field_adresse')} value={form.adresse} onChange={set('adresse')} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Input label="Téléphone" value={form.telephone} onChange={set('telephone')} placeholder="+225 07 00 00 00" />
-              <Input label="Email" type="email" value={form.email} onChange={set('email')} />
+              <Input label={t('rh.field_telephone')} value={form.telephone} onChange={set('telephone')} placeholder="+225 07 00 00 00" />
+              <Input label={t('rh.field_email')} type="email" value={form.email} onChange={set('email')} />
             </div>
           </>
         )}
@@ -317,13 +321,13 @@ function EmployeFormModal({ employe, onClose, onSaved, C, dark }) {
         {step === 1 && (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Input label="Poste *" value={form.poste} onChange={set('poste')} placeholder="Comptable senior" required />
-              <Input label="Département" value={form.departement} onChange={set('departement')} placeholder="Finance" />
+              <Input label={t('rh.field_poste')} value={form.poste} onChange={set('poste')} placeholder="Comptable senior" required />
+              <Input label={t('rh.field_departement')} value={form.departement} onChange={set('departement')} placeholder="Finance" />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Input label="Date d'embauche *" type="date" value={form.date_embauche} onChange={set('date_embauche')} required />
+              <Input label={t('rh.field_date_embauche')} type="date" value={form.date_embauche} onChange={set('date_embauche')} required />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Type de contrat</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('rh.field_type_contrat')}</label>
                 <select value={form.type_contrat} onChange={set('type_contrat')} style={selectStyle}>
                   <option value="CDI">CDI</option>
                   <option value="CDD">CDD</option>
@@ -334,53 +338,53 @@ function EmployeFormModal({ employe, onClose, onSaved, C, dark }) {
               </div>
             </div>
             {form.type_contrat === 'CDD' && (
-              <Input label="Date de fin (CDD)" type="date" value={form.date_fin_contrat} onChange={set('date_fin_contrat')} />
+              <Input label={t('rh.field_date_fin_cdd')} type="date" value={form.date_fin_contrat} onChange={set('date_fin_contrat')} />
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Catégorie</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('rh.field_categorie')}</label>
                 <select value={form.categorie_professionnelle} onChange={set('categorie_professionnelle')} style={selectStyle}>
                   <option value="">—</option>
-                  <option value="cadre">Cadre</option>
-                  <option value="agent_maitrise">Agent de maîtrise</option>
-                  <option value="employe">Employé</option>
-                  <option value="ouvrier">Ouvrier</option>
+                  <option value="cadre">{t('rh.categorie_cadre')}</option>
+                  <option value="agent_maitrise">{t('rh.categorie_agent_maitrise')}</option>
+                  <option value="employe">{t('rh.categorie_employe')}</option>
+                  <option value="ouvrier">{t('rh.categorie_ouvrier')}</option>
                 </select>
               </div>
-              <Input label="Convention collective" value={form.convention_collective} onChange={set('convention_collective')} />
+              <Input label={t('rh.field_convention')} value={form.convention_collective} onChange={set('convention_collective')} />
             </div>
           </>
         )}
 
         {step === 2 && (
           <>
-            <Input label="Salaire de base mensuel (FCFA) *" type="number" value={form.salaire_base} onChange={set('salaire_base')} placeholder="350000" required />
+            <Input label={t('rh.field_salaire_base')} type="number" value={form.salaire_base} onChange={set('salaire_base')} placeholder="350000" required />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Mode de paiement</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('rh.field_mode_paiement')}</label>
                 <select value={form.mode_paiement} onChange={set('mode_paiement')} style={selectStyle}>
-                  <option value="virement">Virement bancaire</option>
-                  <option value="mobile_money">Mobile Money</option>
-                  <option value="cheque">Chèque</option>
-                  <option value="cash">Espèces</option>
+                  <option value="virement">{t('rh.mode_virement')}</option>
+                  <option value="mobile_money">{t('rh.mode_mobile_money')}</option>
+                  <option value="cheque">{t('rh.mode_cheque')}</option>
+                  <option value="cash">{t('rh.mode_cash')}</option>
                 </select>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Compte de paiement</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('rh.field_compte_paiement')}</label>
                 <select value={form.compte_tresorerie_id || ''} onChange={set('compte_tresorerie_id')} style={selectStyle}>
-                  <option value="">— Auto selon mode —</option>
+                  <option value="">{t('rh.auto_mode')}</option>
                   {comptes.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
                 </select>
               </div>
             </div>
             {(form.mode_paiement === 'virement' || form.mode_paiement === 'cheque') && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
-                <Input label="Banque" value={form.banque} onChange={set('banque')} placeholder="BICICI" />
-                <Input label="RIB / IBAN" value={form.rib} onChange={set('rib')} placeholder="CI00 0000 0000 0000" />
+                <Input label={t('rh.field_banque')} value={form.banque} onChange={set('banque')} placeholder="BICICI" />
+                <Input label={t('rh.field_rib')} value={form.rib} onChange={set('rib')} placeholder="CI00 0000 0000 0000" />
               </div>
             )}
             {form.mode_paiement === 'mobile_money' && (
-              <Input label="Numéro Mobile Money" value={form.numero_mobile_money} onChange={set('numero_mobile_money')} placeholder="+225 07 00 00 00 00" />
+              <Input label={t('rh.field_numero_mobile_money')} value={form.numero_mobile_money} onChange={set('numero_mobile_money')} placeholder="+225 07 00 00 00 00" />
             )}
           </>
         )}
@@ -388,16 +392,16 @@ function EmployeFormModal({ employe, onClose, onSaved, C, dark }) {
         {step === 3 && (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Input label="N° CNPS" value={form.numero_cnps} onChange={set('numero_cnps')} placeholder="01-2024-12345" />
-              <Input label="N° CMU" value={form.numero_cmu} onChange={set('numero_cmu')} placeholder="CMU-12345" />
+              <Input label={t('rh.field_numero_cnps')} value={form.numero_cnps} onChange={set('numero_cnps')} placeholder="01-2024-12345" />
+              <Input label={t('rh.field_numero_cmu')} value={form.numero_cmu} onChange={set('numero_cmu')} placeholder="CMU-12345" />
             </div>
-            <Input label="Taux AT personnalisé (%, sinon 2% par défaut)" type="number" value={form.taux_at_personnel} onChange={set('taux_at_personnel')} placeholder="2" />
+            <Input label={t('rh.field_taux_at')} type="number" value={form.taux_at_personnel} onChange={set('taux_at_personnel')} placeholder="2" />
             <div style={{ background: dark ? '#0D1220' : C.cardAlt, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
               <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Information
+                {t('rh.info_label')}
               </div>
               <div style={{ fontSize: 12, color: C.sub, lineHeight: 1.55 }}>
-                Les taux de cotisations sont automatiquement appliqués selon le barème CNPS et le CGI ivoirien : CNPS retraite 6,3 % salariale + 7,7 % patronale, prestations familiales 5,75 %, AT variable (défaut 2 %), FDFP 1,2 %, taxe apprentissage 0,4 %. L'ITS et la CN sont calculés selon le barème progressif.
+                {t('rh.cnps_info')}
               </div>
             </div>
           </>
@@ -408,20 +412,20 @@ function EmployeFormModal({ employe, onClose, onSaved, C, dark }) {
             <button type="button" onClick={() => setStep(s => s - 1)} style={{
               padding: '10px 18px', borderRadius: 10, border: `1.5px solid ${C.border}`,
               background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            }}>← Précédent</button>
+            }}>{t('rh.btn_previous')}</button>
           ) : <span />}
 
           {step < 3 ? (
             <button type="button" onClick={() => setStep(s => s + 1)} style={{
               padding: '10px 18px', borderRadius: 10, border: 'none',
               background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            }}>Suivant →</button>
+            }}>{t('rh.btn_next')}</button>
           ) : (
             <button type="button" onClick={handleSubmit} disabled={saving} style={{
               padding: '10px 20px', borderRadius: 10, border: 'none',
               background: saving ? C.border : C.accent, color: saving ? C.muted : (dark ? '#000' : '#fff'),
               fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer',
-            }}>{saving ? 'Enregistrement...' : isEdit ? 'Mettre à jour' : 'Créer l\'employé'}</button>
+            }}>{saving ? t('common.saving') : isEdit ? t('rh.form_update') : t('rh.form_create')}</button>
           )}
         </div>
       </div>
@@ -433,6 +437,7 @@ function EmployeFormModal({ employe, onClose, onSaved, C, dark }) {
 // ONGLET BULLETINS
 // ═══════════════════════════════════════════════════════════════════════════
 function BulletinsTab({ C, dark }) {
+  const { t } = useTranslation();
   const now = new Date();
   const [annee, setAnnee] = useState(String(now.getFullYear()));
   const [mois, setMois] = useState(now.getMonth() + 1);
@@ -447,19 +452,19 @@ function BulletinsTab({ C, dark }) {
     try {
       const res = await api.get(`/paie/bulletins?annee=${annee}&mois=${mois}&limit=100`);
       setBulletins(res.data.data);
-    } catch { toast.error('Erreur'); }
+    } catch { toast.error(t('rh.err_generic')); }
     finally { setLoading(false); }
-  }, [annee, mois]);
+  }, [annee, mois, t]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleValider = async (id) => {
-    try { await api.post(`/paie/bulletins/${id}/valider`); toast.success('Validé'); fetchData(); }
-    catch (err) { toast.error(err.response?.data?.message || 'Erreur'); }
+    try { await api.post(`/paie/bulletins/${id}/valider`); toast.success(t('rh.toast_valide')); fetchData(); }
+    catch (err) { toast.error(err.response?.data?.message || t('rh.err_generic')); }
   };
 
   const handleDownloadPDF = async (id, matricule) => {
-    const toastId = toast.loading('Génération PDF...');
+    const toastId = toast.loading(t('rh.toast_pdf_progress'));
     try {
       const res = await api.get(`/paie/bulletins/${id}/pdf`, { responseType: 'blob' });
       const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
@@ -468,17 +473,17 @@ function BulletinsTab({ C, dark }) {
       document.body.appendChild(link); link.click(); link.remove();
       URL.revokeObjectURL(url);
       toast.dismiss(toastId);
-      toast.success('Bulletin téléchargé');
+      toast.success(t('rh.toast_pdf_done'));
     } catch (err) {
       toast.dismiss(toastId);
-      toast.error('Erreur PDF');
+      toast.error(t('rh.err_pdf'));
     }
   };
 
   const handleSupprimer = async (id) => {
-    if (!confirm('Supprimer ce bulletin (brouillon) ?')) return;
-    try { await api.delete(`/paie/bulletins/${id}`); toast.success('Supprimé'); fetchData(); }
-    catch (err) { toast.error(err.response?.data?.message || 'Erreur'); }
+    if (!confirm(t('rh.confirm_delete_brouillon'))) return;
+    try { await api.delete(`/paie/bulletins/${id}`); toast.success(t('rh.toast_supprime')); fetchData(); }
+    catch (err) { toast.error(err.response?.data?.message || t('rh.err_generic')); }
   };
 
   // Totaux
@@ -493,16 +498,16 @@ function BulletinsTab({ C, dark }) {
       {/* Sélecteurs période */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          <label style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Mois</label>
+          <label style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('rh.month_label')}</label>
           <select value={mois} onChange={e => setMois(parseInt(e.target.value))} style={{
             background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 9,
             padding: '9px 13px', color: C.text, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
           }}>
-            {MOIS_NOMS.map((nom, i) => <option key={i} value={i + 1}>{nom}</option>)}
+            {MOIS_KEYS.map((key, i) => <option key={i} value={i + 1}>{t(key)}</option>)}
           </select>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          <label style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Année</label>
+          <label style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('rh.year_label')}</label>
           <SelecteurAnnee annee={annee} setAnnee={setAnnee} couleurActif={C.accent} />
         </div>
         <div style={{ flex: 1 }} />
@@ -511,17 +516,17 @@ function BulletinsTab({ C, dark }) {
           border: 'none', background: C.accent, color: dark ? '#000' : '#fff',
           fontSize: 13, fontWeight: 700, cursor: 'pointer',
         }}>
-          <Plus size={14} /> Générer la paie du mois
+          <Plus size={14} /> {t('rh.generer_paie_btn')}
         </button>
       </div>
 
       {/* KPI synthétiques */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 22 }}>
         {[
-          { label: 'Bulletins',          val: bulletins.length, suffix: '', color: C.blue },
-          { label: 'Brut total',         val: totaux.brut,      suffix: ' FCFA', color: C.accent },
-          { label: 'Net à payer',        val: totaux.net,       suffix: ' FCFA', color: C.gold },
-          { label: 'Coût employeur',     val: totaux.cout,      suffix: ' FCFA', color: C.red },
+          { label: t('rh.kpi_bulletins'),     val: bulletins.length, suffix: '', color: C.blue },
+          { label: t('rh.kpi_brut_total'),    val: totaux.brut,      suffix: ' ' + t('common.currency'), color: C.accent },
+          { label: t('rh.kpi_net_payer'),     val: totaux.net,       suffix: ' ' + t('common.currency'), color: C.gold },
+          { label: t('rh.kpi_cout_employeur'), val: totaux.cout,     suffix: ' ' + t('common.currency'), color: C.red },
         ].map((k, i) => (
           <div key={i} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 20px', boxShadow: C.shadow }}>
             <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{k.label}</div>
@@ -538,17 +543,17 @@ function BulletinsTab({ C, dark }) {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: dark ? '#0D1220' : C.cardAlt, borderBottom: `1px solid ${C.border}` }}>
-              {['Matricule', 'Employé', 'Brut', 'Charges sal.', 'Impôts', 'Net à payer', 'Coût empl.', 'Statut', 'Actions'].map(h => (
-                <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
+              {[t('rh.th_matricule'), t('rh.th_employe'), t('rh.th_brut'), t('rh.th_charges_sal'), t('rh.th_impots'), t('rh.th_net_payer'), t('rh.th_cout_empl'), t('rh.th_statut'), t('rh.th_actions')].map((h, idx) => (
+                <th key={idx} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: C.muted }}>Chargement...</td></tr>
+              <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: C.muted }}>{t('rh.loading')}</td></tr>
             ) : bulletins.length === 0 ? (
               <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 13 }}>
-                Aucun bulletin pour {MOIS_NOMS[mois - 1]} {annee}. Cliquez sur « Générer la paie du mois ».
+                {t('rh.no_bulletin_period', { month: t(MOIS_KEYS[mois - 1]), year: annee })}
               </td></tr>
             ) : bulletins.map(b => {
               const cfg = STATUT_CFG[b.statut] || STATUT_CFG.brouillon;
@@ -568,29 +573,29 @@ function BulletinsTab({ C, dark }) {
                   <td style={{ padding: '11px 14px' }}>
                     <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
                                   background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
-                      {cfg.label}
+                      {t(cfg.labelKey)}
                     </span>
                   </td>
                   <td style={{ padding: '11px 14px' }}>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      <button onClick={() => setShowEditor(b)} title="Voir / modifier"
+                      <button onClick={() => setShowEditor(b)} title={t('rh.tooltip_view')}
                         style={iconBtn(C)}><Eye size={12} /></button>
                       {b.statut === 'brouillon' && (
-                        <button onClick={() => handleValider(b.id)} title="Valider"
+                        <button onClick={() => handleValider(b.id)} title={t('rh.tooltip_validate')}
                           style={{ ...iconBtn(C), background: `${C.blue}20`, color: C.blue, borderColor: `${C.blue}40` }}>
                           <CheckCircle size={12} />
                         </button>
                       )}
                       {b.statut === 'valide' && (
-                        <button onClick={() => setShowPaiement(b)} title="Payer"
+                        <button onClick={() => setShowPaiement(b)} title={t('rh.tooltip_pay')}
                           style={{ ...iconBtn(C), background: `${C.accent}20`, color: C.accent, borderColor: `${C.accent}40` }}>
                           <CreditCard size={12} />
                         </button>
                       )}
-                      <button onClick={() => handleDownloadPDF(b.id, b.matricule)} title="PDF"
+                      <button onClick={() => handleDownloadPDF(b.id, b.matricule)} title={t('rh.tooltip_pdf')}
                         style={iconBtn(C)}><Download size={12} /></button>
                       {b.statut === 'brouillon' && (
-                        <button onClick={() => handleSupprimer(b.id)} title="Supprimer"
+                        <button onClick={() => handleSupprimer(b.id)} title={t('rh.tooltip_delete')}
                           style={iconBtn(C)}><Trash2 size={12} /></button>
                       )}
                     </div>
@@ -617,7 +622,7 @@ function BulletinsTab({ C, dark }) {
       {showPaiement && (
         <PaiementBulletinModal bulletin={showPaiement}
           onClose={() => setShowPaiement(null)}
-          onPaid={() => { setShowPaiement(null); fetchData(); toast.success('Bulletin payé'); }}
+          onPaid={() => { setShowPaiement(null); fetchData(); toast.success(t('rh.bulletin_paye')); }}
           C={C} dark={dark} />
       )}
     </div>
@@ -632,6 +637,7 @@ const iconBtn = (C) => ({
 
 // ─── Modal : génération en masse ──────────────────────────────────────────
 function GenererMoisModal({ annee, mois, onClose, onDone, C, dark }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [resultat, setResultat] = useState(null);
 
@@ -641,58 +647,60 @@ function GenererMoisModal({ annee, mois, onClose, onDone, C, dark }) {
       const res = await api.post('/paie/bulletins/generer-mois', { annee: parseInt(annee), mois: parseInt(mois) });
       setResultat(res.data.data);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur');
+      toast.error(err.response?.data?.message || t('rh.err_generic'));
     } finally { setLoading(false); }
   };
 
+  const moisLabel = t(MOIS_KEYS[mois - 1]);
+
   return (
-    <Modal title={`Générer la paie · ${MOIS_NOMS[mois - 1]} ${annee}`} onClose={onClose} width={460}>
+    <Modal title={t('rh.generer_title', { month: moisLabel, year: annee })} onClose={onClose} width={460}>
       {!resultat ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ fontSize: 13, color: C.sub, lineHeight: 1.6 }}>
-            ComptaWest va générer un bulletin de paie <strong>brouillon</strong> pour chaque employé actif sur la période <strong>{MOIS_NOMS[mois - 1]} {annee}</strong>.
+            <span dangerouslySetInnerHTML={{ __html: t('rh.generer_desc_1', { month: moisLabel, year: annee }) }} />
             <br /><br />
-            Les bulletins déjà validés ou payés seront ignorés. Les brouillons existants seront mis à jour.
+            {t('rh.generer_desc_2')}
             <br /><br />
-            Vous pourrez ensuite ajouter primes, heures sup et avances avant de valider et payer chaque bulletin individuellement.
+            {t('rh.generer_desc_3')}
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={onClose} style={{
               flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`,
               background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            }}>Annuler</button>
+            }}>{t('common.cancel')}</button>
             <button onClick={lancer} disabled={loading} style={{
               flex: 2, padding: '11px 0', borderRadius: 10, border: 'none',
               background: loading ? C.border : C.accent, color: loading ? C.muted : (dark ? '#000' : '#fff'),
               fontSize: 13, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
-            }}>{loading ? 'Génération...' : 'Lancer la génération'}</button>
+            }}>{loading ? t('rh.generer_in_progress') : t('rh.generer_start')}</button>
           </div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ textAlign: 'center', padding: '14px 0' }}>
             <CheckCircle size={42} color={C.accent} style={{ margin: '0 auto 10px' }} />
-            <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>Génération terminée</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{t('rh.generer_done')}</div>
           </div>
           <div style={{
             background: dark ? '#0D1220' : C.cardAlt, borderRadius: 10,
             padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8,
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-              <span style={{ color: C.muted }}>Bulletins créés</span>
+              <span style={{ color: C.muted }}>{t('rh.generer_crees')}</span>
               <strong style={{ color: C.accent }}>{resultat.crees}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-              <span style={{ color: C.muted }}>Bulletins mis à jour</span>
+              <span style={{ color: C.muted }}>{t('rh.generer_mis_a_jour')}</span>
               <strong style={{ color: C.blue }}>{resultat.mis_a_jour}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-              <span style={{ color: C.muted }}>Bulletins ignorés (déjà validés/payés)</span>
+              <span style={{ color: C.muted }}>{t('rh.generer_ignores')}</span>
               <strong style={{ color: C.muted }}>{resultat.ignores}</strong>
             </div>
             {resultat.erreurs?.length > 0 && (
               <div style={{ color: C.red, fontSize: 12, marginTop: 6 }}>
-                {resultat.erreurs.length} erreur(s) — voir le détail dans le journal d'audit
+                {t('rh.generer_errors', { count: resultat.erreurs.length })}
               </div>
             )}
           </div>
@@ -700,7 +708,7 @@ function GenererMoisModal({ annee, mois, onClose, onDone, C, dark }) {
             padding: '11px 0', borderRadius: 10, border: 'none',
             background: C.accent, color: dark ? '#000' : '#fff',
             fontSize: 13, fontWeight: 700, cursor: 'pointer',
-          }}>Voir les bulletins</button>
+          }}>{t('rh.generer_voir_bulletins')}</button>
         </div>
       )}
     </Modal>
@@ -709,6 +717,7 @@ function GenererMoisModal({ annee, mois, onClose, onDone, C, dark }) {
 
 // ─── Modal : édition / consultation d'un bulletin ──────────────────────────
 function BulletinDetailModal({ bulletin, onClose, onSaved, C, dark }) {
+  const { t } = useTranslation();
   const [data, setData] = useState(null);
   const [rubriques, setRubriques] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -730,9 +739,9 @@ function BulletinDetailModal({ bulletin, onClose, onSaved, C, dark }) {
         if (l.type === 'retenue') e[l.code] = parseFloat(l.montant);
       }
       setEdits(e);
-    }).catch(() => toast.error('Erreur'))
+    }).catch(() => toast.error(t('rh.err_generic')))
       .finally(() => setLoading(false));
-  }, [bulletin.id]);
+  }, [bulletin.id, t]);
 
   const handleSave = async () => {
     if (data.statut !== 'brouillon') return;
@@ -750,16 +759,16 @@ function BulletinDetailModal({ bulletin, onClose, onSaved, C, dark }) {
         rubriques: rubs,
         notes: data.notes,
       });
-      toast.success('Bulletin mis à jour');
+      toast.success(t('rh.toast_bulletin_updated'));
       onSaved();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur');
+      toast.error(err.response?.data?.message || t('rh.err_generic'));
     } finally { setSaving(false); }
   };
 
   if (loading || !data) {
-    return <Modal title="Bulletin" onClose={onClose} width={700}>
-      <div style={{ padding: 40, textAlign: 'center', color: C.muted }}>Chargement...</div>
+    return <Modal title={t('rh.bulletin_label')} onClose={onClose} width={700}>
+      <div style={{ padding: 40, textAlign: 'center', color: C.muted }}>{t('rh.loading')}</div>
     </Modal>;
   }
 
@@ -771,7 +780,7 @@ function BulletinDetailModal({ bulletin, onClose, onSaved, C, dark }) {
   const cfg = STATUT_CFG[data.statut];
 
   return (
-    <Modal title={`Bulletin · ${data.matricule} · ${MOIS_NOMS[data.mois - 1]} ${data.annee}`}
+    <Modal title={t('rh.bulletin_title', { matricule: data.matricule, month: t(MOIS_KEYS[data.mois - 1]), year: data.annee })}
       onClose={onClose} width={780}>
       {/* Bandeau statut */}
       <div style={{
@@ -780,8 +789,8 @@ function BulletinDetailModal({ bulletin, onClose, onSaved, C, dark }) {
       }}>
         <CheckCircle size={14} color={cfg.color} />
         <span style={{ fontSize: 12, color: cfg.color, fontWeight: 700 }}>
-          Statut : {cfg.label}
-          {!editable && ' — bulletin non modifiable'}
+          {t('rh.bulletin_statut_label', { label: t(cfg.labelKey) })}
+          {!editable && t('rh.bulletin_non_modifiable')}
         </span>
       </div>
 
@@ -789,7 +798,7 @@ function BulletinDetailModal({ bulletin, onClose, onSaved, C, dark }) {
         {/* Colonne gauche : édition rubriques */}
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 10, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-            Gains
+            {t('rh.section_gains')}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
             {gainsRubs.map(r => (
@@ -809,7 +818,7 @@ function BulletinDetailModal({ bulletin, onClose, onSaved, C, dark }) {
           </div>
 
           <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 10, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-            Retenues (avances, prêts…)
+            {t('rh.section_retenues')}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {retenuesRubs.map(r => (
@@ -832,19 +841,19 @@ function BulletinDetailModal({ bulletin, onClose, onSaved, C, dark }) {
         {/* Colonne droite : récap */}
         <div style={{ background: dark ? '#0D1220' : C.cardAlt, borderRadius: 12, padding: 16 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 12, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-            Récapitulatif
+            {t('rh.section_recap')}
           </div>
           {[
-            { l: 'Salaire de base', v: data.salaire_base },
-            { l: 'Brut total',      v: data.brut_total, gras: true },
-            { l: 'Cotisations sal.', v: -data.total_cotisations_salariales, c: C.red },
-            { l: 'Impôts (ITS+CN)',  v: -data.total_impots,                 c: C.red },
-            { l: 'Retenues',         v: -data.total_retenues,               c: C.red },
-            { l: 'NET À PAYER',      v: data.net_a_payer, gras: true, c: C.accent, taille: 14 },
+            { l: t('rh.recap_salaire_base'), v: data.salaire_base },
+            { l: t('rh.recap_brut_total'),   v: data.brut_total, gras: true },
+            { l: t('rh.recap_cot_sal'),      v: -data.total_cotisations_salariales, c: C.red },
+            { l: t('rh.recap_impots'),       v: -data.total_impots,                 c: C.red },
+            { l: t('rh.recap_retenues'),     v: -data.total_retenues,               c: C.red },
+            { l: t('rh.recap_net_payer'),    v: data.net_a_payer, gras: true, c: C.accent, taille: 14 },
             { sep: true },
-            { l: 'Charges patron.', v: data.total_cotisations_patronales, c: C.muted },
-            { l: 'Coût employeur',  v: data.cout_total_employeur, gras: true },
-            { l: `Parts fiscales`,  v: data.nb_parts, mono: false },
+            { l: t('rh.recap_charges_patron'), v: data.total_cotisations_patronales, c: C.muted },
+            { l: t('rh.recap_cout_employeur'), v: data.cout_total_employeur, gras: true },
+            { l: t('rh.recap_parts'),         v: data.nb_parts, mono: false },
           ].map((row, i) => row.sep ? (
             <div key={i} style={{ height: 1, background: C.border, margin: '8px 0' }} />
           ) : (
@@ -866,13 +875,13 @@ function BulletinDetailModal({ bulletin, onClose, onSaved, C, dark }) {
         <button onClick={onClose} style={{
           padding: '10px 18px', borderRadius: 10, border: `1.5px solid ${C.border}`,
           background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-        }}>Fermer</button>
+        }}>{t('rh.btn_close')}</button>
         {editable && (
           <button onClick={handleSave} disabled={saving} style={{
             padding: '10px 20px', borderRadius: 10, border: 'none',
             background: saving ? C.border : C.accent, color: saving ? C.muted : (dark ? '#000' : '#fff'),
             fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer',
-          }}>{saving ? 'Recalcul...' : 'Enregistrer et recalculer'}</button>
+          }}>{saving ? t('rh.btn_recalc_progress') : t('rh.btn_save_recalc')}</button>
         )}
       </div>
     </Modal>
@@ -881,6 +890,7 @@ function BulletinDetailModal({ bulletin, onClose, onSaved, C, dark }) {
 
 // ─── Modal : paiement d'un bulletin ────────────────────────────────────────
 function PaiementBulletinModal({ bulletin, onClose, onPaid, C, dark }) {
+  const { t } = useTranslation();
   const [comptes, setComptes] = useState([]);
   const [form, setForm] = useState({
     compte_tresorerie_id: '',
@@ -898,7 +908,7 @@ function PaiementBulletinModal({ bulletin, onClose, onPaid, C, dark }) {
       await api.post(`/paie/bulletins/${bulletin.id}/payer`, form);
       onPaid();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur');
+      toast.error(err.response?.data?.message || t('rh.err_generic'));
     } finally { setSaving(false); }
   };
 
@@ -913,29 +923,29 @@ function PaiementBulletinModal({ bulletin, onClose, onPaid, C, dark }) {
   const bloque = ev.bloquant;
 
   return (
-    <Modal title={`Paiement bulletin ${bulletin.matricule}`} onClose={onClose} width={460}>
+    <Modal title={t('rh.paiement_title', { matricule: bulletin.matricule })} onClose={onClose} width={460}>
       <div style={{ background: `${C.accent}10`, border: `1px solid ${C.accent}30`, borderRadius: 10,
                      padding: '14px 16px', marginBottom: 16 }}>
-        <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>NET À PAYER</div>
+        <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>{t('rh.paiement_net_label')}</div>
         <div style={{ fontSize: 24, fontWeight: 800, color: C.accent, fontFamily: 'monospace' }}>
-          {fmt(bulletin.net_a_payer)} <span style={{ fontSize: 12, color: C.muted, fontWeight: 400 }}>FCFA</span>
+          {fmt(bulletin.net_a_payer)} <span style={{ fontSize: 12, color: C.muted, fontWeight: 400 }}>{t('common.currency')}</span>
         </div>
         <div style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>
           {bulletin.employe_nom} {bulletin.employe_prenoms || ''}
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <Input label="Date de paiement" type="date" value={form.date_paiement}
+        <Input label={t('rh.paiement_date')} type="date" value={form.date_paiement}
           onChange={e => setForm(f => ({ ...f, date_paiement: e.target.value }))} required />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-            Compte de trésorerie débité
+            {t('rh.paiement_compte_debite')}
           </label>
           <select value={form.compte_tresorerie_id} onChange={e => setForm(f => ({ ...f, compte_tresorerie_id: e.target.value }))}
             style={selectStyle}>
-            <option value="">— Compte de l'employé ou banque par défaut —</option>
+            <option value="">{t('rh.paiement_compte_auto')}</option>
             {comptes.map(c => (
-              <option key={c.id} value={c.id}>{c.nom} ({fmt(c.solde_actuel)} FCFA)</option>
+              <option key={c.id} value={c.id}>{c.nom} ({fmt(c.solde_actuel)} {t('common.currency')})</option>
             ))}
           </select>
         </div>
@@ -944,12 +954,12 @@ function PaiementBulletinModal({ bulletin, onClose, onPaid, C, dark }) {
           <button onClick={onClose} style={{
             flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`,
             background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          }}>Annuler</button>
+          }}>{t('common.cancel')}</button>
           <button onClick={handlePayer} disabled={saving || bloque} style={{
             flex: 2, padding: '11px 0', borderRadius: 10, border: 'none',
             background: (saving || bloque) ? C.border : C.accent, color: (saving || bloque) ? C.muted : (dark ? '#000' : '#fff'),
             fontSize: 13, fontWeight: 700, cursor: (saving || bloque) ? 'not-allowed' : 'pointer',
-          }}>{saving ? 'Paiement...' : bloque ? 'Solde insuffisant' : 'Confirmer le paiement'}</button>
+          }}>{saving ? t('rh.paiement_in_progress') : bloque ? t('rh.paiement_balance_low') : t('rh.paiement_confirm')}</button>
         </div>
       </div>
     </Modal>
@@ -960,6 +970,7 @@ function PaiementBulletinModal({ bulletin, onClose, onPaid, C, dark }) {
 // ONGLET RUBRIQUES
 // ═══════════════════════════════════════════════════════════════════════════
 function RubriquesTab({ C, dark }) {
+  const { t } = useTranslation();
   const [rubriques, setRubriques] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -968,18 +979,18 @@ function RubriquesTab({ C, dark }) {
     try {
       const res = await api.get('/paie/rubriques');
       setRubriques(res.data.data);
-    } catch { toast.error('Erreur'); }
+    } catch { toast.error(t('rh.err_generic')); }
     finally { setLoading(false); }
-  }, []);
+  }, [t]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const typeLibelles = {
-    gain: 'Gain',
-    retenue: 'Retenue',
-    cotisation_salariale: 'Cotisation salariale',
-    cotisation_patronale: 'Cotisation patronale',
-    info: 'Information',
+    gain: t('rh.type_gain'),
+    retenue: t('rh.type_retenue'),
+    cotisation_salariale: t('rh.type_cotisation_salariale'),
+    cotisation_patronale: t('rh.type_cotisation_patronale'),
+    info: t('rh.type_info'),
   };
   const typeColors = {
     gain: C.accent, retenue: C.red,
@@ -993,23 +1004,22 @@ function RubriquesTab({ C, dark }) {
         background: dark ? '#0D1220' : C.cardAlt, borderRadius: 12,
         padding: '14px 16px', marginBottom: 16, border: `1px solid ${C.border}`,
       }}>
-        <div style={{ fontSize: 12, color: C.sub, lineHeight: 1.55 }}>
-          Le catalogue des rubriques contient toutes les éléments de paie possibles : primes, indemnités, retenues, cotisations. Les rubriques <strong>système</strong> sont pré-paramétrées selon la réglementation CI et ne peuvent pas être supprimées (mais leurs taux/valeurs peuvent être modifiés).
-        </div>
+        <div style={{ fontSize: 12, color: C.sub, lineHeight: 1.55 }}
+          dangerouslySetInnerHTML={{ __html: t('rh.rubriques_info') }} />
       </div>
 
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', boxShadow: C.shadow }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: dark ? '#0D1220' : C.cardAlt, borderBottom: `1px solid ${C.border}` }}>
-              {['Code', 'Libellé', 'Type', 'ITS', 'CNPS', 'Compte', ''].map(h => (
-                <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
+              {[t('rh.th_code'), t('rh.th_libelle'), t('rh.th_type'), t('rh.th_its'), t('rh.th_cnps'), t('rh.th_compte'), ''].map((h, idx) => (
+                <th key={idx} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: C.muted }}>Chargement...</td></tr>
+              <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: C.muted }}>{t('rh.loading')}</td></tr>
             ) : rubriques.map(r => (
               <tr key={r.id} style={{ borderBottom: `1px solid ${C.border}` }}>
                 <td style={{ padding: '11px 14px', fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: C.accent }}>
@@ -1017,7 +1027,7 @@ function RubriquesTab({ C, dark }) {
                 </td>
                 <td style={{ padding: '11px 14px', fontSize: 12, color: C.text }}>
                   {r.libelle}
-                  {r.systeme && <span style={{ fontSize: 9, marginLeft: 8, padding: '1px 6px', borderRadius: 10, background: C.hover, color: C.muted }}>SYS</span>}
+                  {r.systeme && <span style={{ fontSize: 9, marginLeft: 8, padding: '1px 6px', borderRadius: 10, background: C.hover, color: C.muted }}>{t('rh.rubrique_systeme')}</span>}
                 </td>
                 <td style={{ padding: '11px 14px' }}>
                   <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 12,
@@ -1036,7 +1046,7 @@ function RubriquesTab({ C, dark }) {
                     : <span style={{ color: C.muted, fontSize: 11 }}>—</span>}
                 </td>
                 <td style={{ padding: '11px 14px', fontSize: 11, fontFamily: 'monospace', color: C.muted }}>{r.compte_pc_numero || '—'}</td>
-                <td style={{ padding: '11px 14px', fontSize: 11, color: C.muted }}>{r.systeme ? '' : 'éditable'}</td>
+                <td style={{ padding: '11px 14px', fontSize: 11, color: C.muted }}>{r.systeme ? '' : t('rh.rubrique_editable')}</td>
               </tr>
             ))}
           </tbody>
@@ -1050,6 +1060,7 @@ function RubriquesTab({ C, dark }) {
 // ONGLET STATISTIQUES
 // ═══════════════════════════════════════════════════════════════════════════
 function StatsTab({ C, dark }) {
+  const { t, i18n } = useTranslation();
   const [annee, setAnnee] = useState(String(new Date().getFullYear()));
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1058,31 +1069,34 @@ function StatsTab({ C, dark }) {
     setLoading(true);
     api.get(`/paie/stats?annee=${annee}`)
       .then(r => setStats(r.data.data))
-      .catch(() => toast.error('Erreur'))
+      .catch(() => toast.error(t('rh.err_generic')))
       .finally(() => setLoading(false));
-  }, [annee]);
+  }, [annee, t]);
 
-  if (loading || !stats) return <div style={{ padding: 30, textAlign: 'center', color: C.muted }}>Chargement...</div>;
+  if (loading || !stats) return <div style={{ padding: 30, textAlign: 'center', color: C.muted }}>{t('rh.loading')}</div>;
+
+  const numberLocale = i18n.language?.startsWith('en') ? 'en-US' : 'fr-FR';
+  const currency = t('common.currency');
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-          Année d'exercice :
+          {t('rh.annee_exercice')}
         </span>
         <SelecteurAnnee annee={annee} setAnnee={setAnnee} couleurActif={C.accent} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 22 }}>
         {[
-          { label: 'Effectif actif',         val: stats.effectif,           unit: '',     icon: Users,        color: C.blue },
-          { label: 'Masse salariale brute',  val: stats.total_brut,         unit: 'FCFA', icon: TrendingUp,   color: C.accent },
-          { label: 'Net versé total',        val: stats.total_net,          unit: 'FCFA', icon: Wallet,       color: C.gold },
-          { label: 'Coût employeur total',   val: stats.cout_total,         unit: 'FCFA', icon: AlertCircle,  color: C.red },
-          { label: 'Cotis. salariales',      val: stats.total_cot_sal,      unit: 'FCFA', icon: Receipt,      color: C.purple },
-          { label: 'Cotis. patronales',      val: stats.total_cot_pat,      unit: 'FCFA', icon: Receipt,      color: C.purple },
-          { label: 'Impôts (ITS+CN)',        val: stats.total_impots,       unit: 'FCFA', icon: BarChart3,    color: C.red },
-          { label: 'Bulletins émis',         val: stats.nb_bulletins,       unit: '',     icon: FileText,     color: C.blue },
+          { label: t('rh.stats_effectif'),       val: stats.effectif,      unit: '',       icon: Users,        color: C.blue },
+          { label: t('rh.stats_masse_salariale'), val: stats.total_brut,    unit: currency, icon: TrendingUp,   color: C.accent },
+          { label: t('rh.stats_net_verse'),      val: stats.total_net,     unit: currency, icon: Wallet,       color: C.gold },
+          { label: t('rh.stats_cout_total'),     val: stats.cout_total,    unit: currency, icon: AlertCircle,  color: C.red },
+          { label: t('rh.stats_cot_sal'),        val: stats.total_cot_sal, unit: currency, icon: Receipt,      color: C.purple },
+          { label: t('rh.stats_cot_pat'),        val: stats.total_cot_pat, unit: currency, icon: Receipt,      color: C.purple },
+          { label: t('rh.stats_impots'),         val: stats.total_impots,  unit: currency, icon: BarChart3,    color: C.red },
+          { label: t('rh.stats_bulletins_emis'), val: stats.nb_bulletins,  unit: '',       icon: FileText,     color: C.blue },
         ].map((k, i) => (
           <div key={i} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 20px', boxShadow: C.shadow, position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', top: 0, right: 0, width: 50, height: 50, background: `radial-gradient(circle at top right, ${k.color}25, transparent 70%)`, borderRadius: '0 14px 0 50px' }} />
@@ -1091,7 +1105,7 @@ function StatsTab({ C, dark }) {
               <k.icon size={14} color={k.color} />
             </div>
             <div style={{ fontSize: 18, fontWeight: 800, color: C.text, fontFamily: 'monospace' }}>
-              {new Intl.NumberFormat('fr-FR').format(Math.round(k.val))}
+              {new Intl.NumberFormat(numberLocale).format(Math.round(k.val))}
               {k.unit && <span style={{ fontSize: 9, color: C.muted, fontWeight: 400, marginLeft: 4 }}>{k.unit}</span>}
             </div>
           </div>
@@ -1101,22 +1115,22 @@ function StatsTab({ C, dark }) {
       {/* Tableau évolution mensuelle */}
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', boxShadow: C.shadow }}>
         <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, background: dark ? 'transparent' : C.cardAlt }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Évolution mensuelle {annee}</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{t('rh.evolution_mensuelle', { year: annee })}</div>
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: dark ? '#0D1220' : C.cardAlt }}>
-              {['Mois', 'Brut total', 'Net versé', 'Coût employeur'].map(h => (
-                <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
+              {[t('rh.th_mois'), t('rh.th_brut_total'), t('rh.th_net_verse'), t('rh.th_cout_employeur')].map((h, idx) => (
+                <th key={idx} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {stats.par_mois.length === 0 ? (
-              <tr><td colSpan={4} style={{ padding: 30, textAlign: 'center', color: C.muted, fontSize: 13 }}>Aucun bulletin pour cette année</td></tr>
+              <tr><td colSpan={4} style={{ padding: 30, textAlign: 'center', color: C.muted, fontSize: 13 }}>{t('rh.no_bulletin_year')}</td></tr>
             ) : stats.par_mois.map(m => (
               <tr key={m.mois} style={{ borderBottom: `1px solid ${C.border}` }}>
-                <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: 600, color: C.text }}>{MOIS_NOMS[parseInt(m.mois) - 1]} {annee}</td>
+                <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: 600, color: C.text }}>{t(MOIS_KEYS[parseInt(m.mois) - 1])} {annee}</td>
                 <td style={{ padding: '11px 14px', fontSize: 12, fontFamily: 'monospace', color: C.accent }}>{fmt(m.brut)}</td>
                 <td style={{ padding: '11px 14px', fontSize: 12, fontFamily: 'monospace', color: C.gold }}>{fmt(m.net)}</td>
                 <td style={{ padding: '11px 14px', fontSize: 12, fontFamily: 'monospace', color: C.red }}>{fmt(m.cout)}</td>
