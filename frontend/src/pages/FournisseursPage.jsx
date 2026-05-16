@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme.jsx';
 import api from '../utils/api.jsx';
 import { formatFCFA, formatDate, initiales, truncate } from '../utils/helpers.jsx';
@@ -15,22 +16,24 @@ import {
 const fmt = (n) => formatFCFA(n, false);
 const fmtQ = (n) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3 }).format(parseFloat(n) || 0);
 
-const STATUT_BC = {
-  brouillon:    { label: 'Brouillon',    bg: '#6B7A9920', color: '#6B7A99', border: '#6B7A9940' },
-  envoyee:      { label: 'Envoyée',      bg: '#4E8BF520', color: '#1A52B0', border: '#4E8BF540' },
-  receptionnee: { label: 'Réceptionnée', bg: '#F5A62320', color: '#A0660A', border: '#F5A62340' },
-  facturee:     { label: 'Facturée',     bg: '#00D4AA20', color: '#00A882', border: '#00D4AA40' },
-  annulee:      { label: 'Annulée',      bg: '#FF5C6B20', color: '#C01833', border: '#FF5C6B40' },
+// Couleurs des statuts BC ; les libellés sont résolus via t('statut.*') au rendu.
+const STATUT_BC_COLORS = {
+  brouillon:    { bg: '#6B7A9920', color: '#6B7A99', border: '#6B7A9940' },
+  envoyee:      { bg: '#4E8BF520', color: '#1A52B0', border: '#4E8BF540' },
+  receptionnee: { bg: '#F5A62320', color: '#A0660A', border: '#F5A62340' },
+  facturee:     { bg: '#00D4AA20', color: '#00A882', border: '#00D4AA40' },
+  annulee:      { bg: '#FF5C6B20', color: '#C01833', border: '#FF5C6B40' },
 };
 
-const URGENCE_CFG = {
-  retard: { label: 'En retard',  color: '#C01833', bg: '#FF5C6B20' },
-  urgent: { label: 'Urgent',     color: '#A0660A', bg: '#F5A62325' },
-  proche: { label: 'Cette semaine', color: '#1A52B0', bg: '#4E8BF520' },
-  futur:  { label: 'À venir',    color: '#6B7A99', bg: '#6B7A9920' },
+const URGENCE_COLORS = {
+  retard: { color: '#C01833', bg: '#FF5C6B20' },
+  urgent: { color: '#A0660A', bg: '#F5A62325' },
+  proche: { color: '#1A52B0', bg: '#4E8BF520' },
+  futur:  { color: '#6B7A99', bg: '#6B7A9920' },
 };
 
 export default function FournisseursPage() {
+  const { t } = useTranslation();
   const { dark } = useTheme();
   const C = getC(dark);
   const [tab, setTab] = useState('liste');
@@ -43,10 +46,8 @@ export default function FournisseursPage() {
   return (
     <div style={{ padding: '32px 36px', minHeight: '100vh', background: C.bg }}>
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>Fournisseurs & Achats</h1>
-        <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
-          Fiches fournisseurs · bons de commande · échéancier SYSCOHADA
-        </p>
+        <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>{t('fournisseurs.title')}</h1>
+        <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{t('fournisseurs.subtitle')}</p>
       </div>
 
       <StatsBandeau C={C} dark={dark} />
@@ -56,9 +57,9 @@ export default function FournisseursPage() {
         background: C.card, border: `1px solid ${C.border}`, marginBottom: 20, width: 'fit-content',
       }}>
         {[
-          { id: 'liste',       label: 'Fournisseurs',   icon: Building2 },
-          { id: 'commandes',   label: 'Bons de commande', icon: ShoppingCart },
-          { id: 'echeancier',  label: 'Échéancier',     icon: Calendar },
+          { id: 'liste',       label: t('fournisseurs.tab_list'),     icon: Building2 },
+          { id: 'commandes',   label: t('fournisseurs.tab_orders'),   icon: ShoppingCart },
+          { id: 'echeancier',  label: t('fournisseurs.tab_schedule'), icon: Calendar },
         ].map(({ id, label, icon: Icon }) => {
           const active = tab === id;
           return (
@@ -86,6 +87,7 @@ export default function FournisseursPage() {
 
 // ─── KPI BANDEAU ──────────────────────────────────────────────────────────
 function StatsBandeau({ C, dark }) {
+  const { t } = useTranslation();
   const [stats, setStats] = useState(null);
   useEffect(() => {
     api.get('/fournisseurs/stats').then(r => setStats(r.data.data)).catch(() => {});
@@ -95,10 +97,10 @@ function StatsBandeau({ C, dark }) {
   return (
     <div data-onboarding="kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 22 }}>
       {[
-        { label: 'Fournisseurs actifs', val: stats.nb_actifs, color: C.blue, icon: Building2, fmt: 'count' },
-        { label: 'Encours total',       val: stats.encours_total, color: C.gold, icon: TrendingUp },
-        { label: 'En retard',           val: stats.nb_retard, color: C.red, icon: AlertTriangle, fmt: 'count' },
-        { label: 'Année', val: stats.annee, color: C.muted, icon: Calendar, fmt: 'count' },
+        { label: t('fournisseurs.stat_actifs'),   val: stats.nb_actifs,    color: C.blue,  icon: Building2,     fmt: 'count' },
+        { label: t('fournisseurs.stat_encours'),  val: stats.encours_total, color: C.gold,  icon: TrendingUp },
+        { label: t('fournisseurs.stat_retard'),   val: stats.nb_retard,    color: C.red,   icon: AlertTriangle, fmt: 'count' },
+        { label: t('fournisseurs.stat_year'),     val: stats.annee,        color: C.muted, icon: Calendar,      fmt: 'count' },
       ].map((k, i) => (
         <div key={i} style={{
           background: C.card, border: `1px solid ${C.border}`, borderRadius: 14,
@@ -113,7 +115,7 @@ function StatsBandeau({ C, dark }) {
           </div>
           <div style={{ fontSize: 19, fontWeight: 800, color: C.text, fontFamily: 'monospace' }}>
             {k.fmt === 'count' ? k.val : fmt(k.val)}
-            {k.fmt !== 'count' && <span style={{ fontSize: 10, color: C.muted, fontWeight: 400, marginLeft: 4 }}>FCFA</span>}
+            {k.fmt !== 'count' && <span style={{ fontSize: 10, color: C.muted, fontWeight: 400, marginLeft: 4 }}>{t('common.currency')}</span>}
           </div>
         </div>
       ))}
@@ -125,6 +127,7 @@ function StatsBandeau({ C, dark }) {
 // ONGLET LISTE
 // ═══════════════════════════════════════════════════════════════════════════
 function ListeTab({ onSelect, C, dark }) {
+  const { t } = useTranslation();
   const [fournisseurs, setFournisseurs] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -136,16 +139,16 @@ function ListeTab({ onSelect, C, dark }) {
     try {
       const res = await api.get(`/fournisseurs?search=${encodeURIComponent(search)}&limit=100`);
       setFournisseurs(res.data.data);
-    } catch { toast.error('Erreur'); }
+    } catch { toast.error(t('fournisseurs.error_load')); }
     finally { setLoading(false); }
-  }, [search]);
+  }, [search, t]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleDelete = async (f) => {
-    if (!confirm(`Archiver ${f.nom} ?`)) return;
-    try { await api.delete(`/fournisseurs/${f.id}`); toast.success('Archivé'); fetchData(); }
-    catch { toast.error('Erreur'); }
+    if (!confirm(t('fournisseurs.confirm_archive', { nom: f.nom }))) return;
+    try { await api.delete(`/fournisseurs/${f.id}`); toast.success(t('fournisseurs.archived')); fetchData(); }
+    catch { toast.error(t('fournisseurs.error_load')); }
   };
 
   return (
@@ -153,7 +156,7 @@ function ListeTab({ onSelect, C, dark }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: '1 0 280px', maxWidth: 380 }}>
           <Search size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: C.muted }} />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un fournisseur..."
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('fournisseurs.search_placeholder')}
             style={{ width: '100%', background: C.card, border: `1.5px solid ${C.border}`,
               borderRadius: 10, padding: '10px 12px 10px 36px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
         </div>
@@ -161,7 +164,7 @@ function ListeTab({ onSelect, C, dark }) {
           display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
           border: 'none', background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
         }}>
-          <Plus size={15} /> Nouveau fournisseur
+          <Plus size={15} /> {t('fournisseurs.new')}
         </button>
       </div>
 
@@ -169,17 +172,27 @@ function ListeTab({ onSelect, C, dark }) {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: dark ? '#0D1220' : C.cardAlt, borderBottom: `1px solid ${C.border}` }}>
-              {['Code', 'Fournisseur', 'Contact', 'Ville', 'Compte aux.', 'Dépenses', 'Total facturé', 'Encours', ''].map(h => (
+              {[
+                t('common.code'),
+                t('fournisseurs.col_supplier'),
+                t('fournisseurs.col_contact'),
+                t('fournisseurs.col_city'),
+                t('fournisseurs.code_aux'),
+                t('fournisseurs.col_expenses'),
+                t('common.total_billed'),
+                t('fournisseurs.col_encours'),
+                '',
+              ].map(h => (
                 <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: C.muted }}>Chargement...</td></tr>
+              <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: C.muted }}>{t('common.loading')}</td></tr>
             ) : fournisseurs.length === 0 ? (
               <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 13 }}>
-                {search ? 'Aucun résultat' : 'Aucun fournisseur enregistré'}
+                {search ? t('clients.no_results') : t('fournisseurs.empty')}
               </td></tr>
             ) : fournisseurs.map(f => (
               <tr key={f.id} style={{ borderBottom: `1px solid ${C.border}`, cursor: 'pointer' }}
@@ -234,7 +247,7 @@ function ListeTab({ onSelect, C, dark }) {
       {showForm && (
         <FournisseurFormModal fournisseur={editing}
           onClose={() => setShowForm(false)}
-          onSaved={() => { setShowForm(false); fetchData(); toast.success(editing ? 'Mis à jour' : 'Créé'); }}
+          onSaved={() => { setShowForm(false); fetchData(); toast.success(editing ? t('fournisseurs.saved') : t('fournisseurs.created')); }}
           C={C} dark={dark} />
       )}
     </div>
@@ -243,6 +256,7 @@ function ListeTab({ onSelect, C, dark }) {
 
 // ─── MODAL FORM FOURNISSEUR ────────────────────────────────────────────────
 export function FournisseurFormModal({ fournisseur, onClose, onSaved, C, dark, initialNom }) {
+  const { t } = useTranslation();
   const isEdit = !!fournisseur;
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(fournisseur || {
@@ -256,7 +270,7 @@ export function FournisseurFormModal({ fournisseur, onClose, onSaved, C, dark, i
 
   const handleSubmit = async (e) => {
     e?.preventDefault();
-    if (!form.nom) { toast.error('Nom requis'); return; }
+    if (!form.nom) { toast.error(t('fournisseurs.field_legal_name')); return; }
     setSaving(true);
     try {
       let res;
@@ -264,7 +278,7 @@ export function FournisseurFormModal({ fournisseur, onClose, onSaved, C, dark, i
       else res = await api.post('/fournisseurs', form);
       onSaved(res.data.data);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur');
+      toast.error(err.response?.data?.message || t('fournisseurs.error_save'));
     } finally { setSaving(false); }
   };
 
@@ -275,86 +289,86 @@ export function FournisseurFormModal({ fournisseur, onClose, onSaved, C, dark, i
   };
 
   return (
-    <Modal title={isEdit ? `Modifier ${fournisseur.nom}` : 'Nouveau fournisseur'} onClose={onClose} width={600}>
+    <Modal title={isEdit ? `${t('fournisseurs.edit')} — ${fournisseur.nom}` : t('fournisseurs.new')} onClose={onClose} width={600}>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
-          <Input label="Code (auto si vide)" value={form.code} onChange={set('code')} placeholder="F-0001" />
-          <Input label="Nom / Raison sociale *" value={form.nom} onChange={set('nom')} placeholder="SARL Konan & Fils" required />
+          <Input label={t('common.code')} value={form.code} onChange={set('code')} placeholder="F-0001" />
+          <Input label={`${t('fournisseurs.field_legal_name')} *`} value={form.nom} onChange={set('nom')} required />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Type</label>
+            <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('fournisseurs.field_type')}</label>
             <select value={form.type} onChange={set('type')} style={selectStyle}>
-              <option value="entreprise">Entreprise</option>
-              <option value="particulier">Particulier</option>
-              <option value="administration">Administration</option>
+              <option value="entreprise">{t('clients.type_company')}</option>
+              <option value="particulier">{t('clients.type_individual')}</option>
+              <option value="administration">{t('common.administration')}</option>
             </select>
           </div>
-          <Input label="Contact principal" value={form.contact_principal} onChange={set('contact_principal')} placeholder="M. Koffi Yao" />
+          <Input label={t('fournisseurs.section_contact')} value={form.contact_principal} onChange={set('contact_principal')} />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Input label="Email" type="email" value={form.email} onChange={set('email')} placeholder="contact@..." />
-          <Input label="Téléphone" value={form.telephone} onChange={set('telephone')} placeholder="+225 07 00 00 00" />
+          <Input label={t('common.email')} type="email" value={form.email} onChange={set('email')} />
+          <Input label={t('common.phone')} value={form.telephone} onChange={set('telephone')} placeholder="+225 07 00 00 00" />
         </div>
 
-        <Input label="Adresse" value={form.adresse} onChange={set('adresse')} placeholder="Rue du Commerce, Cocody" />
+        <Input label={t('common.address')} value={form.adresse} onChange={set('adresse')} />
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Input label="Ville" value={form.ville} onChange={set('ville')} placeholder="Abidjan" />
-          <Input label="Pays" value={form.pays} onChange={set('pays')} />
+          <Input label={t('common.city')} value={form.ville} onChange={set('ville')} placeholder="Abidjan" />
+          <Input label={t('common.country')} value={form.pays} onChange={set('pays')} />
         </div>
 
         {form.type === 'entreprise' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <Input label="NINEA / NIF" value={form.ninea} onChange={set('ninea')} placeholder="CI-2024-..." />
-            <Input label="RCCM" value={form.rccm} onChange={set('rccm')} />
+            <Input label={t('parametres.ninea')} value={form.ninea} onChange={set('ninea')} placeholder="CI-2024-..." />
+            <Input label={t('parametres.rccm')} value={form.rccm} onChange={set('rccm')} />
           </div>
         )}
 
         <div style={{ background: dark ? '#0D1220' : C.cardAlt, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>
-            Conditions commerciales
+            {t('fournisseurs.section_payment')}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <Input label="Délai paiement (jours)" type="number" value={form.delai_paiement_jours} onChange={set('delai_paiement_jours')} placeholder="30" />
+            <Input label={t('fournisseurs.delay_days')} type="number" value={form.delai_paiement_jours} onChange={set('delai_paiement_jours')} placeholder="30" />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Mode paiement par défaut</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('fournisseurs.default_mode')}</label>
               <select value={form.mode_paiement_defaut} onChange={set('mode_paiement_defaut')} style={selectStyle}>
                 <option value="virement">Virement</option>
                 <option value="mobile_money">Mobile Money</option>
                 <option value="cheque">Chèque</option>
-                <option value="cash">Espèces</option>
-                <option value="carte">Carte</option>
+                <option value="cash">Cash</option>
+                <option value="carte">Card</option>
               </select>
             </div>
           </div>
           {form.mode_paiement_defaut === 'virement' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, marginTop: 12 }}>
-              <Input label="Banque" value={form.banque} onChange={set('banque')} placeholder="BICICI" />
-              <Input label="RIB / IBAN" value={form.rib} onChange={set('rib')} />
+              <Input label={t('fournisseurs.field_bank')} value={form.banque} onChange={set('banque')} placeholder="BICICI" />
+              <Input label={t('fournisseurs.field_rib')} value={form.rib} onChange={set('rib')} />
             </div>
           )}
           {form.mode_paiement_defaut === 'mobile_money' && (
             <div style={{ marginTop: 12 }}>
-              <Input label="Numéro Mobile Money" value={form.numero_mobile_money} onChange={set('numero_mobile_money')} placeholder="+225 07 ..." />
+              <Input label={t('fournisseurs.field_mobile_money')} value={form.numero_mobile_money} onChange={set('numero_mobile_money')} placeholder="+225 07 ..." />
             </div>
           )}
         </div>
 
-        <Input label="Notes" value={form.notes} onChange={set('notes')} placeholder="Notes complémentaires..." />
+        <Input label={t('common.notes')} value={form.notes} onChange={set('notes')} />
 
         <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
           <button type="button" onClick={onClose} style={{
             flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`,
             background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          }}>Annuler</button>
+          }}>{t('common.cancel')}</button>
           <button type="submit" disabled={saving} style={{
             flex: 2, padding: '11px 0', borderRadius: 10, border: 'none',
             background: saving ? C.border : C.accent, color: saving ? C.muted : (dark ? '#000' : '#fff'),
             fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer',
-          }}>{saving ? '...' : isEdit ? 'Mettre à jour' : 'Créer'}</button>
+          }}>{saving ? '...' : isEdit ? t('common.save') : t('fournisseurs.create_button')}</button>
         </div>
       </form>
     </Modal>
@@ -365,6 +379,7 @@ export function FournisseurFormModal({ fournisseur, onClose, onSaved, C, dark, i
 // VUE DÉTAIL FOURNISSEUR
 // ═══════════════════════════════════════════════════════════════════════════
 function FournisseurDetail({ id, onBack, C, dark }) {
+  const { t } = useTranslation();
   const [f, setF] = useState(null);
   const [paiements, setPaiements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -380,24 +395,24 @@ function FournisseurDetail({ id, onBack, C, dark }) {
       ]);
       setF(fr.data.data);
       setPaiements(p.data.data);
-    } catch { toast.error('Erreur'); }
+    } catch { toast.error(t('fournisseurs.error_load')); }
     finally { setLoading(false); }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   if (loading || !f) {
     return (
       <div style={{ padding: '32px 36px', background: C.bg, minHeight: '100vh' }}>
-        <button onClick={onBack} style={btnRetour(C)}><ChevronLeft size={14} /> Retour</button>
-        <div style={{ padding: 60, textAlign: 'center', color: C.muted }}>Chargement...</div>
+        <button onClick={onBack} style={btnRetour(C)}><ChevronLeft size={14} /> {t('common.back')}</button>
+        <div style={{ padding: 60, textAlign: 'center', color: C.muted }}>{t('common.loading')}</div>
       </div>
     );
   }
 
   return (
     <div style={{ padding: '32px 36px', minHeight: '100vh', background: C.bg }}>
-      <button onClick={onBack} style={btnRetour(C)}><ChevronLeft size={14} /> Retour à la liste</button>
+      <button onClick={onBack} style={btnRetour(C)}><ChevronLeft size={14} /> {t('common.back_to_list')}</button>
 
       <div style={{
         background: C.card, border: `1px solid ${C.border}`, borderRadius: 16,
@@ -414,35 +429,35 @@ function FournisseurDetail({ id, onBack, C, dark }) {
             <div>
               <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text }}>{f.nom}</h1>
               <p style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>
-                Code <strong style={{ color: C.accent, fontFamily: 'monospace' }}>{f.code}</strong>
-                {' · '}Compte auxiliaire <strong style={{ color: C.text, fontFamily: 'monospace' }}>{f.code_auxiliaire}</strong>
+                {t('common.code')} <strong style={{ color: C.accent, fontFamily: 'monospace' }}>{f.code}</strong>
+                {' · '}{t('fournisseurs.code_aux')} <strong style={{ color: C.text, fontFamily: 'monospace' }}>{f.code_auxiliaire}</strong>
               </p>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setShowEdit(true)} style={btnSec(C)}><Edit2 size={13} /> Modifier</button>
+            <button onClick={() => setShowEdit(true)} style={btnSec(C)}><Edit2 size={13} /> {t('common.edit')}</button>
             <button onClick={() => setShowPaiement({})} style={{
               padding: '8px 16px', borderRadius: 9, border: 'none',
               background: C.accent, color: dark ? '#000' : '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 6,
             }}>
-              <CreditCard size={13} /> Payer
+              <CreditCard size={13} /> {t('fournisseurs.pay_button')}
             </button>
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginTop: 22 }}>
           {[
-            { l: 'Total facturé',  v: f.total_facture, color: C.text },
-            { l: 'Encours',         v: f.encours, color: C.gold },
-            { l: 'Délai paiement',  v: `${f.delai_paiement_jours} j`, color: C.muted, fmt: 'text' },
-            { l: 'Mode paiement',   v: (f.mode_paiement_defaut || '').replace('_', ' '), color: C.blue, fmt: 'text' },
+            { l: t('common.total_billed'),         v: f.total_facture, color: C.text },
+            { l: t('fournisseurs.col_encours'),    v: f.encours, color: C.gold },
+            { l: t('fournisseurs.delay_days'),     v: t('fournisseurs.delay_days_value', { n: f.delai_paiement_jours }), color: C.muted, fmt: 'text' },
+            { l: t('fournisseurs.default_mode'),   v: (f.mode_paiement_defaut || '').replace('_', ' '), color: C.blue, fmt: 'text' },
           ].map((s, i) => (
             <div key={i} style={{ padding: 14, background: dark ? '#0D1220' : C.cardAlt, borderRadius: 11 }}>
               <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{s.l}</div>
               <div style={{ fontSize: 15, fontWeight: 800, color: s.color, fontFamily: s.fmt === 'text' ? 'inherit' : 'monospace', marginTop: 5 }}>
                 {s.fmt === 'text' ? s.v : fmt(s.v)}
-                {s.fmt !== 'text' && <span style={{ fontSize: 9, color: C.muted, fontWeight: 400, marginLeft: 4 }}>FCFA</span>}
+                {s.fmt !== 'text' && <span style={{ fontSize: 9, color: C.muted, fontWeight: 400, marginLeft: 4 }}>{t('common.currency')}</span>}
               </div>
             </div>
           ))}
@@ -453,7 +468,7 @@ function FournisseurDetail({ id, onBack, C, dark }) {
             { icon: Mail,    label: f.email || '—' },
             { icon: Phone,   label: f.telephone || '—' },
             { icon: MapPin,  label: [f.ville, f.pays].filter(Boolean).join(', ') || '—' },
-            { icon: Receipt, label: f.ninea ? `NINEA: ${f.ninea}` : 'NINEA non renseigné' },
+            { icon: Receipt, label: f.ninea ? t('fournisseurs.ninea_label', { value: f.ninea }) : t('fournisseurs.ninea_empty') },
           ].map(({ icon: Icon, label }, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: C.hover, borderRadius: 9, border: `1px solid ${C.border}` }}>
               <Icon size={13} color={C.muted} />
@@ -467,26 +482,32 @@ function FournisseurDetail({ id, onBack, C, dark }) {
         {/* Dépenses récentes */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', boxShadow: C.shadow }}>
           <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}`, background: dark ? 'transparent' : C.cardAlt }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: C.text }}>Dépenses récentes</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.text }}>{t('fournisseurs.recent_expenses')}</div>
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: dark ? '#0D1220' : C.cardAlt }}>
-                {['N°', 'Description', 'Date', 'Montant', 'Statut'].map(h => (
+                {[
+                  t('dashboard.transactions_col_num'),
+                  t('common.description'),
+                  t('common.date'),
+                  t('common.amount'),
+                  t('common.status'),
+                ].map(h => (
                   <th key={h} style={{ padding: '9px 12px', textAlign: 'left', fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {f.depenses.length === 0 ? (
-                <tr><td colSpan={5} style={{ padding: 20, textAlign: 'center', color: C.muted, fontSize: 12 }}>Aucune dépense</td></tr>
+                <tr><td colSpan={5} style={{ padding: 20, textAlign: 'center', color: C.muted, fontSize: 12 }}>{t('fournisseurs.no_expenses')}</td></tr>
               ) : f.depenses.map(d => (
                 <tr key={d.id} style={{ borderBottom: `1px solid ${C.border}` }}>
                   <td style={{ padding: '10px 12px', fontSize: 11, fontFamily: 'monospace', color: C.accent }}>{d.numero}</td>
                   <td style={{ padding: '10px 12px', fontSize: 12, color: C.text }}>{truncate(d.description, 30)}</td>
                   <td style={{ padding: '10px 12px', fontSize: 11, color: C.muted }}>{formatDate(d.date_depense)}</td>
                   <td style={{ padding: '10px 12px', fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: C.red }}>{fmt(d.montant_ttc)}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 10, color: d.statut === 'payee' ? C.accent : C.gold }}>{d.statut}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 10, color: d.statut === 'payee' ? C.accent : C.gold }}>{t(`statut.${d.statut}`, { defaultValue: d.statut })}</td>
                 </tr>
               ))}
             </tbody>
@@ -496,11 +517,11 @@ function FournisseurDetail({ id, onBack, C, dark }) {
         {/* Paiements récents */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', boxShadow: C.shadow }}>
           <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}`, background: dark ? 'transparent' : C.cardAlt }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: C.text }}>Paiements récents</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.text }}>{t('fournisseurs.recent_payments')}</div>
           </div>
           <div style={{ padding: 12 }}>
             {paiements.length === 0 ? (
-              <div style={{ padding: 16, textAlign: 'center', color: C.muted, fontSize: 12 }}>Aucun paiement</div>
+              <div style={{ padding: 16, textAlign: 'center', color: C.muted, fontSize: 12 }}>{t('fournisseurs.no_payments')}</div>
             ) : paiements.map(p => (
               <div key={p.id} style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -521,13 +542,13 @@ function FournisseurDetail({ id, onBack, C, dark }) {
         <PaiementModal fournisseur={f}
           depense={showPaiement.depense}
           onClose={() => setShowPaiement(null)}
-          onSaved={() => { setShowPaiement(null); fetchData(); toast.success('Paiement enregistré'); }}
+          onSaved={() => { setShowPaiement(null); fetchData(); toast.success(t('factures.success_paiement')); }}
           C={C} dark={dark} />
       )}
       {showEdit && (
         <FournisseurFormModal fournisseur={f}
           onClose={() => setShowEdit(false)}
-          onSaved={() => { setShowEdit(false); fetchData(); toast.success('Mis à jour'); }}
+          onSaved={() => { setShowEdit(false); fetchData(); toast.success(t('fournisseurs.saved')); }}
           C={C} dark={dark} />
       )}
     </div>
@@ -547,6 +568,7 @@ const btnSec = (C) => ({
 
 // ─── MODAL PAIEMENT FOURNISSEUR ────────────────────────────────────────────
 function PaiementModal({ fournisseur, depense, onClose, onSaved, C, dark }) {
+  const { t } = useTranslation();
   const [comptes, setComptes] = useState([]);
   const [depenses, setDepenses] = useState([]);
   const [form, setForm] = useState({
@@ -570,13 +592,13 @@ function PaiementModal({ fournisseur, depense, onClose, onSaved, C, dark }) {
   }, [fournisseur.id]);
 
   const handleSubmit = async () => {
-    if (!parseFloat(form.montant) || parseFloat(form.montant) <= 0) { toast.error('Montant invalide'); return; }
+    if (!parseFloat(form.montant) || parseFloat(form.montant) <= 0) { toast.error(t('common.error_generic')); return; }
     setSaving(true);
     try {
       await api.post('/fournisseurs/paiements', form);
       onSaved();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur');
+      toast.error(err.response?.data?.message || t('factures.error_paiement'));
     } finally { setSaving(false); }
   };
 
@@ -587,22 +609,22 @@ function PaiementModal({ fournisseur, depense, onClose, onSaved, C, dark }) {
   };
 
   return (
-    <Modal title={`Paiement à ${fournisseur.nom}`} onClose={onClose} width={480}>
+    <Modal title={t('fournisseurs.pay_modal_title', { supplier: fournisseur.nom })} onClose={onClose} width={480}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{
           background: `${C.gold}10`, border: `1px solid ${C.gold}30`, borderRadius: 10,
           padding: '12px 14px',
         }}>
-          <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>ENCOURS</div>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>{t('fournisseurs.pay_encours').toUpperCase()}</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: C.gold, fontFamily: 'monospace' }}>
-            {fmt(fournisseur.encours)} <span style={{ fontSize: 11, color: C.muted, fontWeight: 400 }}>FCFA</span>
+            {fmt(fournisseur.encours)} <span style={{ fontSize: 11, color: C.muted, fontWeight: 400 }}>{t('common.currency')}</span>
           </div>
         </div>
 
         {depenses.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-              Dépense à régler (optionnel)
+              {t('fournisseurs.pay_expense_select')}
             </label>
             <select value={form.depense_id}
               onChange={e => {
@@ -610,44 +632,44 @@ function PaiementModal({ fournisseur, depense, onClose, onSaved, C, dark }) {
                 setForm(f => ({ ...f, depense_id: e.target.value, montant: dep ? dep.montant_ttc : f.montant }));
               }}
               style={selectStyle}>
-              <option value="">— Acompte général —</option>
+              <option value="">{t('fournisseurs.pay_expense_default')}</option>
               {depenses.map(d => (
-                <option key={d.id} value={d.id}>{d.numero} · {fmt(d.montant_ttc)} FCFA</option>
+                <option key={d.id} value={d.id}>{d.numero} · {fmt(d.montant_ttc)} {t('common.currency')}</option>
               ))}
             </select>
           </div>
         )}
 
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
-          <Input label="Montant *" type="number" value={form.montant}
+          <Input label={t('fournisseurs.pay_amount')} type="number" value={form.montant}
             onChange={e => setForm(f => ({ ...f, montant: e.target.value }))} required />
-          <Input label="Date" type="date" value={form.date_paiement}
+          <Input label={t('fournisseurs.pay_date')} type="date" value={form.date_paiement}
             onChange={e => setForm(f => ({ ...f, date_paiement: e.target.value }))} />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Mode</label>
+            <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('fournisseurs.pay_mode')}</label>
             <select value={form.mode_paiement}
               onChange={e => setForm(f => ({ ...f, mode_paiement: e.target.value, compte_tresorerie_id: '' }))}
               style={selectStyle}>
               <option value="virement">Virement</option>
               <option value="mobile_money">Mobile Money</option>
               <option value="cheque">Chèque</option>
-              <option value="cash">Espèces</option>
+              <option value="cash">Cash</option>
             </select>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Compte débité</label>
+            <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('fournisseurs.pay_account')}</label>
             <select value={form.compte_tresorerie_id}
               onChange={e => setForm(f => ({ ...f, compte_tresorerie_id: e.target.value }))}
               style={selectStyle}>
-              <option value="">— Par défaut —</option>
+              <option value="">{t('fournisseurs.pay_account_default')}</option>
               {comptes
                 .filter(c => {
-                  const t = form.mode_paiement === 'cash' ? 'caisse'
+                  const tt = form.mode_paiement === 'cash' ? 'caisse'
                     : form.mode_paiement === 'mobile_money' ? 'mobile_money' : 'banque';
-                  return c.type === t;
+                  return c.type === tt;
                 })
                 .map(c => (
                   <option key={c.id} value={c.id}>{c.nom} ({fmt(c.solde_actuel)})</option>
@@ -656,8 +678,8 @@ function PaiementModal({ fournisseur, depense, onClose, onSaved, C, dark }) {
           </div>
         </div>
 
-        <Input label="Référence (optionnel)" value={form.reference}
-          onChange={e => setForm(f => ({ ...f, reference: e.target.value }))} placeholder="Réf. virement, n° chèque..." />
+        <Input label={t('fournisseurs.pay_reference')} value={form.reference}
+          onChange={e => setForm(f => ({ ...f, reference: e.target.value }))} placeholder={t('fournisseurs.pay_reference_placeholder')} />
 
         {(() => {
           const compteSel = comptes.find(c => c.id === form.compte_tresorerie_id);
@@ -669,7 +691,7 @@ function PaiementModal({ fournisseur, depense, onClose, onSaved, C, dark }) {
           <button onClick={onClose} style={{
             flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`,
             background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          }}>Annuler</button>
+          }}>{t('common.cancel')}</button>
           {(() => {
             const compteSel = comptes.find(c => c.id === form.compte_tresorerie_id);
             const bloque = compteSel ? evaluerSortie(compteSel, form.montant).bloquant : false;
@@ -678,7 +700,7 @@ function PaiementModal({ fournisseur, depense, onClose, onSaved, C, dark }) {
                 flex: 2, padding: '11px 0', borderRadius: 10, border: 'none',
                 background: (saving || bloque) ? C.border : C.accent, color: (saving || bloque) ? C.muted : (dark ? '#000' : '#fff'),
                 fontSize: 13, fontWeight: 700, cursor: (saving || bloque) ? 'not-allowed' : 'pointer',
-              }}>{saving ? 'Paiement...' : bloque ? 'Solde insuffisant' : 'Confirmer le paiement'}</button>
+              }}>{saving ? t('fournisseurs.pay_running') : bloque ? t('fournisseurs.pay_insufficient') : t('fournisseurs.pay_confirm')}</button>
             );
           })()}
         </div>
@@ -691,6 +713,7 @@ function PaiementModal({ fournisseur, depense, onClose, onSaved, C, dark }) {
 // ONGLET BONS DE COMMANDE
 // ═══════════════════════════════════════════════════════════════════════════
 function CommandesTab({ onSelect, C, dark }) {
+  const { t } = useTranslation();
   const [commandes, setCommandes] = useState([]);
   const [statut, setStatut] = useState('');
   const [loading, setLoading] = useState(true);
@@ -703,16 +726,22 @@ function CommandesTab({ onSelect, C, dark }) {
       if (statut) params.set('statut', statut);
       const r = await api.get(`/commandes-achat?${params}`);
       setCommandes(r.data.data);
-    } catch { toast.error('Erreur'); }
+    } catch { toast.error(t('fournisseurs.error_load')); }
     finally { setLoading(false); }
-  }, [statut]);
+  }, [statut, t]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   return (
     <div>
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        {Object.entries({ '': 'Toutes', brouillon: 'Brouillons', envoyee: 'Envoyées', receptionnee: 'Réceptionnées', facturee: 'Facturées' }).map(([v, l]) => (
+        {[
+          { v: '',             l: t('common.all') },
+          { v: 'brouillon',    l: t('statut.brouillon') },
+          { v: 'envoyee',      l: t('statut.envoyee') },
+          { v: 'receptionnee', l: t('fournisseurs.orders_received') },
+          { v: 'facturee',     l: t('statut.payee') },
+        ].map(({ v, l }) => (
           <button key={v} onClick={() => setStatut(v)} style={{
             padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600,
             border: `1.5px solid ${statut === v ? C.accent : C.border}`,
@@ -725,7 +754,7 @@ function CommandesTab({ onSelect, C, dark }) {
           display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
           border: 'none', background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
         }}>
-          <Plus size={15} /> Nouveau bon de commande
+          <Plus size={15} /> {t('fournisseurs.orders_new')}
         </button>
       </div>
 
@@ -733,20 +762,28 @@ function CommandesTab({ onSelect, C, dark }) {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: dark ? '#0D1220' : C.cardAlt, borderBottom: `1px solid ${C.border}` }}>
-              {['N°', 'Date', 'Fournisseur', 'Livraison prévue', 'Montant TTC', 'Statut', ''].map(h => (
+              {[
+                t('fournisseurs.orders_col_number'),
+                t('fournisseurs.orders_col_date'),
+                t('fournisseurs.orders_col_supplier'),
+                t('common.due_date'),
+                t('fournisseurs.orders_total'),
+                t('fournisseurs.orders_col_status'),
+                '',
+              ].map(h => (
                 <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: C.muted }}>Chargement...</td></tr>
+              <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: C.muted }}>{t('common.loading')}</td></tr>
             ) : commandes.length === 0 ? (
               <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 13 }}>
-                Aucun bon de commande. Créez-en un pour formaliser une commande à un fournisseur.
+                {t('fournisseurs.orders_empty')}
               </td></tr>
             ) : commandes.map(c => {
-              const cfg = STATUT_BC[c.statut] || STATUT_BC.brouillon;
+              const colors = STATUT_BC_COLORS[c.statut] || STATUT_BC_COLORS.brouillon;
               return (
                 <tr key={c.id} style={{ borderBottom: `1px solid ${C.border}`, cursor: 'pointer' }}
                   onClick={() => onSelect(c.id)}
@@ -761,7 +798,7 @@ function CommandesTab({ onSelect, C, dark }) {
                   <td style={{ padding: '12px 14px', fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: C.text }}>{fmt(c.total_ttc)}</td>
                   <td style={{ padding: '12px 14px' }}>
                     <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
-                                  background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>{cfg.label}</span>
+                                  background: colors.bg, color: colors.color, border: `1px solid ${colors.border}` }}>{t(`statut.${c.statut}`, { defaultValue: c.statut })}</span>
                   </td>
                   <td style={{ padding: '12px 14px' }}><Eye size={13} color={C.muted} /></td>
                 </tr>
@@ -774,7 +811,7 @@ function CommandesTab({ onSelect, C, dark }) {
       {showForm && (
         <CommandeFormModal
           onClose={() => setShowForm(false)}
-          onSaved={(c) => { setShowForm(false); fetchData(); onSelect(c.id); toast.success('Commande créée'); }}
+          onSaved={(c) => { setShowForm(false); fetchData(); onSelect(c.id); toast.success(t('fournisseurs.created')); }}
           C={C} dark={dark} />
       )}
     </div>
@@ -783,6 +820,7 @@ function CommandesTab({ onSelect, C, dark }) {
 
 // ─── MODAL CRÉATION COMMANDE ───────────────────────────────────────────────
 function CommandeFormModal({ onClose, onSaved, C, dark }) {
+  const { t } = useTranslation();
   const emptyLigne = { description: '', produit_id: null, quantite: 1, unite: 'unité', prix_unitaire: '', remise: 0 };
   const [fournisseurs, setFournisseurs] = useState([]);
   const [produits, setProduits] = useState([]);
@@ -828,14 +866,14 @@ function CommandeFormModal({ onClose, onSaved, C, dark }) {
   }, [form.lignes, form.taux_tva]);
 
   const handleSubmit = async (validerEnvoi) => {
-    if (!form.fournisseur_id) { toast.error('Fournisseur requis'); return; }
-    if (form.lignes.some(l => !l.description || !l.prix_unitaire)) { toast.error('Complétez les lignes'); return; }
+    if (!form.fournisseur_id) { toast.error(t('common.supplier')); return; }
+    if (form.lignes.some(l => !l.description || !l.prix_unitaire)) { toast.error(t('fournisseurs.orders_lines')); return; }
     setSaving(true);
     try {
       const res = await api.post('/commandes-achat', { ...form, valider_envoi: validerEnvoi });
       onSaved(res.data.data);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur');
+      toast.error(err.response?.data?.message || t('fournisseurs.error_save'));
     } finally { setSaving(false); }
   };
 
@@ -846,25 +884,32 @@ function CommandeFormModal({ onClose, onSaved, C, dark }) {
   };
 
   return (
-    <Modal title="Nouveau bon de commande" onClose={onClose} width={780}>
+    <Modal title={t('fournisseurs.orders_new')} onClose={onClose} width={780}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 12 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Fournisseur *</label>
+            <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('common.supplier')} *</label>
             <select value={form.fournisseur_id} onChange={set('fournisseur_id')} style={selectStyle} required>
-              <option value="">— Sélectionner —</option>
+              <option value="">— {t('common.search')} —</option>
               {fournisseurs.map(f => <option key={f.id} value={f.id}>{f.code} — {f.nom}</option>)}
             </select>
           </div>
-          <Input label="Date commande *" type="date" value={form.date_commande} onChange={set('date_commande')} required />
-          <Input label="Livraison prévue" type="date" value={form.date_livraison_prevue} onChange={set('date_livraison_prevue')} />
+          <Input label={`${t('fournisseurs.orders_col_date')} *`} type="date" value={form.date_commande} onChange={set('date_commande')} required />
+          <Input label={t('common.due_date')} type="date" value={form.date_livraison_prevue} onChange={set('date_livraison_prevue')} />
         </div>
 
-        <Input label="Référence fournisseur (devis...)" value={form.reference_fournisseur} onChange={set('reference_fournisseur')} />
+        <Input label={t('common.reference')} value={form.reference_fournisseur} onChange={set('reference_fournisseur')} />
 
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 0.8fr) 32px', gap: 8, marginBottom: 6 }}>
-            {['Description (auto si produit)', 'Qté', 'Unité', 'PU HT', 'Remise%', ''].map((h, i) => (
+            {[
+              t('common.description'),
+              t('common.quantity'),
+              t('factures.line_unit'),
+              t('factures.line_unit_price'),
+              t('factures.line_discount'),
+              '',
+            ].map((h, i) => (
               <div key={i} style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase' }}>{h}</div>
             ))}
           </div>
@@ -879,7 +924,7 @@ function CommandeFormModal({ onClose, onSaved, C, dark }) {
                     if (p) choisirProduit(idx, p);
                   }
                 }}
-                placeholder="Description (taper ou choisir un produit)..." required
+                placeholder={t('factures.line_description')} required
                 style={{ width: '100%', minWidth: 0, boxSizing: 'border-box',
                   background: C.input, border: `1.5px solid ${l.produit_id ? C.accent : C.border}`,
                   borderRadius: 8, padding: '9px 11px', color: C.text, fontSize: 12, outline: 'none', fontFamily: 'inherit' }} />
@@ -910,44 +955,44 @@ function CommandeFormModal({ onClose, onSaved, C, dark }) {
             marginTop: 4, padding: '9px 0', background: 'none',
             border: `1.5px dashed ${C.accent}50`, borderRadius: 9,
             color: C.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer', width: '100%',
-          }}>+ Ajouter une ligne</button>
+          }}>+ {t('factures.add_line')}</button>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>TVA :</span>
+            <span style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>{t('common.tva')} :</span>
             <input type="number" value={form.taux_tva} onChange={set('taux_tva')}
               style={{ width: 60, background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: '7px 9px', color: C.text, fontSize: 12, outline: 'none', textAlign: 'right' }} />
             <span style={{ fontSize: 11, color: C.muted }}>%</span>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 11, color: C.muted }}>Sous-total HT : <strong style={{ color: C.text, fontFamily: 'monospace' }}>{fmt(totaux.st)}</strong></div>
-            <div style={{ fontSize: 11, color: C.muted }}>TVA : <strong style={{ color: C.text, fontFamily: 'monospace' }}>{fmt(totaux.tva)}</strong></div>
+            <div style={{ fontSize: 11, color: C.muted }}>{t('factures.totals_subtotal')} : <strong style={{ color: C.text, fontFamily: 'monospace' }}>{fmt(totaux.st)}</strong></div>
+            <div style={{ fontSize: 11, color: C.muted }}>{t('common.tva')} : <strong style={{ color: C.text, fontFamily: 'monospace' }}>{fmt(totaux.tva)}</strong></div>
             <div style={{ fontSize: 16, color: C.accent, fontWeight: 800, fontFamily: 'monospace', marginTop: 4 }}>
-              TTC : {fmt(totaux.ttc)} FCFA
+              {t('factures.totals_ttc')} : {fmt(totaux.ttc)} {t('common.currency')}
             </div>
           </div>
         </div>
 
-        <Input label="Notes" value={form.notes} onChange={set('notes')} placeholder="Notes internes..." />
+        <Input label={t('common.notes')} value={form.notes} onChange={set('notes')} />
 
         <div style={{ display: 'flex', gap: 10, marginTop: 4, justifyContent: 'space-between' }}>
           <button onClick={onClose} style={{
             padding: '11px 22px', borderRadius: 10, border: `1.5px solid ${C.border}`,
             background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          }}>Annuler</button>
+          }}>{t('common.cancel')}</button>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => handleSubmit(false)} disabled={saving} style={{
               padding: '11px 18px', borderRadius: 10, border: `1.5px solid ${C.accent}`,
               background: 'transparent', color: C.accent, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            }}>Enregistrer en brouillon</button>
+            }}>{t('factures.save_draft')}</button>
             <button onClick={() => handleSubmit(true)} disabled={saving} style={{
               padding: '11px 22px', borderRadius: 10, border: 'none',
               background: saving ? C.border : C.accent, color: saving ? C.muted : (dark ? '#000' : '#fff'),
               fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', gap: 6,
             }}>
-              <Send size={13} /> {saving ? '...' : 'Créer et envoyer'}
+              <Send size={13} /> {saving ? '...' : t('common.save')}
             </button>
           </div>
         </div>
@@ -958,40 +1003,41 @@ function CommandeFormModal({ onClose, onSaved, C, dark }) {
 
 // ─── VUE DÉTAIL COMMANDE ───────────────────────────────────────────────────
 function CommandeDetail({ id, onBack, C, dark }) {
+  const { t } = useTranslation();
   const [cmd, setCmd] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try { const r = await api.get(`/commandes-achat/${id}`); setCmd(r.data.data); }
-    catch { toast.error('Erreur'); }
+    catch { toast.error(t('fournisseurs.error_load')); }
     finally { setLoading(false); }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const transition = async (action) => {
     try {
       await api.post(`/commandes-achat/${id}/${action}`);
-      toast.success('Statut mis à jour');
+      toast.success(t('factures.success_status'));
       fetchData();
-    } catch (err) { toast.error(err.response?.data?.message || 'Erreur'); }
+    } catch (err) { toast.error(err.response?.data?.message || t('factures.error_status')); }
   };
 
   if (loading || !cmd) {
     return (
       <div style={{ padding: '32px 36px', background: C.bg, minHeight: '100vh' }}>
-        <button onClick={onBack} style={btnRetour(C)}><ChevronLeft size={14} /> Retour</button>
-        <div style={{ padding: 60, textAlign: 'center', color: C.muted }}>Chargement...</div>
+        <button onClick={onBack} style={btnRetour(C)}><ChevronLeft size={14} /> {t('common.back')}</button>
+        <div style={{ padding: 60, textAlign: 'center', color: C.muted }}>{t('common.loading')}</div>
       </div>
     );
   }
 
-  const cfg = STATUT_BC[cmd.statut];
+  const colors = STATUT_BC_COLORS[cmd.statut];
 
   return (
     <div style={{ padding: '32px 36px', minHeight: '100vh', background: C.bg }}>
-      <button onClick={onBack} style={btnRetour(C)}><ChevronLeft size={14} /> Retour aux commandes</button>
+      <button onClick={onBack} style={btnRetour(C)}><ChevronLeft size={14} /> {t('common.back_to_list')}</button>
 
       <div style={{
         background: C.card, border: `1px solid ${C.border}`, borderRadius: 16,
@@ -1002,32 +1048,32 @@ function CommandeDetail({ id, onBack, C, dark }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text }}>{cmd.numero}</h1>
               <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
-                            background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>{cfg.label}</span>
+                            background: colors.bg, color: colors.color, border: `1px solid ${colors.border}` }}>{t(`statut.${cmd.statut}`, { defaultValue: cmd.statut })}</span>
             </div>
             <p style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>
               <strong style={{ color: C.text }}>{cmd.fournisseur_nom}</strong> · {formatDate(cmd.date_commande)}
-              {cmd.date_livraison_prevue && <> · Livraison prévue {formatDate(cmd.date_livraison_prevue)}</>}
+              {cmd.date_livraison_prevue && <> · {t('common.due_date')} : {formatDate(cmd.date_livraison_prevue)}</>}
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {cmd.statut === 'brouillon' && (
               <button onClick={() => transition('envoyer')} style={btnPrimary(C, dark)}>
-                <Send size={13} /> Envoyer
+                <Send size={13} /> {t('statut.envoyee')}
               </button>
             )}
             {cmd.statut === 'envoyee' && (
               <button onClick={() => transition('receptionner')} style={btnPrimary(C, dark, C.gold)}>
-                <Truck size={13} /> Réceptionner
+                <Truck size={13} /> {t('fournisseurs.orders_receive')}
               </button>
             )}
             {(cmd.statut === 'envoyee' || cmd.statut === 'receptionnee') && (
               <button onClick={() => transition('facturer')} style={btnPrimary(C, dark)}>
-                <Receipt size={13} /> Convertir en facture fournisseur
+                <Receipt size={13} /> {t('fournisseurs.orders_convert_expense')}
               </button>
             )}
             {(cmd.statut === 'brouillon' || cmd.statut === 'envoyee') && (
               <button onClick={() => transition('annuler')} style={{ ...btnSec(C), color: C.red, borderColor: `${C.red}50` }}>
-                Annuler
+                {t('common.cancel')}
               </button>
             )}
           </div>
@@ -1035,10 +1081,10 @@ function CommandeDetail({ id, onBack, C, dark }) {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginTop: 22 }}>
           {[
-            { l: 'Sous-total HT', v: cmd.sous_total },
-            { l: 'TVA', v: cmd.montant_tva },
-            { l: 'TOTAL TTC',    v: cmd.total_ttc, color: C.accent, bold: true },
-            { l: 'Nb lignes',    v: cmd.lignes.length, fmt: 'count' },
+            { l: t('factures.totals_subtotal'), v: cmd.sous_total },
+            { l: t('common.tva'), v: cmd.montant_tva },
+            { l: t('factures.totals_ttc'),    v: cmd.total_ttc, color: C.accent, bold: true },
+            { l: t('fournisseurs.orders_lines'),    v: cmd.lignes.length, fmt: 'count' },
           ].map((s, i) => (
             <div key={i} style={{ padding: 14, background: dark ? '#0D1220' : C.cardAlt, borderRadius: 11 }}>
               <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{s.l}</div>
@@ -1052,12 +1098,20 @@ function CommandeDetail({ id, onBack, C, dark }) {
 
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', boxShadow: C.shadow }}>
         <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}`, background: dark ? 'transparent' : C.cardAlt }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Lignes de la commande</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{t('fournisseurs.orders_lines')}</div>
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: dark ? '#0D1220' : C.cardAlt }}>
-              {['Description', 'Produit lié', 'Qté', 'Unité', 'PU HT', 'Remise', 'Total HT'].map(h => (
+              {[
+                t('common.description'),
+                t('common.product'),
+                t('common.quantity'),
+                t('factures.line_unit'),
+                t('factures.line_unit_price'),
+                t('factures.line_discount'),
+                t('factures.line_total'),
+              ].map(h => (
                 <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
@@ -1082,7 +1136,7 @@ function CommandeDetail({ id, onBack, C, dark }) {
         <div style={{ marginTop: 16, padding: '12px 14px', background: `${C.accent}10`, border: `1px solid ${C.accent}30`, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
           <CheckCircle size={14} color={C.accent} />
           <span style={{ fontSize: 12, color: C.sub }}>
-            Cette commande a été convertie en dépense (facture fournisseur enregistrée).
+            {t('fournisseurs.orders_convert_expense')} ✓
           </span>
         </div>
       )}
@@ -1101,6 +1155,7 @@ const btnPrimary = (C, dark, color) => ({
 // ONGLET ÉCHÉANCIER
 // ═══════════════════════════════════════════════════════════════════════════
 function EcheancierTab({ C, dark }) {
+  const { t } = useTranslation();
   const [echeances, setEcheances] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -1110,7 +1165,7 @@ function EcheancierTab({ C, dark }) {
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div style={{ padding: 30, textAlign: 'center', color: C.muted }}>Chargement...</div>;
+  if (loading) return <div style={{ padding: 30, textAlign: 'center', color: C.muted }}>{t('common.loading')}</div>;
 
   const groupes = ['retard', 'urgent', 'proche', 'futur'].map(u => ({
     cle: u,
@@ -1124,8 +1179,8 @@ function EcheancierTab({ C, dark }) {
         padding: '60px 20px', textAlign: 'center',
       }}>
         <CheckCircle size={36} color={C.accent} style={{ margin: '0 auto 14px' }} />
-        <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Aucune échéance en cours</div>
-        <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>Toutes les factures fournisseurs sont payées.</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{t('fournisseurs.schedule_empty')}</div>
+        <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>{t('fournisseurs.no_payments')}</div>
       </div>
     );
   }
@@ -1133,22 +1188,35 @@ function EcheancierTab({ C, dark }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       {groupes.map(g => {
-        const cfg = URGENCE_CFG[g.cle];
+        const colors = URGENCE_COLORS[g.cle];
+        const urgenceLabel = {
+          retard: t('fournisseurs.schedule_overdue'),
+          urgent: t('fournisseurs.schedule_urgent'),
+          proche: t('fournisseurs.schedule_soon'),
+          futur:  t('fournisseurs.schedule_later'),
+        }[g.cle];
         const total = g.items.reduce((s, e) => s + parseFloat(e.montant_ttc), 0);
         return (
           <div key={g.cle} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', boxShadow: C.shadow }}>
-            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}`, background: cfg.bg, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}`, background: colors.bg, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Clock size={14} color={cfg.color} />
-                <span style={{ fontSize: 13, fontWeight: 700, color: cfg.color }}>{cfg.label}</span>
-                <span style={{ fontSize: 11, color: C.muted }}>({g.items.length} facture{g.items.length > 1 ? 's' : ''})</span>
+                <Clock size={14} color={colors.color} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: colors.color }}>{urgenceLabel}</span>
+                <span style={{ fontSize: 11, color: C.muted }}>({g.items.length} {t('factures.title').toLowerCase()})</span>
               </div>
-              <strong style={{ fontFamily: 'monospace', color: cfg.color }}>{fmt(total)} FCFA</strong>
+              <strong style={{ fontFamily: 'monospace', color: colors.color }}>{fmt(total)} {t('common.currency')}</strong>
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: dark ? '#0D1220' : C.cardAlt }}>
-                  {['N°', 'Fournisseur', 'Description', 'Émise le', 'Échéance', 'Montant'].map(h => (
+                  {[
+                    t('dashboard.transactions_col_num'),
+                    t('common.supplier'),
+                    t('common.description'),
+                    t('common.emission_date'),
+                    t('common.due_date'),
+                    t('common.amount'),
+                  ].map(h => (
                     <th key={h} style={{ padding: '9px 14px', textAlign: 'left', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
                   ))}
                 </tr>
@@ -1160,7 +1228,7 @@ function EcheancierTab({ C, dark }) {
                     <td style={{ padding: '10px 14px', fontSize: 12, color: C.text, fontWeight: 600 }}>{e.fournisseur_nom || '—'}</td>
                     <td style={{ padding: '10px 14px', fontSize: 12, color: C.sub }}>{truncate(e.description, 30)}</td>
                     <td style={{ padding: '10px 14px', fontSize: 11, color: C.muted }}>{formatDate(e.date_depense)}</td>
-                    <td style={{ padding: '10px 14px', fontSize: 12, color: cfg.color, fontWeight: 700 }}>{formatDate(e.date_echeance)}</td>
+                    <td style={{ padding: '10px 14px', fontSize: 12, color: colors.color, fontWeight: 700 }}>{formatDate(e.date_echeance)}</td>
                     <td style={{ padding: '10px 14px', fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: C.red }}>{fmt(e.montant_ttc)}</td>
                   </tr>
                 ))}
