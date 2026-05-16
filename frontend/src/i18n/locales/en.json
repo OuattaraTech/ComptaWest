@@ -233,6 +233,28 @@
     "top_clients_sub": "By revenue {{year}}",
     "top_clients_empty": "No customers"
   },
+  "dashboard_rh": {
+    "title": "HR Dashboard",
+    "subtitle": "Payroll cost overview for {{company}}",
+    "kpi_effectif": "Active headcount",
+    "kpi_effectif_sub": "Employees on board",
+    "kpi_masse_salariale": "Gross payroll",
+    "kpi_net_verse": "Net paid",
+    "kpi_cout_employeur": "Employer cost",
+    "kpi_year_sub": "{{year}} cumulative",
+    "kpi_cout_sub": "Employer contributions + net",
+    "alert_no_bulletins": "No payslip for {{month}} {{year}}. Generate the monthly batch from the Payroll & HR page.",
+    "alert_pending": "Payslips for {{month}}: {{brouillons}} draft(s) · {{valides}} validated awaiting payment.",
+    "evolution_title": "Monthly evolution {{year}}",
+    "evolution_legend": "Gross · Net · Employer cost",
+    "bulletins_month_title": "{{month}} {{year}} payslips",
+    "cotisations_title": "Social and tax contributions",
+    "cotisations_sub": "Cumulative {{year}} amounts, to remit to the relevant bodies",
+    "cnps_its": "Employee share",
+    "cnps_employeur": "Employer share",
+    "its_dgi": "ITS + CN (DGI)",
+    "bulletins_emis": "{{count}} payslip(s) issued since January 1, {{year}}"
+  },
   "statut": {
     "brouillon": "Draft",
     "envoyee": "Sent",

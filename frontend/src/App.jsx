@@ -4,10 +4,12 @@ import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
 import { EntrepriseProvider } from './hooks/useEntreprise.jsx';
 import { PermissionsProvider } from './hooks/usePermissions.jsx';
 import { ThemeProvider, useTheme } from './hooks/useTheme.jsx';
+import { usePermissions } from './hooks/usePermissions.jsx';
 import Layout from './components/Layout/Layout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import InvitationPage from './pages/InvitationPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
+import DashboardRH from './pages/DashboardRH.jsx';
 import ClientsPage from './pages/ClientsPage.jsx';
 import FacturesPage from './pages/FacturesPage.jsx';
 import DevisPage from './pages/DevisPage.jsx';
@@ -53,6 +55,18 @@ const Public = ({ children }) => {
   return !user ? children : <Navigate to="/dashboard" replace />;
 };
 
+// Aiguillage du tableau de bord selon les permissions du rôle :
+// - dashboard.read OK   -> DashboardPage (vue financière complète)
+// - sinon dashboard_rh.read OK -> DashboardRH (masse salariale)
+// - sinon Settings est la seule porte d'entrée raisonnable
+const DashboardSwitch = () => {
+  const { can, loading } = usePermissions();
+  if (loading) return null;
+  if (can('dashboard', 'read')) return <DashboardPage />;
+  if (can('dashboard_rh', 'read')) return <DashboardRH />;
+  return <Navigate to="/parametres" replace />;
+};
+
 function AppRoutes() {
   return (
     <Routes>
@@ -60,7 +74,8 @@ function AppRoutes() {
       <Route path="/invitation/:token" element={<InvitationPage />} />
       <Route path="/" element={<Protected><Layout /></Protected>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="dashboard" element={<DashboardSwitch />} />
+        <Route path="dashboard-rh" element={<DashboardRH />} />
         <Route path="clients" element={<ClientsPage />} />
         <Route path="devis" element={<DevisPage />} />
         <Route path="factures" element={<FacturesPage />} />

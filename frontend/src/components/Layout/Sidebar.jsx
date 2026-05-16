@@ -18,7 +18,11 @@ import {
 // le menu n'apparaît que si usePermissions().can(module, 'read') === true.
 // La matrice backend (utils/permissions.js) est la source unique de vérité.
 const navItems = [
-  { to: '/dashboard',       icon: LayoutDashboard, i18nKey: 'nav.dashboard',        label: 'Tableau de bord',   module: 'dashboard' },
+  // Le tableau de bord est visible si l'utilisateur a soit dashboard.read
+  // (vue financière complète) soit dashboard_rh.read (rôle RH -> vue paie
+  // alternative). L'aiguillage entre les deux pages se fait dans App.jsx
+  // via DashboardSwitch.
+  { to: '/dashboard',       icon: LayoutDashboard, i18nKey: 'nav.dashboard',        label: 'Tableau de bord',   modules: ['dashboard', 'dashboard_rh'] },
   { to: '/clients',         icon: Users,           i18nKey: 'nav.clients',          label: 'Clients',           module: 'clients' },
   { to: '/fournisseurs',    icon: Truck,           i18nKey: 'nav.fournisseurs',     label: 'Fournisseurs',      module: 'fournisseurs' },
   { to: '/produits',        icon: Box,             i18nKey: 'nav.produits',         label: 'Produits & Stocks', module: 'produits' },
@@ -103,7 +107,12 @@ export default function Sidebar() {
   // est lisible. La matrice peut évoluer sans toucher à ce check.
   const showAdminSection = adminItems.some(item => can(item.module, 'read'));
   // Filtre des items principaux : on respecte la matrice de permissions.
-  const navVisibles = navItems.filter(item => can(item.module, 'read'));
+  // Un item peut déclarer `module` (single) ou `modules` (OR) -> visible
+  // si au moins un des modules est lisible.
+  const navVisibles = navItems.filter(item => {
+    const candidats = item.modules || [item.module];
+    return candidats.some(m => can(m, 'read'));
+  });
 
   return (
     <aside style={{

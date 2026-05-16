@@ -233,6 +233,28 @@
     "top_clients_sub": "Par chiffre d'affaires {{year}}",
     "top_clients_empty": "Aucun client"
   },
+  "dashboard_rh": {
+    "title": "Tableau de bord RH",
+    "subtitle": "Pilotage de la masse salariale de {{company}}",
+    "kpi_effectif": "Effectif actif",
+    "kpi_effectif_sub": "Employés en poste",
+    "kpi_masse_salariale": "Masse salariale brute",
+    "kpi_net_verse": "Net versé",
+    "kpi_cout_employeur": "Coût employeur",
+    "kpi_year_sub": "Cumul {{year}}",
+    "kpi_cout_sub": "Charges patronales + nettes",
+    "alert_no_bulletins": "Aucun bulletin pour {{month}} {{year}}. Lancez la génération du mois depuis la page Paie & RH.",
+    "alert_pending": "Bulletins du mois ({{month}}) : {{brouillons}} brouillon(s) · {{valides}} validé(s) en attente de paiement.",
+    "evolution_title": "Évolution mensuelle {{year}}",
+    "evolution_legend": "Brut · Net · Coût employeur",
+    "bulletins_month_title": "Bulletins de {{month}} {{year}}",
+    "cotisations_title": "Cotisations sociales et fiscales",
+    "cotisations_sub": "Montants cumulés pour {{year}}, à reverser aux organismes",
+    "cnps_its": "Part salariale",
+    "cnps_employeur": "Part patronale",
+    "its_dgi": "ITS + CN (DGI)",
+    "bulletins_emis": "{{count}} bulletin(s) émis depuis le 1er janvier {{year}}"
+  },
   "statut": {
     "brouillon": "Brouillon",
     "envoyee": "Envoyée",
