@@ -195,7 +195,7 @@ export default function DashboardPage() {
                     {charges.map((e, i) => <Cell key={i} fill={e.couleur || '#6B7A99'} />)}
                   </Pie>
                   <Tooltip
-                    formatter={v => `${formatFCFA(v)} FCFA`}
+                    formatter={v => `${formatFCFA(v)} ${t('common.currency')}`}
                     contentStyle={{ background: C.tooltipBg, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, color: C.text }}
                   />
                 </PieChart>

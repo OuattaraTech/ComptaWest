@@ -930,7 +930,7 @@ function CommandeFormModal({ onClose, onSaved, C, dark }) {
                   borderRadius: 8, padding: '9px 11px', color: C.text, fontSize: 12, outline: 'none', fontFamily: 'inherit' }} />
               <datalist id={`prod-bc-${idx}`}>
                 {produits.map(p => (
-                  <option key={p.id} value={p.libelle}>{p.code} · achat {fmt(p.prix_achat_ht)} FCFA</option>
+                  <option key={p.id} value={p.libelle}>{p.code} · {fmt(p.prix_achat_ht)} {t('common.currency')}</option>
                 ))}
               </datalist>
               <input type="number" value={l.quantite} onChange={e => setLigne(idx, 'quantite', e.target.value)}

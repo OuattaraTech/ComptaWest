@@ -276,7 +276,7 @@ export default function ClientsPage() {
                       <span style={{ fontSize: 12, fontWeight: 600, fontFamily: 'monospace', color: C.text }}>{f.numero}</span>
                       <span style={{ fontSize: 11, color: C.muted, marginLeft: 8 }}>{formatDate(f.date_emission)}</span>
                     </div>
-                    <span style={{ fontSize: 12, fontFamily: 'monospace', color: C.accent, fontWeight: 700 }}>{formatFCFA(f.total_ttc, true)} FCFA</span>
+                    <span style={{ fontSize: 12, fontFamily: 'monospace', color: C.accent, fontWeight: 700 }}>{formatFCFA(f.total_ttc, true)} {t('common.currency')}</span>
                   </div>
                 ))}
               </div>

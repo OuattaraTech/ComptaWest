@@ -98,6 +98,15 @@
     "show": "Show",
     "by": "by"
   },
+  "ui": {
+    "balance_ok_title": "Sufficient balance",
+    "balance_warning_title": "Account going overdraft",
+    "balance_blocked_title": "Operation not possible",
+    "balance_after_label": "<strong>{{name}}</strong> balance: {{before}} → <strong>{{after}} {{currency}}</strong> after operation",
+    "balance_overdraft_exceeded": "Authorized overdraft (−{{max}}) exceeded. Missing {{missing}} {{currency}}.",
+    "balance_insufficient": "Insufficient balance: {{available}} available, {{requested}} requested. Missing {{missing}} {{currency}}.",
+    "balance_will_go_negative": "The account will go overdraft: balance after operation {{after}} {{currency}}."
+  },
   "login": {
     "title_login": "Sign in to ComptaWest",
     "title_register": "Create your free account",

@@ -138,7 +138,7 @@ export default function RapportsPage() {
                       <Pie data={chargesData} cx="50%" cy="50%" outerRadius={65} dataKey="value" stroke="none">
                         {chargesData.map((e, i) => <Cell key={i} fill={e.color} />)}
                       </Pie>
-                      <Tooltip formatter={v => `${formatFCFA(v)} FCFA`} contentStyle={{ background: C.tooltipBg, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, color: C.text }} />
+                      <Tooltip formatter={v => `${formatFCFA(v)} ${t('common.currency')}`} contentStyle={{ background: C.tooltipBg, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, color: C.text }} />
                     </PieChart>
                   </ResponsiveContainer>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>

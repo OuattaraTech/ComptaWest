@@ -152,7 +152,7 @@ export default function DepensesPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
                 <XAxis dataKey="mois" tick={{ fill: C.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
                 <YAxis tickFormatter={v => formatFCFA(v, true)} tick={{ fill: C.muted, fontSize: 9 }} axisLine={false} tickLine={false} />
-                <Tooltip formatter={v => [`${formatFCFA(v)} FCFA`, 'Total']} contentStyle={{ background: C.tooltipBg, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, color: C.text }} />
+                <Tooltip formatter={v => [`${formatFCFA(v)} ${t('common.currency')}`, t('common.total')]} contentStyle={{ background: C.tooltipBg, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11, color: C.text }} />
                 <Bar dataKey="total" fill={C.red} radius={[4, 4, 0, 0]} opacity={0.85} />
               </BarChart>
             </ResponsiveContainer>

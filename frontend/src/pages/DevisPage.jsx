@@ -339,8 +339,8 @@ export default function DevisPage() {
             {/* Type */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {[
-                { key: 'devis',    label: 'Devis',    color: C.blue, desc: 'Offre commerciale convertible en facture' },
-                { key: 'proforma', label: 'Proforma', color: C.gold, desc: 'Facture provisoire, sans valeur comptable' },
+                { key: 'devis',    label: t('devis.type_devis'),    color: C.blue, desc: t('devis.type_devis_desc') },
+                { key: 'proforma', label: t('devis.type_proforma'), color: C.gold, desc: t('devis.type_proforma_desc') },
               ].map(({ key, label, color, desc }) => (
                 <button key={key} type="button" onClick={() => setForm(f => ({ ...f, type: key }))} style={{
                   padding: '10px 12px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',

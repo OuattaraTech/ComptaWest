@@ -98,6 +98,15 @@
     "show": "Afficher",
     "by": "par"
   },
+  "ui": {
+    "balance_ok_title": "Solde suffisant",
+    "balance_warning_title": "Compte à découvert",
+    "balance_blocked_title": "Opération impossible",
+    "balance_after_label": "Solde de <strong>{{name}}</strong> : {{before}} → <strong>{{after}} {{currency}}</strong> après opération",
+    "balance_overdraft_exceeded": "Découvert autorisé (−{{max}}) dépassé. Il manque {{missing}} {{currency}}.",
+    "balance_insufficient": "Solde insuffisant : {{available}} disponible, {{requested}} demandé. Il manque {{missing}} {{currency}}.",
+    "balance_will_go_negative": "Le compte passera à découvert : solde après opération {{after}} {{currency}}."
+  },
   "login": {
     "title_login": "Connectez-vous à ComptaWest",
     "title_register": "Créez votre compte gratuit",

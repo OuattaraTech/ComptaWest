@@ -293,9 +293,11 @@ export const StatutBadge = ({ statut }) => {
 };
 
 // ─── Helper : évalue si une sortie est possible sur un compte ─────────────
-// Renvoie { ok, bloquant, niveau: 'ok'|'avertissement'|'blocage', solde_apres, message }
+// Renvoie { ok, bloquant, niveau: 'ok'|'avertissement'|'blocage', solde_apres,
+//           data: { solde, montant, manque, decAutorise, decMax } }
+// Le message localisé est construit dans AlerteSolde via t().
 export const evaluerSortie = (compte, montant) => {
-  if (!compte) return { ok: true, bloquant: false, niveau: 'ok', solde_apres: null, message: '' };
+  if (!compte) return { ok: true, bloquant: false, niveau: 'ok', solde_apres: null };
   const m = parseFloat(montant) || 0;
   const solde = parseFloat(compte.solde_actuel) || 0;
   const soldeApres = Math.round((solde - m) * 100) / 100;
@@ -303,31 +305,25 @@ export const evaluerSortie = (compte, montant) => {
   const decMax = parseFloat(compte.decouvert_max) || 0;
   const plancher = decAutorise ? -decMax : 0;
 
-  if (m <= 0) return { ok: true, bloquant: false, niveau: 'ok', solde_apres: soldeApres, message: '' };
+  if (m <= 0) return { ok: true, bloquant: false, niveau: 'ok', solde_apres: soldeApres };
 
   if (soldeApres < plancher - 0.001) {
-    // Dépassement : blocage
     const manque = Math.round((plancher - soldeApres) * 100) / 100;
     return {
       ok: false, bloquant: true, niveau: 'blocage', solde_apres: soldeApres,
-      message: decAutorise && decMax > 0
-        ? `Découvert autorisé (−${new Intl.NumberFormat('fr-FR').format(decMax)}) dépassé. Il manque ${new Intl.NumberFormat('fr-FR').format(manque)} ${compte.devise || 'FCFA'}.`
-        : `Solde insuffisant : ${new Intl.NumberFormat('fr-FR').format(solde)} disponible, ${new Intl.NumberFormat('fr-FR').format(m)} demandé. Il manque ${new Intl.NumberFormat('fr-FR').format(manque)} ${compte.devise || 'FCFA'}.`,
+      data: { solde, montant: m, manque, decAutorise, decMax },
     };
   }
   if (soldeApres < -0.001) {
-    // Découvert autorisé mais le compte passe en négatif : avertissement
-    return {
-      ok: true, bloquant: false, niveau: 'avertissement', solde_apres: soldeApres,
-      message: `Le compte passera à découvert : solde après opération ${new Intl.NumberFormat('fr-FR').format(soldeApres)} ${compte.devise || 'FCFA'}.`,
-    };
+    return { ok: true, bloquant: false, niveau: 'avertissement', solde_apres: soldeApres };
   }
-  return { ok: true, bloquant: false, niveau: 'ok', solde_apres: soldeApres, message: '' };
+  return { ok: true, bloquant: false, niveau: 'ok', solde_apres: soldeApres };
 };
 
 // ─── Bandeau d'alerte de solde ────────────────────────────────────────────
 // Affiche le solde après opération et un message selon le niveau de risque.
 export const AlerteSolde = ({ compte, montant }) => {
+  const { t, i18n } = useTranslation();
   const { dark } = useTheme();
   const C = getC(dark);
   if (!compte) return null;
@@ -336,13 +332,26 @@ export const AlerteSolde = ({ compte, montant }) => {
   if (m <= 0) return null;
 
   const cfg = {
-    ok:            { color: C.accent, bg: `${C.accent}12`, border: `${C.accent}40`, icon: CheckCircle,   titre: 'Solde suffisant' },
-    avertissement: { color: C.gold,   bg: `${C.gold}15`,   border: `${C.gold}50`,   icon: AlertTriangle, titre: 'Compte à découvert' },
-    blocage:       { color: C.red,    bg: `${C.red}15`,    border: `${C.red}50`,    icon: AlertCircle,   titre: 'Opération impossible' },
+    ok:            { color: C.accent, bg: `${C.accent}12`, border: `${C.accent}40`, icon: CheckCircle,   titre: t('ui.balance_ok_title') },
+    avertissement: { color: C.gold,   bg: `${C.gold}15`,   border: `${C.gold}50`,   icon: AlertTriangle, titre: t('ui.balance_warning_title') },
+    blocage:       { color: C.red,    bg: `${C.red}15`,    border: `${C.red}50`,    icon: AlertCircle,   titre: t('ui.balance_blocked_title') },
   }[ev.niveau];
   const Icon = cfg.icon;
 
-  const fmtN = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n));
+  const numberLocale = i18n.language?.startsWith('en') ? 'en-US' : 'fr-FR';
+  const fmtN = (n) => new Intl.NumberFormat(numberLocale).format(Math.round(n));
+  const currency = compte.devise || t('common.currency');
+
+  let messageHtml = null;
+  if (ev.niveau === 'blocage' && ev.data) {
+    messageHtml = ev.data.decAutorise && ev.data.decMax > 0
+      ? t('ui.balance_overdraft_exceeded', { max: fmtN(ev.data.decMax), missing: fmtN(ev.data.manque), currency })
+      : t('ui.balance_insufficient', { available: fmtN(ev.data.solde), requested: fmtN(ev.data.montant), missing: fmtN(ev.data.manque), currency });
+  } else if (ev.niveau === 'avertissement') {
+    messageHtml = t('ui.balance_will_go_negative', { after: fmtN(ev.solde_apres), currency });
+  } else {
+    messageHtml = t('ui.balance_after_label', { name: compte.nom, before: fmtN(compte.solde_actuel), after: fmtN(ev.solde_apres), currency });
+  }
 
   return (
     <div style={{
@@ -352,11 +361,8 @@ export const AlerteSolde = ({ compte, montant }) => {
       <Icon size={15} color={cfg.color} style={{ flexShrink: 0, marginTop: 1 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: cfg.color }}>{cfg.titre}</div>
-        <div style={{ fontSize: 11, color: C.sub, marginTop: 2, lineHeight: 1.45 }}>
-          {ev.message || (
-            <>Solde de <strong>{compte.nom}</strong> : {fmtN(compte.solde_actuel)} → <strong>{fmtN(ev.solde_apres)} {compte.devise || 'FCFA'}</strong> après opération</>
-          )}
-        </div>
+        <div style={{ fontSize: 11, color: C.sub, marginTop: 2, lineHeight: 1.45 }}
+          dangerouslySetInnerHTML={{ __html: messageHtml }} />
       </div>
     </div>
   );

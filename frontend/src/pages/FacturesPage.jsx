@@ -175,7 +175,7 @@ export default function FacturesPage() {
       closeModal();
       fetchFactures();
     } catch (err) {
-      const msg = err.response?.data?.errors?.[0]?.message || err.response?.data?.message || (editingId ? 'Erreur modification' : 'Erreur création');
+      const msg = err.response?.data?.errors?.[0]?.message || err.response?.data?.message || (editingId ? t('factures.error_modify') : t('factures.error_create'));
       toast.error(msg);
     } finally { setSaving(false); }
   };
