@@ -189,13 +189,13 @@ export default function FacturesPage() {
       setShowPaiement(null);
       fetchFactures();
     } catch (err) {
-      const msg = err.response?.data?.errors?.[0]?.message || err.response?.data?.message || 'Erreur paiement';
+      const msg = err.response?.data?.errors?.[0]?.message || err.response?.data?.message || t('factures.error_paiement');
       toast.error(msg);
     } finally { setSaving(false); }
   };
 
   const handleDelete = async (f) => {
-    if (!confirm(`Supprimer définitivement le brouillon ${f.numero} ?`)) return;
+    if (!confirm(t('factures.confirm_delete_draft', { numero: f.numero }))) return;
     try {
       await api.delete(`/factures/${f.id}`);
       toast.success(t('factures.deleted'));

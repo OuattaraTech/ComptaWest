@@ -130,7 +130,7 @@ export default function Sidebar() {
             <Building2 size={14} color={C.accent} style={{ flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {actuelle?.nom || 'Sélectionner...'}
+                {actuelle?.nom || t('common.select_placeholder')}
               </div>
               <div style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, background: roleInfo.bg, color: roleInfo.color, display: 'inline-block', marginTop: 2 }}>
                 {t(`roles.${actuelle?.role || 'user'}`)}

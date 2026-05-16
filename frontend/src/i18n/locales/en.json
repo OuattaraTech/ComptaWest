@@ -96,7 +96,8 @@
     "deleted": "Deleted",
     "updated": "Updated",
     "show": "Show",
-    "by": "by"
+    "by": "by",
+    "select_placeholder": "Select..."
   },
   "ui": {
     "balance_ok_title": "Sufficient balance",
@@ -1280,7 +1281,13 @@
     "role_comptable_desc": "Entry and editing of all accounting entries.",
     "role_rh_desc": "Manages payroll (employees, payslips) without accounting access.",
     "role_user_desc": "Read access and limited entry depending on modules.",
-    "role_lecture_desc": "Read-only, no changes."
+    "role_lecture_desc": "Read-only, no changes.",
+    "forme_entreprise_individuelle": "Sole proprietorship",
+    "forme_cooperative": "Cooperative",
+    "forme_association": "Association",
+    "forme_autre": "Other",
+    "regime_microentreprise": "Micro-enterprise",
+    "regime_exonere": "Exempt"
   },
   "onboarding": {
     "fab_tooltip": "Replay the guide for this page",

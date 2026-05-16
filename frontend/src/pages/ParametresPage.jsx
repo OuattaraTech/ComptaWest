@@ -16,6 +16,14 @@ const FORMES = [
   'SARL', 'SARLU', 'SA', 'SAS', 'SUARL', 'SNC', 'SCS',
   'Entreprise individuelle', 'GIE', 'SCI', 'Coopérative', 'Association', 'Autre',
 ];
+// Mapping FR → clé i18n pour les libellés non-acronymes (la value FR reste
+// stockée en BDD ; seul l'affichage de l'<option> est traduit).
+const FORME_LABELS = {
+  'Entreprise individuelle': 'parametres.forme_entreprise_individuelle',
+  'Coopérative':             'parametres.forme_cooperative',
+  'Association':             'parametres.forme_association',
+  'Autre':                   'parametres.forme_autre',
+};
 
 // Régimes fiscaux applicables en Côte d'Ivoire
 const REGIMES = [
@@ -26,6 +34,10 @@ const REGIMES = [
   'BNC',           // Bénéfices Non Commerciaux
   'Exonéré',
 ];
+const REGIME_LABELS = {
+  'Microentreprise': 'parametres.regime_microentreprise',
+  'Exonéré':         'parametres.regime_exonere',
+};
 
 // Pays UEMOA / CEMAC les plus fréquents
 const PAYS_LIST = [
@@ -205,14 +217,14 @@ export default function ParametresPage() {
                 <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('parametres.legal_form')}</label>
                 <select value={form.forme_juridique} onChange={set('forme_juridique')}
                   style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
-                  {FORMES.map(f => <option key={f}>{f}</option>)}
+                  {FORMES.map(f => <option key={f} value={f}>{FORME_LABELS[f] ? t(FORME_LABELS[f]) : f}</option>)}
                 </select>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('parametres.tax_regime')}</label>
                 <select value={form.regime_fiscal} onChange={set('regime_fiscal')}
                   style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
-                  {REGIMES.map(r => <option key={r}>{r}</option>)}
+                  {REGIMES.map(r => <option key={r} value={r}>{REGIME_LABELS[r] ? t(REGIME_LABELS[r]) : r}</option>)}
                 </select>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -239,7 +251,7 @@ export default function ParametresPage() {
                 <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('common.country')}</label>
                 <select value={form.pays} onChange={set('pays')}
                   style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
-                  {PAYS_LIST.map(p => <option key={p}>{p}</option>)}
+                  {PAYS_LIST.map(p => <option key={p} value={p}>{p === 'Autre' ? t('parametres.forme_autre') : p}</option>)}
                 </select>
               </div>
             </div>

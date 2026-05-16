@@ -96,7 +96,8 @@
     "deleted": "Supprimé",
     "updated": "Mis à jour",
     "show": "Afficher",
-    "by": "par"
+    "by": "par",
+    "select_placeholder": "Sélectionner..."
   },
   "ui": {
     "balance_ok_title": "Solde suffisant",
@@ -1280,7 +1281,13 @@
     "role_comptable_desc": "Saisie et édition de toutes les écritures comptables.",
     "role_rh_desc": "Gère la paie (employés, bulletins) sans accès à la comptabilité.",
     "role_user_desc": "Consultation et saisie limitée selon les modules.",
-    "role_lecture_desc": "Consultation uniquement, aucune modification."
+    "role_lecture_desc": "Consultation uniquement, aucune modification.",
+    "forme_entreprise_individuelle": "Entreprise individuelle",
+    "forme_cooperative": "Coopérative",
+    "forme_association": "Association",
+    "forme_autre": "Autre",
+    "regime_microentreprise": "Microentreprise",
+    "regime_exonere": "Exonéré"
   },
   "onboarding": {
     "fab_tooltip": "Revoir le guide de cette page",
