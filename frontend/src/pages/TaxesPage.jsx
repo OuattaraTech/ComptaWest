@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme.jsx';
 import api from '../utils/api.jsx';
 import { formatFCFA, formatDate } from '../utils/helpers.jsx';
@@ -8,31 +9,30 @@ import SelecteurAnnee from '../components/SelecteurAnnee.jsx';
 import Onboarding from '../components/Onboarding.jsx';
 import { Plus, AlertTriangle, CheckCircle, Clock, Calculator } from 'lucide-react';
 
-const STATUT_CFG = {
-  a_payer:   { label: 'À payer',   bg: '#F5A62322', color: '#F5A623', border: '#F5A62350' },
-  payee:     { label: 'Payée',     bg: '#00D4AA22', color: '#00A882', border: '#00D4AA50' },
-  en_retard: { label: 'En retard', bg: '#FF5C6B22', color: '#C01833', border: '#FF5C6B50' },
-  annulee:   { label: 'Annulée',   bg: '#6B7A9922', color: '#6B7A99', border: '#6B7A9950' },
-  exoneree:  { label: 'Exonérée',  bg: '#4E8BF522', color: '#1A52B0', border: '#4E8BF550' },
-};
-
-const TYPE_CFG = {
-  TVA:     { color: '#00D4AA', label: 'TVA',     desc: 'Taxe sur la Valeur Ajoutée' },
-  IS:      { color: '#4E8BF5', label: 'IS',      desc: "Impôt sur les Sociétés" },
-  BIC:     { color: '#4E8BF5', label: 'BIC',     desc: 'Bénéfices Industriels et Commerciaux' },
-  CNSS:    { color: '#A855F7', label: 'CNSS',    desc: 'Cotisations Sociales' },
-  CMU:     { color: '#EC4899', label: 'CMU',     desc: 'Couverture Maladie Universelle' },
-  IRVM:    { color: '#F97316', label: 'IRVM',    desc: 'Impôt sur le Revenu des Valeurs Mobilières' },
-  Patente: { color: '#84CC16', label: 'Patente', desc: 'Contribution des Patentes' },
-  Autre:   { color: '#6B7A99', label: 'Autre',   desc: 'Autre taxe ou contribution' },
+// Couleurs des types de taxe ; les libellés sont résolus via t('taxes.type_*') au rendu.
+const TYPE_COLORS = {
+  TVA:     '#00D4AA',
+  IS:      '#4E8BF5',
+  BIC:     '#4E8BF5',
+  CNSS:    '#A855F7',
+  CMU:     '#EC4899',
+  IRVM:    '#F97316',
+  Patente: '#84CC16',
+  Autre:   '#6B7A99',
 };
 
 const TAUX_DEFAUTS = { TVA: 18, IS: 25, BIC: 20, CNSS: 14, CMU: 3.5, IRVM: 15, Patente: 0.5 };
 const ORGANISMES   = { TVA: 'DGI', IS: 'DGI', BIC: 'DGI', CNSS: 'CNSS', CMU: 'CNSS', IRVM: 'DGI', Patente: 'DGI', Autre: '' };
 
 export default function TaxesPage() {
+  const { t } = useTranslation();
   const { dark } = useTheme();
   const C = getC(dark);
+  // Helper pour récupérer la config d'un type de taxe avec libellé i18n
+  const typeCfg = (code) => ({
+    color: TYPE_COLORS[code] || '#6B7A99',
+    label: t(`taxes.type_${code.toLowerCase()}`, { defaultValue: code }),
+  });
 
   const [taxes, setTaxes] = useState([]);
   const [tdb, setTdb] = useState(null);
@@ -70,9 +70,9 @@ export default function TaxesPage() {
       setTaxes(tRes.data.data);
       setPagination(tRes.data.pagination);
       setTdb(tdbRes.data.data);
-    } catch { toast.error('Erreur chargement'); }
+    } catch { toast.error(t('taxes.error_load')); }
     finally { setLoading(false); }
-  }, [filtreStatut, filtreType, annee, page]);
+  }, [filtreStatut, filtreType, annee, page, t]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -87,9 +87,9 @@ export default function TaxesPage() {
     e.preventDefault(); setSaving(true);
     try {
       await api.post('/taxes', { ...form, montant_du: montantDu });
-      toast.success('Déclaration créée');
+      toast.success(t('taxes.success_created'));
       setShowModal(false); fetchData();
-    } catch (err) { toast.error(err.response?.data?.message || 'Erreur'); }
+    } catch (err) { toast.error(err.response?.data?.message || t('common.error_generic')); }
     finally { setSaving(false); }
   };
 
@@ -97,9 +97,9 @@ export default function TaxesPage() {
     e.preventDefault(); setSaving(true);
     try {
       await api.post(`/taxes/${showPaiement.id}/paiement`, paiementForm);
-      toast.success('Paiement enregistré');
+      toast.success(t('taxes.success_paid'));
       setShowPaiement(null); fetchData();
-    } catch { toast.error('Erreur paiement'); }
+    } catch { toast.error(t('factures.error_paiement')); }
     finally { setSaving(false); }
   };
 
@@ -107,7 +107,7 @@ export default function TaxesPage() {
     try {
       const res = await api.get(`/taxes/calculer-tva?periode_debut=${tvaForm.periode_debut}&periode_fin=${tvaForm.periode_fin}`);
       setTvaCalc(res.data.data);
-    } catch { toast.error('Erreur calcul TVA'); }
+    } catch { toast.error(t('common.error_generic')); }
   };
 
   const s = tdb?.synthese || {};
@@ -124,8 +124,8 @@ export default function TaxesPage() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>Taxes & Impôts</h1>
-          <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>DGI · CNSS · Déclarations fiscales — {annee}</p>
+          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>{t('taxes.title')}</h1>
+          <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{t('taxes.subtitle')} — {annee}</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <SelecteurAnnee annee={annee} setAnnee={setAnnee} couleurActif={C.purple} />
@@ -134,13 +134,13 @@ export default function TaxesPage() {
             border: `1.5px solid ${C.accent}50`, background: `${C.accent}12`,
             color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer',
           }}>
-            <Calculator size={14} /> Calculer TVA
+            <Calculator size={14} /> {t('taxes.calc_tva_button')}
           </button>
           <button data-onboarding="btn-nouveau" onClick={() => setShowModal(true)} style={{
             display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', borderRadius: 10,
             border: 'none', background: C.purple, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
           }}>
-            <Plus size={15} /> Nouvelle déclaration
+            <Plus size={15} /> {t('taxes.new_declaration')}
           </button>
         </div>
       </div>
@@ -148,11 +148,11 @@ export default function TaxesPage() {
       {/* KPIs fiscaux */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
         {[
-          { label: 'Total à payer', val: formatFCFA(s.a_payer, true), sub: 'FCFA restants',       color: C.gold,   icon: Clock },
-          { label: 'En retard',     val: formatFCFA(s.en_retard, true), sub: `${s.nb_en_retard || 0} déclaration(s)`, color: C.red, icon: AlertTriangle },
-          { label: 'TVA collectée', val: formatFCFA(s.tva_collectee, true), sub: 'sur factures',   color: C.accent, icon: CheckCircle },
-          { label: 'TVA nette',     val: formatFCFA(s.tva_nette > 0 ? s.tva_nette : 0, true),
-            sub: s.tva_nette < 0 ? `Crédit: ${formatFCFA(Math.abs(s.tva_nette), true)}` : 'À verser DGI',
+          { label: t('taxes.col_amount_due'),    val: formatFCFA(s.a_payer, true),       sub: t('common.remaining'),                                  color: C.gold,   icon: Clock },
+          { label: t('taxes.overdue'),           val: formatFCFA(s.en_retard, true),     sub: `${s.nb_en_retard || 0} ${t('taxes.tab_declarations').toLowerCase()}`, color: C.red, icon: AlertTriangle },
+          { label: t('taxes.calc_tva_collected'), val: formatFCFA(s.tva_collectee, true), sub: t('factures.title').toLowerCase(),                      color: C.accent, icon: CheckCircle },
+          { label: t('taxes.calc_tva_net'),       val: formatFCFA(s.tva_nette > 0 ? s.tva_nette : 0, true),
+            sub: s.tva_nette < 0 ? `${t('common.encours')}: ${formatFCFA(Math.abs(s.tva_nette), true)}` : 'DGI',
             color: C.blue, icon: Calculator },
         ].map(({ label, val, sub, color, icon: Icon }, i) => (
           <div key={i} style={{
@@ -170,7 +170,7 @@ export default function TaxesPage() {
               <Icon size={15} color={color} />
             </div>
             <div style={{ fontSize: 20, fontWeight: 800, color: C.text, fontFamily: 'monospace' }}>
-              {val} <span style={{ fontSize: 10, color: C.muted }}>FCFA</span>
+              {val} <span style={{ fontSize: 10, color: C.muted }}>{t('common.currency')}</span>
             </div>
             <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{sub}</div>
           </div>
@@ -180,10 +180,10 @@ export default function TaxesPage() {
       {/* Répartition par type */}
       {tdb?.par_type?.length > 0 && (
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 22, marginBottom: 22, boxShadow: C.shadow }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 16, color: C.text }}>Répartition par type — {annee}</div>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 16, color: C.text }}>{t('rapports.fiscal_title', { year: annee })}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
-            {tdb.par_type.map((t, i) => {
-              const cfg = TYPE_CFG[t.type_taxe] || TYPE_CFG.Autre;
+            {tdb.par_type.map((row, i) => {
+              const cfg = typeCfg(row.type_taxe);
               return (
                 <div key={i} style={{
                   background: dark ? '#161F2E' : C.cardAlt, borderRadius: 12,
@@ -191,14 +191,13 @@ export default function TaxesPage() {
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                     <span style={{ fontSize: 14, fontWeight: 800, color: cfg.color }}>{cfg.label}</span>
-                    <span style={{ fontSize: 10, color: C.muted }}>{t.organisme}</span>
+                    <span style={{ fontSize: 10, color: C.muted }}>{row.organisme}</span>
                   </div>
-                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>{cfg.desc}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text, fontFamily: 'monospace' }}>{formatFCFA(t.total_du, true)} FCFA</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text, fontFamily: 'monospace' }}>{formatFCFA(row.total_du, true)} {t('common.currency')}</div>
                   <div style={{ height: 3, background: C.hover, borderRadius: 2, marginTop: 8, overflow: 'hidden' }}>
-                    <div style={{ width: t.total_du > 0 ? `${Math.min((t.total_paye / t.total_du) * 100, 100)}%` : '0%', height: '100%', background: cfg.color, borderRadius: 2 }} />
+                    <div style={{ width: row.total_du > 0 ? `${Math.min((row.total_paye / row.total_du) * 100, 100)}%` : '0%', height: '100%', background: cfg.color, borderRadius: 2 }} />
                   </div>
-                  <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>Payé: {formatFCFA(t.total_paye, true)}</div>
+                  <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>{t('rapports.fiscal_paid', { amount: formatFCFA(row.total_paye, true) })}</div>
                 </div>
               );
             })}
@@ -213,10 +212,10 @@ export default function TaxesPage() {
           padding: '14px 18px', marginBottom: 22, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
         }}>
           <AlertTriangle size={15} color={C.gold} style={{ flexShrink: 0 }} />
-          <span style={{ fontSize: 13, color: C.gold, fontWeight: 600 }}>Échéances dans 30 jours :</span>
-          {tdb.prochaines_echeances.map((t, i) => (
+          <span style={{ fontSize: 13, color: C.gold, fontWeight: 600 }}>{t('taxes.upcoming')} (30 j) :</span>
+          {tdb.prochaines_echeances.map((row, i) => (
             <span key={i} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 20, background: `${C.gold}20`, color: C.gold }}>
-              {t.type_taxe} · {formatDate(t.date_echeance)} · {formatFCFA(t.montant_du - t.montant_paye, true)} FCFA
+              {row.type_taxe} · {formatDate(row.date_echeance)} · {formatFCFA(row.montant_du - row.montant_paye, true)} {t('common.currency')}
             </span>
           ))}
         </div>
@@ -224,18 +223,23 @@ export default function TaxesPage() {
 
       {/* Filtres */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        {['','a_payer','en_retard','payee'].map(f => (
-          <button key={f} onClick={() => { setFiltreStatut(f); setPage(1); }} style={{
+        {[
+          { v: '',          label: t('common.all') },
+          { v: 'a_payer',   label: t('statut.a_payer') },
+          { v: 'en_retard', label: t('statut.en_retard') },
+          { v: 'payee',     label: t('statut.payee') },
+        ].map(({ v, label }) => (
+          <button key={v} onClick={() => { setFiltreStatut(v); setPage(1); }} style={{
             padding: '7px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600,
-            border: `1.5px solid ${filtreStatut === f ? C.purple : C.border}`,
-            background: filtreStatut === f ? `${C.purple}15` : 'transparent',
-            color: filtreStatut === f ? C.purple : C.muted, transition: 'all 0.15s',
-          }}>{{ '': 'Tous', a_payer: 'À payer', en_retard: 'En retard', payee: 'Payées' }[f]}</button>
+            border: `1.5px solid ${filtreStatut === v ? C.purple : C.border}`,
+            background: filtreStatut === v ? `${C.purple}15` : 'transparent',
+            color: filtreStatut === v ? C.purple : C.muted, transition: 'all 0.15s',
+          }}>{label}</button>
         ))}
         <select value={filtreType} onChange={e => { setFiltreType(e.target.value); setPage(1); }}
           style={{ ...selectStyle, width: 'auto' }}>
-          <option value="">Tous les types</option>
-          {Object.entries(TYPE_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          <option value="">{t('common.all')}</option>
+          {Object.keys(TYPE_COLORS).map(k => <option key={k} value={k}>{typeCfg(k).label}</option>)}
         </select>
       </div>
 
@@ -244,48 +248,57 @@ export default function TaxesPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: dark ? '#0D1220' : C.cardAlt, borderBottom: `1px solid ${C.border}` }}>
-              {['Type','Organisme','Période','Échéance','Base','Montant dû','Payé','Statut','Action'].map(h => (
+              {[
+                t('taxes.col_type'),
+                t('taxes.field_organisation'),
+                t('taxes.col_period'),
+                t('taxes.col_due_date'),
+                t('taxes.col_base'),
+                t('taxes.col_amount_due'),
+                t('taxes.col_amount_paid'),
+                t('taxes.col_status'),
+                t('common.actions'),
+              ].map(h => (
                 <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: C.muted }}>Chargement...</td></tr>
+              <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: C.muted }}>{t('common.loading')}</td></tr>
             ) : taxes.length === 0 ? (
-              <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 13 }}>Aucune déclaration trouvée</td></tr>
-            ) : taxes.map(t => {
-              const sc = STATUT_CFG[t.statut] || STATUT_CFG.a_payer;
-              const tc = TYPE_CFG[t.type_taxe] || TYPE_CFG.Autre;
-              const reste = parseFloat(t.montant_du) - parseFloat(t.montant_paye);
+              <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 13 }}>{t('taxes.tab_declarations')} : {t('common.no_data')}</td></tr>
+            ) : taxes.map(tax => {
+              const tc = typeCfg(tax.type_taxe);
+              const reste = parseFloat(tax.montant_du) - parseFloat(tax.montant_paye);
               return (
-                <tr key={t.id} style={{ borderBottom: `1px solid ${C.border}` }}
+                <tr key={tax.id} style={{ borderBottom: `1px solid ${C.border}` }}
                   onMouseEnter={e => e.currentTarget.style.background = C.hover}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                   <td style={{ padding: '12px 14px' }}>
                     <span style={{ fontSize: 12, fontWeight: 800, padding: '3px 9px', borderRadius: 20, background: `${tc.color}20`, color: tc.color }}>{tc.label}</span>
                   </td>
-                  <td style={{ padding: '12px 14px', fontSize: 12, fontWeight: 600, color: C.text }}>{t.organisme}</td>
-                  <td style={{ padding: '12px 14px', fontSize: 11, color: C.sub }}>{formatDate(t.periode_debut)} → {formatDate(t.periode_fin)}</td>
-                  <td style={{ padding: '12px 14px', fontSize: 11, color: t.statut === 'en_retard' ? C.red : C.muted, fontWeight: t.statut === 'en_retard' ? 700 : 400 }}>
-                    {formatDate(t.date_echeance)}
+                  <td style={{ padding: '12px 14px', fontSize: 12, fontWeight: 600, color: C.text }}>{tax.organisme}</td>
+                  <td style={{ padding: '12px 14px', fontSize: 11, color: C.sub }}>{formatDate(tax.periode_debut)} → {formatDate(tax.periode_fin)}</td>
+                  <td style={{ padding: '12px 14px', fontSize: 11, color: tax.statut === 'en_retard' ? C.red : C.muted, fontWeight: tax.statut === 'en_retard' ? 700 : 400 }}>
+                    {formatDate(tax.date_echeance)}
                   </td>
-                  <td style={{ padding: '12px 14px', fontSize: 11, fontFamily: 'monospace', color: C.muted }}>{formatFCFA(t.montant_base, true)}</td>
-                  <td style={{ padding: '12px 14px', fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: C.text }}>{formatFCFA(t.montant_du)}</td>
-                  <td style={{ padding: '12px 14px', fontSize: 12, fontFamily: 'monospace', color: parseFloat(t.montant_paye) > 0 ? C.accent : C.muted }}>
-                    {parseFloat(t.montant_paye) > 0 ? formatFCFA(t.montant_paye) : '—'}
-                  </td>
-                  <td style={{ padding: '12px 14px' }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}` }}>{sc.label}</span>
+                  <td style={{ padding: '12px 14px', fontSize: 11, fontFamily: 'monospace', color: C.muted }}>{formatFCFA(tax.montant_base, true)}</td>
+                  <td style={{ padding: '12px 14px', fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: C.text }}>{formatFCFA(tax.montant_du)}</td>
+                  <td style={{ padding: '12px 14px', fontSize: 12, fontFamily: 'monospace', color: parseFloat(tax.montant_paye) > 0 ? C.accent : C.muted }}>
+                    {parseFloat(tax.montant_paye) > 0 ? formatFCFA(tax.montant_paye) : '—'}
                   </td>
                   <td style={{ padding: '12px 14px' }}>
-                    {['a_payer','en_retard'].includes(t.statut) && (
-                      <button onClick={() => { setShowPaiement(t); setPaiementForm(p => ({ ...p, montant_paye: reste.toFixed(0) })); }}
+                    <StatutBadge statut={tax.statut} />
+                  </td>
+                  <td style={{ padding: '12px 14px' }}>
+                    {['a_payer','en_retard'].includes(tax.statut) && (
+                      <button onClick={() => { setShowPaiement(tax); setPaiementForm(p => ({ ...p, montant_paye: reste.toFixed(0) })); }}
                         style={{
                           padding: '6px 12px', background: `${C.accent}15`, border: `1.5px solid ${C.accent}50`,
                           borderRadius: 7, cursor: 'pointer', color: C.accent, fontSize: 11, fontWeight: 600,
                         }}>
-                        Payer
+                        {t('taxes.pay_button')}
                       </button>
                     )}
                   </td>
@@ -310,51 +323,53 @@ export default function TaxesPage() {
 
       {/* Modal nouvelle déclaration */}
       {showModal && (
-        <Modal title="Nouvelle déclaration fiscale" onClose={() => setShowModal(false)}>
+        <Modal title={t('taxes.new_declaration')} onClose={() => setShowModal(false)}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>Type de taxe *</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>{t('taxes.col_type')} *</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {Object.entries(TYPE_CFG).map(([k, v]) => (
-                  <button key={k} type="button" onClick={() => handleTypeChange(k)} style={{
-                    padding: '6px 12px', borderRadius: 8,
-                    border: `1.5px solid ${form.type_taxe === k ? v.color : C.border}`,
-                    background: form.type_taxe === k ? `${v.color}18` : 'transparent',
-                    color: form.type_taxe === k ? v.color : C.muted,
-                    fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
-                  }}>{v.label}</button>
-                ))}
+                {Object.keys(TYPE_COLORS).map(k => {
+                  const v = typeCfg(k);
+                  return (
+                    <button key={k} type="button" onClick={() => handleTypeChange(k)} style={{
+                      padding: '6px 12px', borderRadius: 8,
+                      border: `1.5px solid ${form.type_taxe === k ? v.color : C.border}`,
+                      background: form.type_taxe === k ? `${v.color}18` : 'transparent',
+                      color: form.type_taxe === k ? v.color : C.muted,
+                      fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
+                    }}>{v.label}</button>
+                  );
+                })}
               </div>
-              {form.type_taxe && <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>{TYPE_CFG[form.type_taxe]?.desc}</div>}
             </div>
-            <Input label="Organisme" value={form.organisme} onChange={set('organisme')} placeholder="DGI, CNSS..." required />
+            <Input label={t('taxes.field_organisation')} value={form.organisme} onChange={set('organisme')} placeholder="DGI, CNSS..." required />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Input label="Période début" type="date" value={form.periode_debut} onChange={set('periode_debut')} required />
-              <Input label="Période fin" type="date" value={form.periode_fin} onChange={set('periode_fin')} required />
+              <Input label={t('taxes.field_period_start')} type="date" value={form.periode_debut} onChange={set('periode_debut')} required />
+              <Input label={t('taxes.field_period_end')} type="date" value={form.periode_fin} onChange={set('periode_fin')} required />
             </div>
-            <Input label="Date d'échéance" type="date" value={form.date_echeance} onChange={set('date_echeance')} required />
+            <Input label={t('taxes.field_due_date')} type="date" value={form.date_echeance} onChange={set('date_echeance')} required />
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
-              <Input label="Montant base (FCFA)" type="number" value={form.montant_base} onChange={set('montant_base')} placeholder="Ex: 10000000" required />
-              <Input label="Taux (%)" type="number" value={form.taux} onChange={set('taux')} placeholder="18" />
+              <Input label={t('taxes.field_amount_base')} type="number" value={form.montant_base} onChange={set('montant_base')} required />
+              <Input label={t('taxes.field_rate')} type="number" value={form.taux} onChange={set('taux')} placeholder="18" />
             </div>
             {parseFloat(form.montant_base) > 0 && (
               <div style={{ background: dark ? '#0D1525' : C.cardAlt, borderRadius: 10, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: `1px solid ${C.border}` }}>
-                <span style={{ fontSize: 12, color: C.muted }}>Montant dû :</span>
-                <span style={{ fontSize: 16, fontWeight: 800, color: C.purple, fontFamily: 'monospace' }}>{formatFCFA(montantDu)} FCFA</span>
+                <span style={{ fontSize: 12, color: C.muted }}>{t('taxes.col_amount_due')} :</span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: C.purple, fontFamily: 'monospace' }}>{formatFCFA(montantDu)} {t('common.currency')}</span>
               </div>
             )}
-            <Input label="Notes" value={form.notes} onChange={set('notes')} placeholder="Références, observations..." />
+            <Input label={t('common.notes')} value={form.notes} onChange={set('notes')} />
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <button type="button" onClick={() => setShowModal(false)} style={{
                 flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`,
                 background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              }}>Annuler</button>
+              }}>{t('common.cancel')}</button>
               <button type="submit" disabled={saving} style={{
                 flex: 2, padding: '11px 0', borderRadius: 10, border: 'none',
                 background: saving ? C.border : C.purple, color: saving ? C.muted : '#fff',
                 fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer',
               }}>
-                {saving ? 'Enregistrement...' : 'Créer la déclaration'}
+                {saving ? t('common.saving') : t('taxes.create_button')}
               </button>
             </div>
           </form>
@@ -363,29 +378,29 @@ export default function TaxesPage() {
 
       {/* Modal paiement */}
       {showPaiement && (
-        <Modal title={`Payer — ${showPaiement.type_taxe} (${showPaiement.organisme})`} onClose={() => setShowPaiement(null)} width={400}>
+        <Modal title={`${t('taxes.pay_modal_title')} — ${typeCfg(showPaiement.type_taxe).label} (${showPaiement.organisme})`} onClose={() => setShowPaiement(null)} width={400}>
           <div style={{ background: dark ? '#0D1525' : C.cardAlt, borderRadius: 10, padding: '12px 14px', marginBottom: 18, border: `1px solid ${C.border}` }}>
-            <div style={{ fontSize: 11, color: C.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Reste à payer</div>
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('factures.paiement_remaining')}</div>
             <div style={{ fontSize: 22, fontWeight: 800, color: C.purple, fontFamily: 'monospace' }}>
-              {formatFCFA(parseFloat(showPaiement.montant_du) - parseFloat(showPaiement.montant_paye))} FCFA
+              {formatFCFA(parseFloat(showPaiement.montant_du) - parseFloat(showPaiement.montant_paye))} {t('common.currency')}
             </div>
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Échéance : {formatDate(showPaiement.date_echeance)}</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{t('common.due_date')} : {formatDate(showPaiement.date_echeance)}</div>
           </div>
           <form onSubmit={handlePaiement} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <Input label="Montant payé (FCFA)" type="number" value={paiementForm.montant_paye} onChange={e => setPaiementForm(p => ({ ...p, montant_paye: e.target.value }))} required />
-            <Input label="Date de paiement" type="date" value={paiementForm.date_paiement} onChange={e => setPaiementForm(p => ({ ...p, date_paiement: e.target.value }))} required />
-            <Input label="Référence / Quittance" value={paiementForm.reference_paiement} onChange={e => setPaiementForm(p => ({ ...p, reference_paiement: e.target.value }))} placeholder="N° de quittance DGI..." />
+            <Input label={t('taxes.pay_amount')} type="number" value={paiementForm.montant_paye} onChange={e => setPaiementForm(p => ({ ...p, montant_paye: e.target.value }))} required />
+            <Input label={t('taxes.pay_date')} type="date" value={paiementForm.date_paiement} onChange={e => setPaiementForm(p => ({ ...p, date_paiement: e.target.value }))} required />
+            <Input label={t('taxes.pay_reference')} value={paiementForm.reference_paiement} onChange={e => setPaiementForm(p => ({ ...p, reference_paiement: e.target.value }))} />
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <button type="button" onClick={() => setShowPaiement(null)} style={{
                 flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`,
                 background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              }}>Annuler</button>
+              }}>{t('common.cancel')}</button>
               <button type="submit" disabled={saving} style={{
                 flex: 2, padding: '11px 0', borderRadius: 10, border: 'none',
                 background: saving ? C.border : C.accent, color: saving ? C.muted : (dark ? '#000' : '#fff'),
                 fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer',
               }}>
-                {saving ? '...' : 'Confirmer le paiement'}
+                {saving ? '...' : t('factures.paiement_confirm')}
               </button>
             </div>
           </form>
@@ -394,22 +409,22 @@ export default function TaxesPage() {
 
       {/* Modal calcul TVA */}
       {showTvaCalc && (
-        <Modal title="Calculateur de TVA" onClose={() => { setShowTvaCalc(false); setTvaCalc(null); }} width={460}>
+        <Modal title={t('taxes.tab_calc_tva')} onClose={() => { setShowTvaCalc(false); setTvaCalc(null); }} width={460}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Input label="Période début" type="date" value={tvaForm.periode_debut} onChange={e => setTvaForm(f => ({ ...f, periode_debut: e.target.value }))} />
-              <Input label="Période fin" type="date" value={tvaForm.periode_fin} onChange={e => setTvaForm(f => ({ ...f, periode_fin: e.target.value }))} />
+              <Input label={t('taxes.field_period_start')} type="date" value={tvaForm.periode_debut} onChange={e => setTvaForm(f => ({ ...f, periode_debut: e.target.value }))} />
+              <Input label={t('taxes.field_period_end')} type="date" value={tvaForm.periode_fin} onChange={e => setTvaForm(f => ({ ...f, periode_fin: e.target.value }))} />
             </div>
             <button onClick={calculerTVA} style={{
               padding: '11px 0', borderRadius: 10, border: 'none',
               background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            }}>Calculer</button>
+            }}>{t('taxes.calc_tva_button')}</button>
             {tvaCalc && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {[
-                  { label: 'TVA collectée (factures)',  val: tvaCalc.tva_collectee, color: C.accent },
-                  { label: 'TVA déductible (dépenses)', val: tvaCalc.tva_deductible, color: C.blue },
-                  { label: tvaCalc.tva_nette >= 0 ? 'TVA nette à verser DGI' : 'Crédit de TVA', val: Math.abs(tvaCalc.tva_nette), color: tvaCalc.tva_nette >= 0 ? C.red : C.gold },
+                  { label: t('taxes.calc_tva_collected'),  val: tvaCalc.tva_collectee, color: C.accent },
+                  { label: t('taxes.calc_tva_deductible'), val: tvaCalc.tva_deductible, color: C.blue },
+                  { label: tvaCalc.tva_nette >= 0 ? t('taxes.calc_tva_net') : t('common.encours'), val: Math.abs(tvaCalc.tva_nette), color: tvaCalc.tva_nette >= 0 ? C.red : C.gold },
                 ].map(({ label, val, color }, i) => (
                   <div key={i} style={{
                     background: dark ? '#0D1525' : C.cardAlt, borderRadius: 10, padding: '12px 14px',
@@ -418,12 +433,12 @@ export default function TaxesPage() {
                   }}>
                     <span style={{ fontSize: 12, color: C.sub }}>{label}</span>
                     <span style={{ fontSize: i === 2 ? 16 : 13, fontWeight: i === 2 ? 800 : 700, color, fontFamily: 'monospace' }}>
-                      {formatFCFA(val)} FCFA
+                      {formatFCFA(val)} {t('common.currency')}
                     </span>
                   </div>
                 ))}
                 <div style={{ fontSize: 11, color: C.muted, textAlign: 'center' }}>
-                  Période : {formatDate(tvaCalc.periode.debut)} → {formatDate(tvaCalc.periode.fin)}
+                  {t('common.period')} : {formatDate(tvaCalc.periode.debut)} → {formatDate(tvaCalc.periode.fin)}
                 </div>
               </div>
             )}
