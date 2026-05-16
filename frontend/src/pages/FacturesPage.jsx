@@ -316,14 +316,14 @@ export default function FacturesPage() {
                     <div style={{ display: 'flex', gap: 5 }}>
                       {/* Modifier (brouillon uniquement) */}
                       {f.statut === 'brouillon' && (
-                        <button onClick={() => openEdit(f.id)} title="Modifier la facture"
+                        <button onClick={() => openEdit(f.id)} title={t('factures.btn_edit_draft')}
                           style={{ padding: '5px 8px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.sub }}>
                           <Edit2 size={13} />
                         </button>
                       )}
                       {/* Supprimer (brouillon uniquement) */}
                       {f.statut === 'brouillon' && (
-                        <button onClick={() => handleDelete(f)} title="Supprimer le brouillon"
+                        <button onClick={() => handleDelete(f)} title={t('factures.btn_delete_draft')}
                           style={{ padding: '5px 8px', background: `${C.red}15`, border: `1px solid ${C.red}40`, borderRadius: 7, cursor: 'pointer', color: C.red }}>
                           <Trash2 size={13} />
                         </button>
@@ -331,7 +331,7 @@ export default function FacturesPage() {
                       {/* Enregistrer paiement */}
                       {['en_attente', 'retard', 'envoyee'].includes(f.statut) && (
                         <button onClick={() => { setShowPaiement(f); setPaiementForm(p => ({ ...p, montant: reste.toFixed(0) })); }}
-                          title="Enregistrer paiement"
+                          title={t('factures.btn_pay')}
                           style={{ padding: '5px 8px', background: `${C.accent}20`, border: `1px solid ${C.accent}40`, borderRadius: 7, cursor: 'pointer', color: C.accent, fontSize: 11, fontWeight: 600 }}>
                           <CreditCard size={13} />
                         </button>
@@ -396,13 +396,12 @@ export default function FacturesPage() {
             {/* Bandeau contextuel selon type */}
             {form.type === 'avoir' && (
               <div style={{ background: `${C.red}12`, border: `1px solid ${C.red}40`, borderRadius: 9, padding: '9px 13px', fontSize: 11, color: C.red }}>
-                <strong>Avoir SYSCOHADA :</strong> Annule partiellement ou totalement une facture precedente. Indiquer la reference dans les notes.
+                <strong>{t('factures.banner_avoir_label')}</strong> {t('factures.banner_avoir_body')}
               </div>
             )}
             {form.type === 'facture' && (
-              <div style={{ background: `${C.blue}10`, border: `1px solid ${C.blue}30`, borderRadius: 9, padding: '9px 13px', fontSize: 11, color: C.muted }}>
-                Besoin d'un <strong style={{ color: C.blue }}>devis</strong> ou d'une <strong style={{ color: C.blue }}>proforma</strong> ? Rendez-vous sur la page <strong style={{ color: C.blue }}>Devis &amp; Proformas</strong> — un devis accepté se convertit en facture en un clic.
-              </div>
+              <div style={{ background: `${C.blue}10`, border: `1px solid ${C.blue}30`, borderRadius: 9, padding: '9px 13px', fontSize: 11, color: C.muted }}
+                dangerouslySetInnerHTML={{ __html: t('factures.banner_devis_html') }} />
             )}
 
             {/* Client + dates */}
@@ -447,7 +446,7 @@ export default function FacturesPage() {
                     ))}
                 </select>
                 <span style={{ fontSize: 10, color: C.muted, fontStyle: 'italic' }}>
-                  Obligatoire pour conformité SYSCOHADA. La liste se restreint au client sélectionné si renseigné.
+                  {t('factures.hint_facture_origine')}
                 </span>
               </div>
             )}
@@ -493,7 +492,7 @@ export default function FacturesPage() {
                       ))}
                     </datalist>
                     {l.produit_id && (
-                      <span title="Lié au catalogue"
+                      <span title={t('factures.line_product_linked')}
                         style={{
                           position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
                           fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 10,
@@ -505,7 +504,7 @@ export default function FacturesPage() {
                     placeholder="1" min="0.001" step="any"
                     style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: '9px 8px', color: C.text, fontSize: 12, outline: 'none', fontFamily: 'inherit', textAlign: 'center' }} />
                   <input value={l.unite} onChange={e => updateLigne(idx, 'unite', e.target.value)}
-                    placeholder="unite"
+                    placeholder={t('factures.line_unit_placeholder')}
                     style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: '9px 8px', color: C.text, fontSize: 12, outline: 'none', fontFamily: 'inherit' }} />
                   <input type="number" value={l.prix_unitaire} onChange={e => updateLigne(idx, 'prix_unitaire', e.target.value)}
                     placeholder="0" required min="0"
@@ -541,9 +540,9 @@ export default function FacturesPage() {
                     <span style={{ color: C.sub }}>{t('common.tva')}</span>
                     <select value={form.taux_tva} onChange={set('taux_tva')}
                       style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 6, padding: '3px 8px', color: C.text, fontSize: 11, outline: 'none' }}>
-                      <option value={0}>0% (Exonere)</option>
-                      <option value={9}>9% (reduit)</option>
-                      <option value={18}>18% (normal)</option>
+                      <option value={0}>{t('factures.tva_exonere')}</option>
+                      <option value={9}>{t('factures.tva_reduit')}</option>
+                      <option value={18}>{t('factures.tva_normal')}</option>
                     </select>
                   </div>
                   <span style={{ fontFamily: 'monospace', color: C.sub }}>{formatFCFA(tva)} {t('common.currency')}</span>
@@ -565,18 +564,18 @@ export default function FacturesPage() {
                 <select value={form.conditions_paiement} onChange={set('conditions_paiement')}
                   style={{ background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 9, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
                   {form.type === 'avoir' ? <>
-                    <option>Remboursement par virement</option>
-                    <option>Credit sur prochaine facture</option>
-                    <option>Retour marchandise</option>
-                    <option>Erreur de facturation</option>
-                    <option>Geste commercial</option>
+                    <option>{t('factures.cond_remboursement_virement')}</option>
+                    <option>{t('factures.cond_credit_prochaine')}</option>
+                    <option>{t('factures.cond_retour_marchandise')}</option>
+                    <option>{t('factures.cond_erreur_facturation')}</option>
+                    <option>{t('factures.cond_geste_commercial')}</option>
                   </> : <>
-                    <option>Paiement a 30 jours</option>
-                    <option>Paiement a 45 jours</option>
-                    <option>Paiement a 60 jours</option>
-                    <option>Paiement a la livraison</option>
-                    <option>Paiement comptant</option>
-                    <option>50% commande, 50% livraison</option>
+                    <option>{t('factures.cond_paiement_30')}</option>
+                    <option>{t('factures.cond_paiement_45')}</option>
+                    <option>{t('factures.cond_paiement_60')}</option>
+                    <option>{t('factures.cond_paiement_livraison')}</option>
+                    <option>{t('factures.cond_paiement_comptant')}</option>
+                    <option>{t('factures.cond_paiement_50_50')}</option>
                   </>}
                 </select>
               </div>
@@ -593,7 +592,7 @@ export default function FacturesPage() {
             <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
               <button type="button" onClick={closeModal}
                 style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`, background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                Annuler
+                {t('common.cancel')}
               </button>
 
               {editingId ? (
