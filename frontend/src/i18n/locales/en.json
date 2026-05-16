@@ -1174,6 +1174,17 @@
     "role_user_desc": "Read access and limited entry depending on modules.",
     "role_lecture_desc": "Read-only, no changes."
   },
+  "onboarding": {
+    "fab_tooltip": "Replay the guide for this page",
+    "skip": "Skip",
+    "previous": "Previous",
+    "next": "Next",
+    "discover_ui": "Discover the interface →",
+    "lets_go": "Let's go!",
+    "step_indicator": "Step {{current}} / {{total}}",
+    "close": "Close",
+    "finish": "Finish"
+  },
   "tresorerie": {
     "title": "Treasury",
     "subtitle": "Bank accounts · Mobile Money · Cash",

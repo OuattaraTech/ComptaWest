@@ -1174,6 +1174,17 @@
     "role_user_desc": "Consultation et saisie limitée selon les modules.",
     "role_lecture_desc": "Consultation uniquement, aucune modification."
   },
+  "onboarding": {
+    "fab_tooltip": "Revoir le guide de cette page",
+    "skip": "Passer",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "discover_ui": "Découvrir l'interface →",
+    "lets_go": "C'est parti !",
+    "step_indicator": "Étape {{current}} / {{total}}",
+    "close": "Fermer",
+    "finish": "Terminer"
+  },
   "tresorerie": {
     "title": "Trésorerie",
     "subtitle": "Comptes bancaires · Mobile Money · Caisses",

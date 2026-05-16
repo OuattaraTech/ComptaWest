@@ -25,7 +25,7 @@ import { X, ChevronLeft, ChevronRight, HelpCircle, Sparkles } from 'lucide-react
 const SEEN_KEY = (pageKey) => `cw_onboarding_${pageKey}_seen`;
 
 export default function Onboarding({ pageKey }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { dark } = useTheme();
   const C = getC(dark);
   // Charge le contenu d'onboarding dans la langue active. Le fichier .en suit
@@ -96,7 +96,7 @@ export default function Onboarding({ pageKey }) {
   const FloatingHelp = (
     <button
       onClick={() => { setIntroStep(0); setMode('intro'); }}
-      title="Revoir le guide de cette page"
+      title={t('onboarding.fab_tooltip')}
       style={{
         position: 'fixed', bottom: 24, right: 24, zIndex: 90,
         width: 48, height: 48, borderRadius: '50%',
@@ -207,7 +207,7 @@ export default function Onboarding({ pageKey }) {
                 background: 'transparent', border: 'none', color: C.muted,
                 fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '6px 0',
               }}>
-                Passer
+                {t('onboarding.skip')}
               </button>
               <div style={{ display: 'flex', gap: 10 }}>
                 {!isFirst && (
@@ -216,7 +216,7 @@ export default function Onboarding({ pageKey }) {
                     background: 'transparent', color: C.text, fontSize: 13, fontWeight: 600,
                     cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
                   }}>
-                    <ChevronLeft size={14} /> Précédent
+                    <ChevronLeft size={14} /> {t('onboarding.previous')}
                   </button>
                 )}
                 {!isLast ? (
@@ -226,7 +226,7 @@ export default function Onboarding({ pageKey }) {
                     fontSize: 13, fontWeight: 700, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', gap: 6,
                   }}>
-                    Suivant <ChevronRight size={14} />
+                    {t('onboarding.next')} <ChevronRight size={14} />
                   </button>
                 ) : (
                   <button onClick={hasSpotlight ? launchSpotlight : finish} style={{
@@ -234,7 +234,7 @@ export default function Onboarding({ pageKey }) {
                     background: C.accent, color: dark ? '#000' : '#fff',
                     fontSize: 13, fontWeight: 700, cursor: 'pointer',
                   }}>
-                    {hasSpotlight ? 'Découvrir l\'interface →' : 'C\'est parti !'}
+                    {hasSpotlight ? t('onboarding.discover_ui') : t('onboarding.lets_go')}
                   </button>
                 )}
               </div>
@@ -318,7 +318,7 @@ export default function Onboarding({ pageKey }) {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: C.accent, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              Étape {spotStep + 1} / {spotlightSteps.length}
+              {t('onboarding.step_indicator', { current: spotStep + 1, total: spotlightSteps.length })}
             </div>
             <button onClick={finish} style={{
               background: 'transparent', border: 'none', color: C.muted,
@@ -335,7 +335,7 @@ export default function Onboarding({ pageKey }) {
             <button onClick={finish} style={{
               background: 'transparent', border: 'none', color: C.muted,
               fontSize: 12, fontWeight: 600, cursor: 'pointer',
-            }}>Fermer</button>
+            }}>{t('onboarding.close')}</button>
             <div style={{ display: 'flex', gap: 8 }}>
               {!isFirst && (
                 <button onClick={() => setSpotStep(s => s - 1)} style={{
@@ -355,7 +355,7 @@ export default function Onboarding({ pageKey }) {
                   display: 'flex', alignItems: 'center', gap: 4,
                 }}
               >
-                {isLast ? 'Terminer' : <>Suivant <ChevronRight size={13} /></>}
+                {isLast ? t('onboarding.finish') : <>{t('onboarding.next')} <ChevronRight size={13} /></>}
               </button>
             </div>
           </div>
