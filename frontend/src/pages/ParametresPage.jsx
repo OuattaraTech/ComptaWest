@@ -35,12 +35,12 @@ const PAYS_LIST = [
 
 // Rôles d'accès — alignés sur les permissions du backend (middleware/entreprise.js)
 const ROLES = {
-  proprietaire: { label: 'Propriétaire', color: '#F5A623', desc: 'Accès total, gestion de l\'entreprise et des membres.' },
-  admin:        { label: 'Administrateur', color: '#4E8BF5', desc: 'Gère les membres, paramètres et toutes les données.' },
-  comptable:    { label: 'Comptable', color: '#00D4AA', desc: 'Saisie et édition de toutes les écritures comptables.' },
-  rh:           { label: 'RH', color: '#A855F7', desc: 'Gère la paie (employés, bulletins) sans accès à la comptabilité.' },
-  user:         { label: 'Utilisateur', color: '#9BAACC', desc: 'Consultation et saisie limitée selon les modules.' },
-  lecture:      { label: 'Lecture seule', color: '#6B7A99', desc: 'Consultation uniquement, aucune modification.' },
+  proprietaire: { labelKey: 'roles.proprietaire', color: '#F5A623', descKey: 'parametres.role_proprietaire_desc' },
+  admin:        { labelKey: 'roles.admin',        color: '#4E8BF5', descKey: 'parametres.role_admin_desc' },
+  comptable:    { labelKey: 'roles.comptable',    color: '#00D4AA', descKey: 'parametres.role_comptable_desc' },
+  rh:           { labelKey: 'roles.rh',           color: '#A855F7', descKey: 'parametres.role_rh_desc' },
+  user:         { labelKey: 'roles.user',         color: '#9BAACC', descKey: 'parametres.role_user_desc' },
+  lecture:      { labelKey: 'roles.lecture',      color: '#6B7A99', descKey: 'parametres.role_lecture_desc' },
 };
 
 function PreferencesTab({ C }) {
@@ -96,7 +96,7 @@ export default function ParametresPage() {
     try {
       const res = await api.get(`/entreprises/${actuelle.id}/membres`);
       setMembres(res.data.data);
-    } catch { toast.error('Erreur chargement membres'); }
+    } catch { toast.error(t('parametres.err_load_members')); }
   };
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -107,8 +107,8 @@ export default function ParametresPage() {
     try {
       await api.put(`/entreprises/${actuelle.id}`, form);
       await chargerEntreprises();
-      toast.success('Paramètres sauvegardés');
-    } catch { toast.error('Erreur sauvegarde'); }
+      toast.success(t('parametres.toast_saved'));
+    } catch { toast.error(t('parametres.toast_save_err')); }
     finally { setSaving(false); }
   };
 
@@ -131,40 +131,40 @@ export default function ParametresPage() {
         });
       } else {
         // Compte déjà existant : accès immédiat, pas de lien
-        toast.success(`${emailInvite} a déjà un compte : l'entreprise apparaîtra à sa prochaine connexion.`);
+        toast.success(t('parametres.account_exists', { email: emailInvite }));
       }
-    } catch (err) { toast.error(err.response?.data?.message || 'Erreur invitation'); }
+    } catch (err) { toast.error(err.response?.data?.message || t('parametres.err_invite')); }
   };
 
   const copierLien = () => {
     if (!invitationGeneree) return;
     navigator.clipboard.writeText(invitationGeneree.lien_invitation)
-      .then(() => toast.success('Lien copié dans le presse-papier'))
-      .catch(() => toast.error('Impossible de copier — sélectionnez le lien manuellement'));
+      .then(() => toast.success(t('parametres.copy_success')))
+      .catch(() => toast.error(t('parametres.copy_failed')));
   };
 
   const handleChangeRole = async (userId, role) => {
     try {
       await api.put(`/entreprises/${actuelle.id}/membres/${userId}/role`, { role });
-      toast.success('Rôle mis à jour');
+      toast.success(t('parametres.role_changed'));
       fetchMembres();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur mise à jour rôle');
+      toast.error(err.response?.data?.message || t('parametres.err_role_update'));
       fetchMembres();  // resynchronise le sélecteur sur la valeur réelle
     }
   };
 
   const handleRetirerMembre = async (userId) => {
-    if (!confirm('Retirer ce membre ?')) return;
+    if (!confirm(t('parametres.remove_member'))) return;
     try {
       await api.delete(`/entreprises/${actuelle.id}/membres/${userId}`);
-      toast.success('Membre retiré');
+      toast.success(t('parametres.removed'));
       fetchMembres();
-    } catch (err) { toast.error(err.response?.data?.message || 'Erreur'); }
+    } catch (err) { toast.error(err.response?.data?.message || t('parametres.err_generic')); }
   };
 
   if (!actuelle) return (
-    <div style={{ padding: 40, color: C.muted, fontSize: 14 }}>Aucune entreprise sélectionnée</div>
+    <div style={{ padding: 40, color: C.muted, fontSize: 14 }}>{t('parametres.no_company')}</div>
   );
 
   return (
@@ -275,8 +275,8 @@ export default function ParametresPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
               {Object.entries(ROLES).map(([key, r]) => (
                 <div key={key} style={{ background: C.hover, borderRadius: 10, padding: '12px 14px', border: `1px solid ${r.color}30` }}>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: r.color, marginBottom: 4 }}>{r.label}</div>
-                  <div style={{ fontSize: 11, color: C.muted }}>{r.desc}</div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: r.color, marginBottom: 4 }}>{t(r.labelKey)}</div>
+                  <div style={{ fontSize: 11, color: C.muted }}>{t(r.descKey)}</div>
                 </div>
               ))}
             </div>
@@ -299,22 +299,22 @@ export default function ParametresPage() {
               <div style={{ padding: '20px 24px', background: dark ? '#0D1220' : C.cardAlt, borderBottom: `1px solid ${C.border}` }}>
                 <form onSubmit={handleInviter} style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                   <div style={{ flex: '1 0 200px' }}>
-                    <Input label="Email *" type="email" value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} placeholder="collaborateur@exemple.ci" />
+                    <Input label={t('parametres.invite_email')} type="email" value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} placeholder={t('parametres.invite_email_placeholder')} />
                   </div>
                   <div style={{ flex: '1 0 140px' }}>
-                    <Input label="Nom (optionnel)" value={inviteForm.nom} onChange={e => setInviteForm(f => ({ ...f, nom: e.target.value }))} placeholder="Prénom Nom" />
+                    <Input label={t('parametres.invite_name')} value={inviteForm.nom} onChange={e => setInviteForm(f => ({ ...f, nom: e.target.value }))} placeholder={t('parametres.invite_name_placeholder')} />
                   </div>
                   <div style={{ flex: '0 0 160px', display: 'flex', flexDirection: 'column', gap: 5 }}>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Rôle</label>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('parametres.invite_role')}</label>
                     <select value={inviteForm.role} onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))}
                       style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
                       {Object.entries(ROLES).filter(([k]) => k !== 'proprietaire').map(([k, v]) => (
-                        <option key={k} value={k}>{v.label}</option>
+                        <option key={k} value={k}>{t(v.labelKey)}</option>
                       ))}
                     </select>
                   </div>
                   <button type="submit" style={{ padding: '10px 20px', borderRadius: 9, border: 'none', background: C.accent, color: '#000', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-                    Inviter
+                    {t('parametres.invite_submit')}
                   </button>
                 </form>
               </div>
@@ -330,10 +330,10 @@ export default function ParametresPage() {
                   <Link2 size={16} color={C.accent} style={{ flexShrink: 0, marginTop: 2 }} />
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
-                      Lien d'invitation pour {invitationGeneree.email}
+                      {t('parametres.link_title', { email: invitationGeneree.email })}
                     </div>
                     <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
-                      Transmettez ce lien (WhatsApp, SMS, email…). Il permet de définir le mot de passe et d'activer le compte. Valable 7 jours.
+                      {t('parametres.link_help')}
                     </div>
                   </div>
                   <button onClick={() => setInvitationGeneree(null)}
@@ -353,7 +353,7 @@ export default function ParametresPage() {
                     border: 'none', background: C.accent, color: dark ? '#000' : '#fff',
                     fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
                   }}>
-                    <Copy size={13} /> Copier
+                    <Copy size={13} /> {t('parametres.btn_copy')}
                   </button>
                 </div>
               </div>
@@ -380,17 +380,17 @@ export default function ParametresPage() {
                     <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{m.nom}</div>
                     <div style={{ fontSize: 11, color: C.muted }}>{m.email}</div>
                   </div>
-                  <div style={{ fontSize: 11, color: C.muted }}>Depuis {formatDate(m.created_at)}</div>
+                  <div style={{ fontSize: 11, color: C.muted }}>{t('parametres.member_since', { date: formatDate(m.created_at) })}</div>
                   {/* Le rôle de tout membre est modifiable (y compris propriétaire) ;
                       le backend empêche de retirer/rétrograder le dernier propriétaire. */}
                   <select value={m.role} onChange={e => handleChangeRole(m.id, e.target.value)}
                     style={{ background: `${roleInfo.color}20`, border: `1px solid ${roleInfo.color}50`, borderRadius: 8, padding: '6px 10px', color: roleInfo.color, fontSize: 12, fontWeight: 700, outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                     {Object.entries(ROLES).map(([k, v]) => (
-                      <option key={k} value={k} style={{ background: C.card, color: C.text }}>{v.label}</option>
+                      <option key={k} value={k} style={{ background: C.card, color: C.text }}>{t(v.labelKey)}</option>
                     ))}
                   </select>
                   <button onClick={() => handleRetirerMembre(m.id)}
-                    title="Retirer ce membre"
+                    title={t('parametres.member_remove_tooltip')}
                     style={{ padding: '6px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.muted }}>
                     <X size={13} />
                   </button>
