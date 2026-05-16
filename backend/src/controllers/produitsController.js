@@ -1,6 +1,12 @@
 const pool = require('../../config/database');
 const { body } = require('express-validator');
 const { logAudit } = require('../utils/audit');
+const { masquerChamps, MODULES } = require('../utils/permissions');
+
+// Helper local : masque les champs sensibles (prix d'achat, CMP, valeurs)
+// selon le rôle de l'utilisateur courant. Sans-op si le rôle voit tout.
+const filtrerProduit = (req, payload) =>
+  masquerChamps(req.roleEntreprise, MODULES.PRODUITS, payload);
 
 const round2 = (n) => Math.round((parseFloat(n) || 0) * 100) / 100;
 const round3 = (n) => Math.round((parseFloat(n) || 0) * 1000) / 1000;
@@ -95,7 +101,7 @@ const getProduits = async (req, res) => {
 
     const result = await pool.query(query, params);
     res.json({
-      success: true, data: result.rows,
+      success: true, data: filtrerProduit(req, result.rows),
       pagination: {
         total: parseInt(countRes.rows[0].count),
         page: parseInt(page), limit: parseInt(limit),
@@ -126,7 +132,7 @@ const getProduitById = async (req, res) => {
       `SELECT * FROM mouvements_stock WHERE produit_id = $1 ORDER BY date_mouvement DESC, created_at DESC LIMIT 50`,
       [id]
     );
-    res.json({ success: true, data: { ...r.rows[0], mouvements: mvts.rows } });
+    res.json({ success: true, data: filtrerProduit(req, { ...r.rows[0], mouvements: filtrerProduit(req, mvts.rows) }) });
   } catch (err) {
     console.error('Erreur getProduitById:', err.message);
     res.status(500).json({ success: false, message: 'Erreur' });
@@ -409,7 +415,7 @@ const getMouvementsProduit = async (req, res) => {
       [id, parseInt(limit), offset]
     );
     res.json({
-      success: true, data: r.rows,
+      success: true, data: filtrerProduit(req, r.rows),
       pagination: {
         total: parseInt(countRes.rows[0].count),
         page: parseInt(page), limit: parseInt(limit),
@@ -447,7 +453,7 @@ const getJournalMouvements = async (req, res) => {
                LIMIT $${params.length - 1} OFFSET $${params.length}`;
     const r = await pool.query(query, params);
     res.json({
-      success: true, data: r.rows,
+      success: true, data: filtrerProduit(req, r.rows),
       pagination: {
         total: parseInt(countRes.rows[0].count),
         page: parseInt(page), limit: parseInt(limit),
@@ -557,7 +563,7 @@ const getInventaireById = async (req, res) => {
        WHERE li.inventaire_id = $1 ORDER BY li.ordre`,
       [id]
     );
-    res.json({ success: true, data: { ...invRes.rows[0], lignes: lignes.rows } });
+    res.json({ success: true, data: filtrerProduit(req, { ...invRes.rows[0], lignes: filtrerProduit(req, lignes.rows) }) });
   } catch (err) {
     console.error('Erreur getInventaireById:', err.message);
     res.status(500).json({ success: false, message: 'Erreur' });
@@ -745,7 +751,7 @@ const getStatsProduits = async (req, res) => {
 
     res.json({
       success: true,
-      data: { ...synth.rows[0], top_ventes: topVentes.rows, annee },
+      data: filtrerProduit(req, { ...synth.rows[0], top_ventes: topVentes.rows, annee }),
     });
   } catch (err) {
     console.error('Erreur getStatsProduits:', err.message);

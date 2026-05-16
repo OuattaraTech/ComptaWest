@@ -216,12 +216,26 @@ const PERMISSIONS = {
  * Utilisé à la sérialisation côté API : on enlève le champ du payload si
  * peutVoirChamp(role, module, champ) renvoie false.
  */
+// Rôles autorisés à voir les coûts d'achat / valorisations stock. Le
+// commercial et le magasinier sont volontairement exclus pour empêcher
+// la fuite de la marge brute.
+const VOIT_COUT_PRODUIT = [PROPRIETAIRE, ADMIN, EXPERT_COMPTABLE, COMPTABLE, AUDITEUR];
+
 const VISIBILITY = {
   [MODULES.PRODUITS]: {
-    // Le commercial et le magasinier voient le catalogue mais pas les
-    // prix d'achat ni le coût moyen pondéré.
-    prix_achat_ht: [PROPRIETAIRE, ADMIN, EXPERT_COMPTABLE, COMPTABLE, AUDITEUR],
-    cout_moyen:    [PROPRIETAIRE, ADMIN, EXPERT_COMPTABLE, COMPTABLE, AUDITEUR],
+    // Champs table `produits`
+    prix_achat_ht:        VOIT_COUT_PRODUIT,
+    cmp:                  VOIT_COUT_PRODUIT,  // coût moyen pondéré SYSCOHADA
+    valeur_stock:         VOIT_COUT_PRODUIT,
+    valeur_stock_totale:  VOIT_COUT_PRODUIT,  // agrégat stats
+    // Champs table `mouvements_stock` (rendus par les endpoints stock)
+    prix_unitaire:        VOIT_COUT_PRODUIT,
+    valeur_totale:        VOIT_COUT_PRODUIT,
+    cmp_apres:            VOIT_COUT_PRODUIT,
+    cmp_avant:            VOIT_COUT_PRODUIT,
+    // Champs `lignes_inventaire`
+    valeur_avant:         VOIT_COUT_PRODUIT,
+    valeur_apres:         VOIT_COUT_PRODUIT,
   },
   [MODULES.PAIE]: {
     // Préparé pour la suite : si un jour le comptable interne accède
