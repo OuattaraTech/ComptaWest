@@ -336,7 +336,8 @@
     "cond_paiement_livraison": "Paiement à la livraison",
     "cond_paiement_comptant": "Paiement comptant",
     "cond_paiement_50_50": "50% commande, 50% livraison",
-    "line_product_linked": "Lié au catalogue"
+    "line_product_linked": "Lié au catalogue",
+    "pdf_downloaded": "PDF téléchargé"
   },
   "devis": {
     "title": "Devis & Proformas",

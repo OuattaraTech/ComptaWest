@@ -336,7 +336,8 @@
     "cond_paiement_livraison": "Payment on delivery",
     "cond_paiement_comptant": "Cash payment",
     "cond_paiement_50_50": "50% on order, 50% on delivery",
-    "line_product_linked": "Linked to catalog"
+    "line_product_linked": "Linked to catalog",
+    "pdf_downloaded": "PDF downloaded"
   },
   "devis": {
     "title": "Quotes & Proformas",

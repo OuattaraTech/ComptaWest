@@ -227,7 +227,7 @@ export default function FacturesPage() {
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast.dismiss(toastId);
-      toast.success(t('rapports.export_pdf'));
+      toast.success(t('factures.pdf_downloaded'));
     } catch {
       toast.dismiss(toastId);
       toast.error(t('rapports.error_export'));
@@ -337,7 +337,7 @@ export default function FacturesPage() {
                         </button>
                       )}
                       {/* Télécharger PDF */}
-                      <button onClick={() => downloadPDF(f.id, f.numero)} title="Télécharger PDF"
+                      <button onClick={() => downloadPDF(f.id, f.numero)} title={t('factures.btn_download_pdf')}
                         style={{ padding: '5px 8px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.sub }}>
                         <Download size={13} />
                       </button>
