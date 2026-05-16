@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body } = require('express-validator');
 const pool = require('../../config/database');
+const { PERMISSIONS, VISIBILITY, ALL_ROLES } = require('../utils/permissions');
 const {
   creerCategoriesDefaut, creerPlanComptableSyscohada,
   creerJournauxDefaut, creerExerciceCourant,
@@ -309,7 +310,50 @@ const accepterInvitation = async (req, res) => {
   }
 };
 
+// GET /api/auth/me/permissions
+// Renvoie le rôle de l'utilisateur sur l'entreprise courante + la liste des
+// actions autorisées par module + les champs masqués (matrice projetée pour
+// CE rôle). Le frontend l'appelle après login et à chaque changement
+// d'entreprise pour adapter la nav et l'UI.
+//
+// Requiert le middleware entrepriseAccess() en amont (req.roleEntreprise).
+const getMesPermissions = async (req, res) => {
+  try {
+    const role = req.roleEntreprise;
+    if (!role) {
+      return res.status(400).json({ success: false, message: 'Rôle entreprise non résolu' });
+    }
+    // Pour ce rôle, on liste les modules+actions accessibles
+    const can = {};
+    for (const [module, actions] of Object.entries(PERMISSIONS)) {
+      const autorisees = [];
+      for (const [action, roles] of Object.entries(actions)) {
+        if (Array.isArray(roles) && roles.includes(role)) autorisees.push(action);
+      }
+      if (autorisees.length > 0) can[module] = autorisees;
+    }
+    // Champs sensibles que l'utilisateur PEUT voir (inverse du masquage)
+    const voitChamps = {};
+    for (const [module, fields] of Object.entries(VISIBILITY)) {
+      const visibles = Object.entries(fields)
+        .filter(([, roles]) => roles.includes(role))
+        .map(([champ]) => champ);
+      // Champs visibles dans ce module — on garde la liste pour que le frontend
+      // sache ce qu'il devrait afficher comme colonnes (sans tout deviner).
+      voitChamps[module] = visibles;
+    }
+    res.json({
+      success: true,
+      data: { role, can, voitChamps, entreprise_id: req.entrepriseId },
+    });
+  } catch (err) {
+    console.error('Erreur getMesPermissions:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+};
+
 module.exports = {
   register, login, me, updateLangue, loginDemo, getInvitation, accepterInvitation,
+  getMesPermissions,
   registerRules, loginRules,
 };

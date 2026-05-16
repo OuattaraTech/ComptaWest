@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
 import { EntrepriseProvider } from './hooks/useEntreprise.jsx';
+import { PermissionsProvider } from './hooks/usePermissions.jsx';
 import { ThemeProvider, useTheme } from './hooks/useTheme.jsx';
 import Layout from './components/Layout/Layout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
@@ -105,10 +106,12 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <EntrepriseProvider>
-          <BrowserRouter>
-            <AppRoutes />
-            <ToasterThemed />
-          </BrowserRouter>
+          <PermissionsProvider>
+            <BrowserRouter>
+              <AppRoutes />
+              <ToasterThemed />
+            </BrowserRouter>
+          </PermissionsProvider>
         </EntrepriseProvider>
       </AuthProvider>
     </ThemeProvider>

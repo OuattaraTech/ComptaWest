@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { useEntreprise } from '../../hooks/useEntreprise.jsx';
+import { usePermissions } from '../../hooks/usePermissions.jsx';
 import { useTheme } from '../../hooks/useTheme.jsx';
 import { initiales } from '../../utils/helpers.jsx';
 import LanguageSwitcher from '../LanguageSwitcher.jsx';
@@ -13,47 +14,50 @@ import {
   FileSignature,
 } from 'lucide-react';
 
-// Le rôle "rh" ne voit que le tableau de bord et le module Paie & RH :
-// tous les autres modules portent rolesRequis SANS_RH pour le masquer.
-const SANS_RH = ['proprietaire', 'admin', 'comptable', 'user', 'lecture'];
-
-// Items de navigation : on stocke la clé i18n à côté d'un libellé fallback
-// (utilisé si la traduction est absente). Le label final est résolu par t().
+// Items de navigation. Chaque entrée déclare le module backend à interroger :
+// le menu n'apparaît que si usePermissions().can(module, 'read') === true.
+// La matrice backend (utils/permissions.js) est la source unique de vérité.
 const navItems = [
-  { to: '/dashboard',       icon: LayoutDashboard, i18nKey: 'nav.dashboard',        label: 'Tableau de bord' },
-  { to: '/clients',         icon: Users,           i18nKey: 'nav.clients',          label: 'Clients',           rolesRequis: SANS_RH },
-  { to: '/fournisseurs',    icon: Truck,           i18nKey: 'nav.fournisseurs',     label: 'Fournisseurs',      rolesRequis: SANS_RH },
-  { to: '/produits',        icon: Box,             i18nKey: 'nav.produits',         label: 'Produits & Stocks', rolesRequis: SANS_RH },
-  { to: '/devis',           icon: FileSignature,   i18nKey: 'nav.devis',            label: 'Devis & Proformas', rolesRequis: SANS_RH },
-  { to: '/factures',        icon: FileText,        i18nKey: 'nav.factures',         label: 'Factures',          rolesRequis: SANS_RH },
-  { to: '/depenses',        icon: Receipt,         i18nKey: 'nav.depenses',         label: 'Dépenses',          rolesRequis: SANS_RH },
-  { to: '/tresorerie',      icon: Wallet,          i18nKey: 'nav.tresorerie',       label: 'Trésorerie',        rolesRequis: SANS_RH },
-  { to: '/immobilisations', icon: Package,         i18nKey: 'nav.immobilisations',  label: 'Immobilisations',   rolesRequis: ['proprietaire','admin','comptable'] },
-  { to: '/paie',            icon: UserCheck,       i18nKey: 'nav.paie',             label: 'Paie & RH',         rolesRequis: ['proprietaire','admin','comptable','rh'] },
-  { to: '/taxes',           icon: Calculator,      i18nKey: 'nav.taxes',            label: 'Taxes & Impôts',    rolesRequis: SANS_RH },
-  { to: '/comptabilite',    icon: BookMarked,      i18nKey: 'nav.comptabilite',     label: 'Comptabilité',      rolesRequis: ['proprietaire','admin','comptable'] },
-  { to: '/rapports',        icon: BarChart3,       i18nKey: 'nav.rapports',         label: 'Rapports',          rolesRequis: SANS_RH },
+  { to: '/dashboard',       icon: LayoutDashboard, i18nKey: 'nav.dashboard',        label: 'Tableau de bord',   module: 'dashboard' },
+  { to: '/clients',         icon: Users,           i18nKey: 'nav.clients',          label: 'Clients',           module: 'clients' },
+  { to: '/fournisseurs',    icon: Truck,           i18nKey: 'nav.fournisseurs',     label: 'Fournisseurs',      module: 'fournisseurs' },
+  { to: '/produits',        icon: Box,             i18nKey: 'nav.produits',         label: 'Produits & Stocks', module: 'produits' },
+  { to: '/devis',           icon: FileSignature,   i18nKey: 'nav.devis',            label: 'Devis & Proformas', module: 'devis' },
+  { to: '/factures',        icon: FileText,        i18nKey: 'nav.factures',         label: 'Factures',          module: 'factures' },
+  { to: '/depenses',        icon: Receipt,         i18nKey: 'nav.depenses',         label: 'Dépenses',          module: 'depenses' },
+  { to: '/tresorerie',      icon: Wallet,          i18nKey: 'nav.tresorerie',       label: 'Trésorerie',        module: 'tresorerie' },
+  { to: '/immobilisations', icon: Package,         i18nKey: 'nav.immobilisations',  label: 'Immobilisations',   module: 'immobilisations' },
+  { to: '/paie',            icon: UserCheck,       i18nKey: 'nav.paie',             label: 'Paie & RH',         module: 'paie' },
+  { to: '/taxes',           icon: Calculator,      i18nKey: 'nav.taxes',            label: 'Taxes & Impôts',    module: 'taxes' },
+  { to: '/comptabilite',    icon: BookMarked,      i18nKey: 'nav.comptabilite',     label: 'Comptabilité',      module: 'ecritures' },
+  { to: '/rapports',        icon: BarChart3,       i18nKey: 'nav.rapports',         label: 'Rapports',          module: 'rapports' },
 ];
 
-// Visible uniquement pour propriétaires et administrateurs
+// Section Administration : visible si l'utilisateur a au moins une permission
+// admin (gestion membres OU consultation audit log).
 const adminItems = [
-  { to: '/audit-log',  icon: Shield,  i18nKey: 'nav.audit_log',  label: 'Journal d’audit' },
+  { to: '/audit-log',  icon: Shield,  i18nKey: 'nav.audit_log',  label: 'Journal d’audit', module: 'audit_log' },
 ];
 
 // Couleurs par rôle ; le libellé est résolu via t('roles.<key>') au rendu.
 const ROLE_COLORS = {
-  proprietaire: { bg: '#F5A62322', color: '#F5A623' },
-  admin:        { bg: '#4E8BF522', color: '#4E8BF5' },
-  comptable:    { bg: '#00D4AA22', color: '#00D4AA' },
-  rh:           { bg: '#A855F722', color: '#A855F7' },
-  user:         { bg: '#6B7A9922', color: '#9BAACC' },
-  lecture:      { bg: '#6B7A9922', color: '#6B7A99' },
+  proprietaire:     { bg: '#F5A62322', color: '#F5A623' },
+  admin:            { bg: '#4E8BF522', color: '#4E8BF5' },
+  expert_comptable: { bg: '#0EA5E922', color: '#0EA5E9' },
+  comptable:        { bg: '#00D4AA22', color: '#00D4AA' },
+  rh:               { bg: '#A855F722', color: '#A855F7' },
+  commercial:       { bg: '#EC489922', color: '#EC4899' },
+  magasinier:       { bg: '#F9731622', color: '#F97316' },
+  auditeur:         { bg: '#6B7A9922', color: '#6B7A99' },
+  user:             { bg: '#6B7A9922', color: '#9BAACC' },
+  lecture:          { bg: '#6B7A9922', color: '#6B7A99' },
 };
 
 export default function Sidebar() {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
   const { entreprises, actuelle, switchEntreprise, ajouterEntreprise } = useEntreprise();
+  const { can } = usePermissions();
   const { dark, toggle } = useTheme();
   const navigate = useNavigate();
   const [showSwitcher, setShowSwitcher] = useState(false);
@@ -95,7 +99,11 @@ export default function Sidebar() {
   };
 
   const roleInfo = ROLE_COLORS[actuelle?.role] || ROLE_COLORS.user;
-  const estAdmin = actuelle?.role === 'proprietaire' || actuelle?.role === 'admin';
+  // Section Administration : visible si au moins un item admin (audit log…)
+  // est lisible. La matrice peut évoluer sans toucher à ce check.
+  const showAdminSection = adminItems.some(item => can(item.module, 'read'));
+  // Filtre des items principaux : on respecte la matrice de permissions.
+  const navVisibles = navItems.filter(item => can(item.module, 'read'));
 
   return (
     <aside style={{
@@ -196,9 +204,7 @@ export default function Sidebar() {
         <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: '0.1em', padding: '6px 8px 3px', textTransform: 'uppercase' }}>
           {t('common.menu')}
         </div>
-        {navItems
-          .filter(item => !item.rolesRequis || item.rolesRequis.includes(actuelle?.role))
-          .map(({ to, icon: Icon, label, i18nKey }) => (
+        {navVisibles.map(({ to, icon: Icon, label, i18nKey }) => (
           <NavLink key={to} to={to} style={({ isActive }) => ({
             display: 'flex', alignItems: 'center', gap: 9,
             padding: '9px 10px', borderRadius: 9, textDecoration: 'none',
@@ -218,12 +224,12 @@ export default function Sidebar() {
           </NavLink>
         ))}
 
-        {estAdmin && (
+        {showAdminSection && (
           <>
             <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: '0.1em', padding: '14px 8px 3px', textTransform: 'uppercase' }}>
               {t('common.administration')}
             </div>
-            {adminItems.map(({ to, icon: Icon, label, i18nKey }) => (
+            {adminItems.filter(item => can(item.module, 'read')).map(({ to, icon: Icon, label, i18nKey }) => (
               <NavLink key={to} to={to} style={({ isActive }) => ({
                 display: 'flex', alignItems: 'center', gap: 9,
                 padding: '9px 10px', borderRadius: 9, textDecoration: 'none',

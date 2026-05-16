@@ -45,14 +45,21 @@ const PAYS_LIST = [
   'Niger', 'Guinée-Bissau', 'Cameroun', 'Gabon', 'Congo', 'Tchad', 'Autre',
 ];
 
-// Rôles d'accès — alignés sur les permissions du backend (middleware/entreprise.js)
+// Rôles d'accès — alignés sur backend/src/utils/permissions.js (matrice
+// module x action). Toute évolution doit se faire d'abord côté backend.
 const ROLES = {
-  proprietaire: { labelKey: 'roles.proprietaire', color: '#F5A623', descKey: 'parametres.role_proprietaire_desc' },
-  admin:        { labelKey: 'roles.admin',        color: '#4E8BF5', descKey: 'parametres.role_admin_desc' },
-  comptable:    { labelKey: 'roles.comptable',    color: '#00D4AA', descKey: 'parametres.role_comptable_desc' },
-  rh:           { labelKey: 'roles.rh',           color: '#A855F7', descKey: 'parametres.role_rh_desc' },
-  user:         { labelKey: 'roles.user',         color: '#9BAACC', descKey: 'parametres.role_user_desc' },
-  lecture:      { labelKey: 'roles.lecture',      color: '#6B7A99', descKey: 'parametres.role_lecture_desc' },
+  proprietaire:     { labelKey: 'roles.proprietaire',     color: '#F5A623', descKey: 'parametres.role_proprietaire_desc' },
+  admin:            { labelKey: 'roles.admin',            color: '#4E8BF5', descKey: 'parametres.role_admin_desc' },
+  expert_comptable: { labelKey: 'roles.expert_comptable', color: '#0EA5E9', descKey: 'parametres.role_expert_comptable_desc' },
+  comptable:        { labelKey: 'roles.comptable',        color: '#00D4AA', descKey: 'parametres.role_comptable_desc' },
+  rh:               { labelKey: 'roles.rh',               color: '#A855F7', descKey: 'parametres.role_rh_desc' },
+  commercial:       { labelKey: 'roles.commercial',       color: '#EC4899', descKey: 'parametres.role_commercial_desc' },
+  magasinier:       { labelKey: 'roles.magasinier',       color: '#F97316', descKey: 'parametres.role_magasinier_desc' },
+  auditeur:         { labelKey: 'roles.auditeur',         color: '#6B7A99', descKey: 'parametres.role_auditeur_desc' },
+  // Rôles legacy conservés pour les comptes existants. À masquer du sélecteur
+  // d'invitation pour ne pas inciter à les choisir sur de nouveaux membres.
+  user:             { labelKey: 'roles.user',             color: '#9BAACC', descKey: 'parametres.role_user_desc', legacy: true },
+  lecture:          { labelKey: 'roles.lecture',          color: '#6B7A99', descKey: 'parametres.role_lecture_desc', legacy: true },
 };
 
 function PreferencesTab({ C }) {
@@ -320,9 +327,11 @@ export default function ParametresPage() {
                     <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('parametres.invite_role')}</label>
                     <select value={inviteForm.role} onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))}
                       style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
-                      {Object.entries(ROLES).filter(([k]) => k !== 'proprietaire').map(([k, v]) => (
-                        <option key={k} value={k}>{t(v.labelKey)}</option>
-                      ))}
+                      {Object.entries(ROLES)
+                        .filter(([k, v]) => k !== 'proprietaire' && !v.legacy)
+                        .map(([k, v]) => (
+                          <option key={k} value={k}>{t(v.labelKey)}</option>
+                        ))}
                     </select>
                   </div>
                   <button type="submit" style={{ padding: '10px 20px', borderRadius: 9, border: 'none', background: C.accent, color: '#000', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>

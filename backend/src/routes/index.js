@@ -11,7 +11,8 @@ const validate = require('../middleware/validate');
 // La matrice complète vit dans utils/permissions.js.
 const can = (module, action) => requirePermission(module, action);
 
-const { register, login, me, updateLangue, loginDemo, getInvitation, accepterInvitation, registerRules, loginRules } = require('../controllers/authController');
+const { register, login, me, updateLangue, loginDemo, getInvitation, accepterInvitation, getMesPermissions, registerRules, loginRules } = require('../controllers/authController');
+const entrepriseAccess = require('../middleware/entreprise');
 const {
   getMesEntreprises, createEntreprise, updateEntreprise,
   getMembres, inviterMembre, updateRoleMembre, retirerMembre, entrepriseRules,
@@ -101,6 +102,9 @@ router.post('/auth/login',    authLimiter, loginRules,    validate, login);
 router.post('/auth/demo',     demoLimiter, loginDemo);
 router.get('/auth/me', auth, me);
 router.put('/auth/me/langue', auth, updateLangue);
+// Permissions sur l'entreprise courante (X-Entreprise-Id) — utilisé par le
+// frontend pour adapter la nav et masquer les actions interdites.
+router.get('/auth/me/permissions', auth, entrepriseAccess(), getMesPermissions);
 // Invitations — routes publiques (pas d'auth : l'invité n'a pas encore de compte actif)
 router.get('/auth/invitation/:token',  getInvitation);
 router.post('/auth/invitation/:token', authLimiter, accepterInvitation);
