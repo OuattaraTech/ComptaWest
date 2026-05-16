@@ -13,9 +13,9 @@ import { useNavigate } from 'react-router-dom';
 import { FournisseurFormModal } from './FournisseursPage.jsx';
 
 const STATUT_CFG = {
-  payee:      { label: 'Payée',      bg: '#00D4AA20', color: '#00A882', border: '#00D4AA40' },
-  en_attente: { label: 'En attente', bg: '#F5A62320', color: '#A0660A', border: '#F5A62340' },
-  annulee:    { label: 'Annulée',    bg: '#FF5C6B20', color: '#C01833', border: '#FF5C6B40' },
+  payee:      { labelKey: 'depenses.status_paid',      bg: '#00D4AA20', color: '#00A882', border: '#00D4AA40' },
+  en_attente: { labelKey: 'depenses.status_pending',   bg: '#F5A62320', color: '#A0660A', border: '#F5A62340' },
+  annulee:    { labelKey: 'depenses.status_cancelled', bg: '#FF5C6B20', color: '#C01833', border: '#FF5C6B40' },
 };
 
 const MODES = ['virement','cash','cheque','mobile_money','carte'];
@@ -229,9 +229,9 @@ export default function DepensesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: C.muted }}>Chargement...</td></tr>
+              <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: C.muted }}>{t('depenses.loading')}</td></tr>
             ) : depenses.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 13 }}>Aucune dépense. Commencez à les enregistrer !</td></tr>
+              <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: C.muted, fontSize: 13 }}>{t('depenses.no_data_text')}</td></tr>
             ) : depenses.map(d => {
               const s = STATUT_CFG[d.statut] || STATUT_CFG.payee;
               return (
@@ -249,7 +249,7 @@ export default function DepensesPage() {
                   <td style={{ padding: '12px 14px', fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: C.red }}>-{formatFCFA(d.montant_ttc)}</td>
                   <td style={{ padding: '12px 14px', fontSize: 11, color: C.muted }}>{formatDate(d.date_depense)}</td>
                   <td style={{ padding: '12px 14px' }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>{s.label}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>{t(s.labelKey)}</span>
                   </td>
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', gap: 5 }}>
@@ -258,7 +258,7 @@ export default function DepensesPage() {
                       </button>
                       {parseFloat(d.montant_ttc) >= 500000 && !d.notes?.includes('Convertie en immo') && (
                         <button onClick={() => setShowImmoModal(d)}
-                          title="Convertir en immobilisation"
+                          title={t('depenses.convert_immo_tooltip')}
                           style={{ padding: '5px 7px', background: `${C.gold}15`, border: `1px solid ${C.gold}40`, borderRadius: 7, cursor: 'pointer', color: C.gold }}>
                           <Package size={12} />
                         </button>
@@ -277,7 +277,7 @@ export default function DepensesPage() {
         </table>
         {pagination.pages > 1 && (
           <div style={{ padding: '12px 14px', borderTop: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: dark ? 'transparent' : C.cardAlt }}>
-            <span style={{ fontSize: 12, color: C.muted }}>Page {page} / {pagination.pages}</span>
+            <span style={{ fontSize: 12, color: C.muted }}>{t('depenses.pagination_info', { page, pages: pagination.pages })}</span>
             <div style={{ display: 'flex', gap: 5 }}>
               {[...Array(Math.min(pagination.pages, 8))].map((_, i) => (
                 <button key={i} onClick={() => setPage(i + 1)} style={{
@@ -297,15 +297,15 @@ export default function DepensesPage() {
         <Modal title={editId ? t('depenses.edit') : t('depenses.new')} onClose={() => setShowModal(false)}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Catégorie</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('common.category')}</label>
               <select value={form.categorie_id} onChange={set('categorie_id')} style={{ ...inputStyle }}>
-                <option value="">— Sans catégorie —</option>
+                <option value="">{t('depenses.none_category')}</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.code ? `[${c.code}] ` : ''}{c.nom}</option>)}
               </select>
             </div>
-            <Input label={t('depenses.field_description')} value={form.description} onChange={set('description')} placeholder="Ex: Loyer Bureau - Janvier" required />
+            <Input label={t('depenses.field_description')} value={form.description} onChange={set('description')} placeholder={t('depenses.placeholder_description')} required />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Fournisseur</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('common.supplier')}</label>
               <div style={{ display: 'flex', gap: 6 }}>
                 <div style={{ position: 'relative', flex: 1 }}>
                   <input value={form.fournisseur}
@@ -315,7 +315,7 @@ export default function DepensesPage() {
                       const f0 = fournisseurs.find(x => x.nom === e.target.value);
                       if (f0) setForm(f => ({ ...f, fournisseur_id: f0.id, fournisseur: f0.nom }));
                     }}
-                    list="fournisseurs-list" placeholder="Orange CI, Landlord, ou taper un nom..."
+                    list="fournisseurs-list" placeholder={t('depenses.placeholder_fournisseur')}
                     style={{
                       width: '100%', background: C.input,
                       border: `1.5px solid ${form.fournisseur_id ? C.accent : C.border}`,
@@ -329,11 +329,11 @@ export default function DepensesPage() {
                       position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
                       fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 10,
                       background: C.accent, color: dark ? '#000' : '#fff',
-                    }}>✓ Fiche</span>
+                    }}>{t('depenses.badge_fiche')}</span>
                   )}
                 </div>
                 <button type="button" onClick={() => { setFournPrefilNom(form.fournisseur); setShowFournForm(true); }}
-                  title="Créer une fiche fournisseur"
+                  title={t('depenses.create_supplier_tooltip')}
                   style={{
                     padding: '0 14px', borderRadius: 9, border: `1.5px solid ${C.accent}50`,
                     background: `${C.accent}15`, color: C.accent, cursor: 'pointer',
@@ -344,53 +344,53 @@ export default function DepensesPage() {
               </div>
               {form.fournisseur && !form.fournisseur_id && fournisseurs.length > 0 && (
                 <div style={{ fontSize: 10, color: C.muted, fontStyle: 'italic' }}>
-                  Tip : crée une fiche fournisseur avec « + » pour suivre les dettes par tiers (compte 4011).
+                  {t('depenses.tip_create_supplier')}
                 </div>
               )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Input label={t('depenses.field_amount_ht')} type="number" value={form.montant_ht} onChange={set('montant_ht')} placeholder="0" required />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>TVA (%)</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('depenses.tva_label')}</label>
                 <select value={form.taux_tva} onChange={set('taux_tva')} style={{ ...inputStyle }}>
-                  <option value={0}>0% (exonéré)</option>
-                  <option value={9}>9%</option>
-                  <option value={18}>18% (standard)</option>
+                  <option value={0}>{t('depenses.tva_exonere')}</option>
+                  <option value={9}>{t('depenses.tva_normal')}</option>
+                  <option value={18}>{t('depenses.tva_standard')}</option>
                 </select>
               </div>
             </div>
             {parseFloat(form.montant_ht) > 0 && (
               <div style={{ background: dark ? '#0D1525' : '#EEF2F7', borderRadius: 8, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', border: `1px solid ${C.border}` }}>
-                <span style={{ fontSize: 12, color: C.muted }}>TVA : {formatFCFA(montantTVA)} FCFA</span>
-                <span style={{ fontSize: 13, fontWeight: 800, color: C.red }}>TTC : {formatFCFA(montantTTC)} FCFA</span>
+                <span style={{ fontSize: 12, color: C.muted }}>{t('depenses.tva_amount_label', { amount: formatFCFA(montantTVA) })}</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: C.red }}>{t('depenses.ttc_amount_label', { amount: formatFCFA(montantTTC) })}</span>
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Input label={t('depenses.field_date')} type="date" value={form.date_depense} onChange={set('date_depense')} required />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Mode paiement</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('common.payment_mode')}</label>
                 <select value={form.mode_paiement}
                   onChange={(e) => setForm(f => ({ ...f, mode_paiement: e.target.value, compte_tresorerie_id: '' }))}
                   style={{ ...inputStyle }}>
-                  {MODES.map(m => <option key={m} value={m}>{m.replace('_', ' ')}</option>)}
+                  {MODES.map(m => <option key={m} value={m}>{t(`fournisseurs.mode_${m}`)}</option>)}
                 </select>
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Statut</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('common.status')}</label>
                 <select value={form.statut} onChange={set('statut')} style={{ ...inputStyle }}>
-                  <option value="payee">Payée</option>
-                  <option value="en_attente">En attente</option>
+                  <option value="payee">{t('depenses.status_paid')}</option>
+                  <option value="en_attente">{t('depenses.status_pending')}</option>
                 </select>
               </div>
-              <Input label={t('common.reference')} value={form.reference} onChange={set('reference')} placeholder="Réf. paiement..." />
+              <Input label={t('common.reference')} value={form.reference} onChange={set('reference')} placeholder={t('depenses.payment_ref_placeholder')} />
             </div>
             {form.statut === 'payee' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Compte de trésorerie</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('common.treasury_account')}</label>
                 <select value={form.compte_tresorerie_id} onChange={set('compte_tresorerie_id')} style={{ ...inputStyle }}>
-                  <option value="">— Compte par défaut —</option>
+                  <option value="">{t('depenses.default_account')}</option>
                   {comptesTresorerie
                     .filter(c => {
                       const typeAttendu = form.mode_paiement === 'cash' ? 'caisse'
@@ -423,7 +423,7 @@ export default function DepensesPage() {
                   <button type="button" onClick={() => setShowModal(false)} style={{
                     flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`,
                     background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                  }}>Annuler</button>
+                  }}>{t('common.cancel')}</button>
                   <button type="submit" disabled={saving || bloque} style={{
                     flex: 2, padding: '11px 0', borderRadius: 10, border: 'none',
                     background: (saving || bloque) ? C.border : C.red, color: (saving || bloque) ? C.muted : '#fff',
@@ -445,7 +445,7 @@ export default function DepensesPage() {
             setShowFournForm(false);
             rechargerFournisseurs();
             setForm(s => ({ ...s, fournisseur: f.nom, fournisseur_id: f.id }));
-            toast.success('Fournisseur créé');
+            toast.success(t('depenses.toast_supplier_created'));
           }}
           C={C} dark={dark} />
       )}
@@ -455,7 +455,7 @@ export default function DepensesPage() {
           onClose={() => setShowImmoModal(null)}
           onDone={(immo) => {
             setShowImmoModal(null);
-            toast.success(`Immobilisation ${immo.numero_inventaire} créée`);
+            toast.success(t('depenses.toast_immo_created', { numero: immo.numero_inventaire }));
             fetchData();
             // Optionnel : naviguer vers l'immo créée
             navigate(`/immobilisations`);
@@ -470,6 +470,7 @@ export default function DepensesPage() {
 
 // ─── Modal : convertir une dépense en immobilisation ────────────────────
 function ConversionImmoModal({ depense, onClose, onDone, C, dark }) {
+  const { t } = useTranslation();
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState({
     categorie_id: '',
@@ -499,13 +500,13 @@ function ConversionImmoModal({ depense, onClose, onDone, C, dark }) {
   };
 
   const handleSubmit = async () => {
-    if (!form.categorie_id) { toast.error('Catégorie requise'); return; }
+    if (!form.categorie_id) { toast.error(t('depenses.err_category_required')); return; }
     setSaving(true);
     try {
       const res = await api.post(`/immobilisations/depuis-depense/${depense.id}`, form);
       onDone(res.data.data);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur');
+      toast.error(err.response?.data?.message || t('depenses.err_generic'));
     } finally { setSaving(false); }
   };
 
@@ -518,50 +519,50 @@ function ConversionImmoModal({ depense, onClose, onDone, C, dark }) {
   const cat = categories.find(c => c.id === form.categorie_id);
 
   return (
-    <Modal title="Convertir en immobilisation" onClose={onClose} width={520}>
+    <Modal title={t('depenses.convert_modal_title')} onClose={onClose} width={520}>
       <div style={{ background: `${C.gold}10`, border: `1px solid ${C.gold}30`, borderRadius: 10,
                      padding: '12px 14px', marginBottom: 16 }}>
-        <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>DÉPENSE D'ORIGINE</div>
+        <div style={{ fontSize: 11, color: C.muted, marginBottom: 4 }}>{t('depenses.origin_expense_label')}</div>
         <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{depense.description}</div>
         <div style={{ fontSize: 12, color: C.sub, marginTop: 3 }}>
           {depense.fournisseur && `${depense.fournisseur} · `}
           <span style={{ fontFamily: 'monospace', fontWeight: 700, color: C.gold }}>
-            {new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(depense.montant_ht) || parseFloat(depense.montant_ttc)))} FCFA
+            {new Intl.NumberFormat('fr-FR').format(Math.round(parseFloat(depense.montant_ht) || parseFloat(depense.montant_ttc)))} {t('common.currency')}
           </span>
-          {' '}sera la valeur d'acquisition
+          {' '}{t('depenses.origin_acquisition_value')}
         </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <Input label="Libellé de l'immobilisation" value={form.libelle} onChange={set('libelle')} />
+        <Input label={t('depenses.field_immo_label')} value={form.libelle} onChange={set('libelle')} />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Catégorie *</label>
+          <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('depenses.field_immo_category')}</label>
           <select value={form.categorie_id} onChange={e => handleCategorie(e.target.value)} style={selectStyle} required>
-            <option value="">— Sélectionner —</option>
+            <option value="">{t('depenses.select_placeholder')}</option>
             {categories.map(c => (
               <option key={c.id} value={c.id}>
-                {c.libelle} ({c.duree_annees > 0 ? `${c.duree_annees} ans` : 'non amortissable'}) · {c.compte_actif}
+                {c.libelle} ({c.duree_annees > 0 ? `${c.duree_annees} ${t('depenses.years_unit')}` : t('depenses.not_amortizable')}) · {c.compte_actif}
               </option>
             ))}
           </select>
           {cat && (
             <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
-              Compte d'actif : <strong style={{ color: C.text, fontFamily: 'monospace' }}>{cat.compte_actif}</strong>
+              {t('depenses.field_immo_compte_actif')} <strong style={{ color: C.text, fontFamily: 'monospace' }}>{cat.compte_actif}</strong>
             </div>
           )}
         </div>
 
-        <Input label="Date d'acquisition" type="date" value={form.date_acquisition} onChange={set('date_acquisition')} />
+        <Input label={t('depenses.field_immo_date_acq')} type="date" value={form.date_acquisition} onChange={set('date_acquisition')} />
 
         {cat?.amortissable !== false && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <Input label="Durée (années)" type="number" value={form.duree_annees} onChange={set('duree_annees')} />
+            <Input label={t('depenses.field_immo_duration')} type="number" value={form.duree_annees} onChange={set('duree_annees')} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Méthode</label>
+              <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('depenses.field_immo_method')}</label>
               <select value={form.methode} onChange={set('methode')} style={selectStyle}>
-                <option value="lineaire">Linéaire</option>
-                <option value="degressif">Dégressif</option>
+                <option value="lineaire">{t('depenses.method_linear')}</option>
+                <option value="degressif">{t('depenses.method_degressive')}</option>
               </select>
             </div>
           </div>
@@ -571,19 +572,19 @@ function ConversionImmoModal({ depense, onClose, onDone, C, dark }) {
           fontSize: 11, color: C.muted, lineHeight: 1.55, padding: '10px 12px',
           background: dark ? '#0D1220' : C.cardAlt, borderRadius: 8,
         }}>
-          La dépense restera en l'état mais sera marquée comme convertie. L'immobilisation héritera du montant HT, du fournisseur et de la référence. Les dotations annuelles devront être générées depuis la page Immobilisations.
+          {t('depenses.convert_info')}
         </div>
 
         <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
           <button onClick={onClose} style={{
             flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`,
             background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          }}>Annuler</button>
+          }}>{t('common.cancel')}</button>
           <button onClick={handleSubmit} disabled={saving} style={{
             flex: 2, padding: '11px 0', borderRadius: 10, border: 'none',
             background: saving ? C.border : C.gold, color: saving ? C.muted : '#000',
             fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer',
-          }}>{saving ? '...' : 'Convertir'}</button>
+          }}>{saving ? '...' : t('depenses.btn_convert')}</button>
         </div>
       </div>
     </Modal>

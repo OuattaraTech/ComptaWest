@@ -336,11 +336,11 @@ export function FournisseurFormModal({ fournisseur, onClose, onSaved, C, dark, i
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('fournisseurs.default_mode')}</label>
               <select value={form.mode_paiement_defaut} onChange={set('mode_paiement_defaut')} style={selectStyle}>
-                <option value="virement">Virement</option>
-                <option value="mobile_money">Mobile Money</option>
-                <option value="cheque">Chèque</option>
-                <option value="cash">Cash</option>
-                <option value="carte">Card</option>
+                <option value="virement">{t('fournisseurs.mode_virement')}</option>
+                <option value="mobile_money">{t('fournisseurs.mode_mobile_money')}</option>
+                <option value="cheque">{t('fournisseurs.mode_cheque')}</option>
+                <option value="cash">{t('fournisseurs.mode_cash')}</option>
+                <option value="carte">{t('fournisseurs.mode_carte')}</option>
               </select>
             </div>
           </div>
@@ -653,10 +653,10 @@ function PaiementModal({ fournisseur, depense, onClose, onSaved, C, dark }) {
             <select value={form.mode_paiement}
               onChange={e => setForm(f => ({ ...f, mode_paiement: e.target.value, compte_tresorerie_id: '' }))}
               style={selectStyle}>
-              <option value="virement">Virement</option>
-              <option value="mobile_money">Mobile Money</option>
-              <option value="cheque">Chèque</option>
-              <option value="cash">Cash</option>
+              <option value="virement">{t('fournisseurs.mode_virement')}</option>
+              <option value="mobile_money">{t('fournisseurs.mode_mobile_money')}</option>
+              <option value="cheque">{t('fournisseurs.mode_cheque')}</option>
+              <option value="cash">{t('fournisseurs.mode_cash')}</option>
             </select>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -937,7 +937,7 @@ function CommandeFormModal({ onClose, onSaved, C, dark }) {
                 placeholder="1" min="0.001" step="any"
                 style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: '9px 8px', color: C.text, fontSize: 12, outline: 'none', textAlign: 'center' }} />
               <input value={l.unite} onChange={e => setLigne(idx, 'unite', e.target.value)}
-                placeholder="unité"
+                placeholder={t('fournisseurs.unit_placeholder')}
                 style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: '9px 8px', color: C.text, fontSize: 12, outline: 'none' }} />
               <input type="number" value={l.prix_unitaire} onChange={e => setLigne(idx, 'prix_unitaire', e.target.value)}
                 placeholder="0" required min="0"

@@ -277,7 +277,9 @@ function EmployeFormModal({ employe, onClose, onSaved, C, dark }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{t('rh.field_civilite')}</label>
                 <select value={form.civilite} onChange={set('civilite')} style={selectStyle}>
-                  <option>M.</option><option>Mme</option><option>Mlle</option>
+                  <option value="M.">{t('rh.civilite_m')}</option>
+                  <option value="Mme">{t('rh.civilite_mme')}</option>
+                  <option value="Mlle">{t('rh.civilite_mlle')}</option>
                 </select>
               </div>
               <Input label={t('rh.field_nom')} value={form.nom} onChange={set('nom')} placeholder="Kouassi" required />
@@ -331,9 +333,9 @@ function EmployeFormModal({ employe, onClose, onSaved, C, dark }) {
                 <select value={form.type_contrat} onChange={set('type_contrat')} style={selectStyle}>
                   <option value="CDI">CDI</option>
                   <option value="CDD">CDD</option>
-                  <option value="stage">Stage</option>
-                  <option value="prestation">Prestation</option>
-                  <option value="apprentissage">Apprentissage</option>
+                  <option value="stage">{t('rh.contrat_stage')}</option>
+                  <option value="prestation">{t('rh.contrat_prestation')}</option>
+                  <option value="apprentissage">{t('rh.contrat_apprentissage')}</option>
                 </select>
               </div>
             </div>

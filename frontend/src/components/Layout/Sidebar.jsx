@@ -176,12 +176,12 @@ export default function Sidebar() {
               ) : (
                 <form onSubmit={handleCreateEntreprise} style={{ padding: '10px 12px', borderTop: `1px solid ${C.border}` }}>
                   <input value={newEntNom} onChange={e => setNewEntNom(e.target.value)}
-                    placeholder="Nom de l'entreprise" autoFocus
+                    placeholder={t('login.company_name')} autoFocus
                     style={{ width: '100%', background: C.inputBg, border: `1px solid ${C.border}`, borderRadius: 7, padding: '7px 10px', color: C.text, fontSize: 12, outline: 'none', marginBottom: 7, fontFamily: 'inherit' }} />
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button type="button" onClick={() => setShowNewEnt(false)} style={{ flex: 1, padding: '6px 0', borderRadius: 7, border: `1px solid ${C.border}`, background: 'none', color: C.muted, fontSize: 11, cursor: 'pointer' }}>Annuler</button>
+                    <button type="button" onClick={() => setShowNewEnt(false)} style={{ flex: 1, padding: '6px 0', borderRadius: 7, border: `1px solid ${C.border}`, background: 'none', color: C.muted, fontSize: 11, cursor: 'pointer' }}>{t('common.cancel')}</button>
                     <button type="submit" disabled={creating} style={{ flex: 2, padding: '6px 0', borderRadius: 7, border: 'none', background: C.accent, color: '#000', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                      {creating ? '...' : 'Créer'}
+                      {creating ? '...' : t('common.create')}
                     </button>
                   </div>
                 </form>

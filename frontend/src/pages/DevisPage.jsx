@@ -353,27 +353,26 @@ export default function DevisPage() {
               ))}
             </div>
 
-            <div style={{ background: `${C.blue}12`, border: `1px solid ${C.blue}40`, borderRadius: 9, padding: '9px 13px', fontSize: 11, color: C.blue }}>
-              <strong>Cycle de vie :</strong> un devis créé est « en attente ». Une fois accepté par le client, convertissez-le en facture en un clic — les lignes et montants sont repris automatiquement.
-            </div>
+            <div style={{ background: `${C.blue}12`, border: `1px solid ${C.blue}40`, borderRadius: 9, padding: '9px 13px', fontSize: 11, color: C.blue }}
+              dangerouslySetInnerHTML={{ __html: t('devis.lifecycle_html') }} />
 
             {/* Client + dates */}
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Client <span style={{ color: C.accent }}>*</span></label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('common.client')} <span style={{ color: C.accent }}>*</span></label>
                 <select value={form.client_id} onChange={set('client_id')} required
                   style={{ background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 9, padding: '10px 12px', color: form.client_id ? C.text : C.muted, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
-                  <option value="">— Sélectionner —</option>
+                  <option value="">{t('devis.select_placeholder')}</option>
                   {clients.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
                 </select>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Date émission <span style={{ color: C.accent }}>*</span></label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('common.emission_date')} <span style={{ color: C.accent }}>*</span></label>
                 <input type="date" value={form.date_emission} onChange={set('date_emission')} required
                   style={{ background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 9, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Valide jusqu'au</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('devis.field_valid_until')}</label>
                 <input type="date" value={form.date_echeance} onChange={set('date_echeance')}
                   style={{ background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 9, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
               </div>
@@ -382,7 +381,7 @@ export default function DevisPage() {
             {/* Lignes */}
             <div>
               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 0.8fr) 32px', gap: 8, marginBottom: 6 }}>
-                {['Description', 'Qté', 'Unité', 'Prix U. HT', 'Remise%', ''].map((h, i) => (
+                {[t('devis.th_description'), t('devis.th_qte'), t('devis.th_unit'), t('devis.th_unit_price'), t('devis.th_discount'), ''].map((h, i) => (
                   <div key={i} style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</div>
                 ))}
               </div>
@@ -391,7 +390,7 @@ export default function DevisPage() {
                   <div style={{ position: 'relative' }}>
                     <input value={l.description}
                       onChange={e => { updateLigne(idx, 'description', e.target.value); if (l.produit_id) reinitProduit(idx); }}
-                      list={`produits-devis-${idx}`} placeholder="Prestation proposée..." required
+                      list={`produits-devis-${idx}`} placeholder={t('devis.line_placeholder')} required
                       style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', background: C.input,
                         border: `1.5px solid ${l.produit_id ? C.accent : C.border}`, borderRadius: 8, padding: '9px 11px', color: C.text, fontSize: 12, outline: 'none', fontFamily: 'inherit' }}
                       onBlur={e => {
@@ -408,14 +407,14 @@ export default function DevisPage() {
                       ))}
                     </datalist>
                     {l.produit_id && (
-                      <span title="Lié au catalogue" style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 10, background: C.accent, color: dark ? '#000' : '#fff' }}>P</span>
+                      <span title={t('devis.line_product_linked')} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 10, background: C.accent, color: dark ? '#000' : '#fff' }}>P</span>
                     )}
                   </div>
                   <input type="number" value={l.quantite} onChange={e => updateLigne(idx, 'quantite', e.target.value)}
                     placeholder="1" min="0.001" step="any"
                     style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: '9px 8px', color: C.text, fontSize: 12, outline: 'none', fontFamily: 'inherit', textAlign: 'center' }} />
                   <input value={l.unite} onChange={e => updateLigne(idx, 'unite', e.target.value)}
-                    placeholder="unité"
+                    placeholder={t('devis.line_unit_placeholder')}
                     style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 8, padding: '9px 8px', color: C.text, fontSize: 12, outline: 'none', fontFamily: 'inherit' }} />
                   <input type="number" value={l.prix_unitaire} onChange={e => updateLigne(idx, 'prix_unitaire', e.target.value)}
                     placeholder="0" required min="0"
@@ -432,31 +431,31 @@ export default function DevisPage() {
               <button type="button" onClick={addLigne} style={{
                 marginTop: 4, padding: '9px 0', background: 'none', border: `1.5px dashed ${C.accent}50`,
                 borderRadius: 9, color: C.accent, fontSize: 12, fontWeight: 600, cursor: 'pointer', width: '100%',
-              }}>+ Ajouter une ligne</button>
+              }}>+ {t('devis.add_line')}</button>
             </div>
 
             {/* Totaux */}
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <div style={{ width: 280, background: dark ? '#0D1525' : C.cardAlt, borderRadius: 12, padding: '14px 18px', border: `1px solid ${C.border}` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.sub, marginBottom: 8 }}>
-                  <span>Sous-total HT</span>
-                  <span style={{ fontFamily: 'monospace', color: C.text }}>{formatFCFA(sousTotal)} FCFA</span>
+                  <span>{t('devis.totals_subtotal')}</span>
+                  <span style={{ fontFamily: 'monospace', color: C.text }}>{formatFCFA(sousTotal)} {t('common.currency')}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, marginBottom: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ color: C.sub }}>TVA</span>
+                    <span style={{ color: C.sub }}>{t('common.tva')}</span>
                     <select value={form.taux_tva} onChange={set('taux_tva')}
                       style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 6, padding: '3px 8px', color: C.text, fontSize: 11, outline: 'none' }}>
-                      <option value={0}>0% (Exonéré)</option>
-                      <option value={9}>9% (réduit)</option>
-                      <option value={18}>18% (normal)</option>
+                      <option value={0}>{t('devis.tva_exonere')}</option>
+                      <option value={9}>{t('devis.tva_reduit')}</option>
+                      <option value={18}>{t('devis.tva_normal')}</option>
                     </select>
                   </div>
-                  <span style={{ fontFamily: 'monospace', color: C.sub }}>{formatFCFA(tva)} FCFA</span>
+                  <span style={{ fontFamily: 'monospace', color: C.sub }}>{formatFCFA(tva)} {t('common.currency')}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 800, borderTop: `1px solid ${C.border}`, paddingTop: 10, color: form.type === 'devis' ? C.blue : C.gold }}>
-                  <span>TOTAL TTC</span>
-                  <span style={{ fontFamily: 'monospace' }}>{formatFCFA(ttc)} FCFA</span>
+                  <span>{t('devis.totals_ttc')}</span>
+                  <span style={{ fontFamily: 'monospace' }}>{formatFCFA(ttc)} {t('common.currency')}</span>
                 </div>
               </div>
             </div>
@@ -464,21 +463,21 @@ export default function DevisPage() {
             {/* Conditions + notes */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Validité</label>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('devis.field_validity_label')}</label>
                 <select value={form.conditions_paiement} onChange={set('conditions_paiement')}
                   style={{ background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 9, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
-                  <option>Devis valable 30 jours</option>
-                  <option>Devis valable 60 jours</option>
-                  <option>Devis valable 90 jours</option>
+                  <option>{t('devis.validity_30')}</option>
+                  <option>{t('devis.validity_60')}</option>
+                  <option>{t('devis.validity_90')}</option>
                 </select>
               </div>
-              <Input label="Notes" value={form.notes} onChange={set('notes')} placeholder="Précisions techniques..." />
+              <Input label={t('devis.notes_label')} value={form.notes} onChange={set('notes')} placeholder={t('devis.notes_placeholder')} />
             </div>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
               <button type="button" onClick={() => { setShowModal(false); setForm({ ...emptyForm }); }}
                 style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`, background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                Annuler
+                {t('common.cancel')}
               </button>
               <button type="submit" disabled={saving} style={{
                 flex: 2, padding: '11px 0', borderRadius: 10, border: 'none', fontSize: 13, fontWeight: 700,
@@ -486,7 +485,7 @@ export default function DevisPage() {
                 background: saving ? C.border : (form.type === 'devis' ? C.blue : C.gold),
                 color: saving ? C.muted : '#000',
               }}>
-                {saving ? 'Création...' : form.type === 'devis' ? 'Créer le Devis' : 'Créer la Proforma'}
+                {saving ? t('devis.creating') : form.type === 'devis' ? t('devis.create_devis') : t('devis.create_proforma')}
               </button>
             </div>
           </form>
@@ -496,32 +495,29 @@ export default function DevisPage() {
       {/* Modal conversion en facture */}
       {showConvert && (
         <Modal title={`${t('devis.convert_button')} — ${showConvert.numero}`} onClose={() => setShowConvert(null)} width={440}>
-          <div style={{ background: `${C.blue}12`, border: `1px solid ${C.blue}40`, borderRadius: 10, padding: '12px 14px', marginBottom: 18, fontSize: 12, color: C.sub, lineHeight: 1.5 }}>
-            Une nouvelle facture sera créée pour <strong style={{ color: C.text }}>{showConvert.client_nom}</strong> en
-            reprenant les {' '}<strong style={{ color: C.text }}>{formatFCFA(showConvert.total_ttc)} FCFA TTC</strong> du devis.
-            Le devis passera au statut « Converti ».
-          </div>
+          <div style={{ background: `${C.blue}12`, border: `1px solid ${C.blue}40`, borderRadius: 10, padding: '12px 14px', marginBottom: 18, fontSize: 12, color: C.sub, lineHeight: 1.5 }}
+            dangerouslySetInnerHTML={{ __html: t('devis.convert_intro_html', { client: showConvert.client_nom, amount: formatFCFA(showConvert.total_ttc) }) }} />
           <form onSubmit={(e) => { e.preventDefault(); handleConvert(); }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <Input label="Date d'échéance de la facture" type="date" value={convertForm.date_echeance}
+            <Input label={t('devis.convert_invoice_due_date')} type="date" value={convertForm.date_echeance}
               onChange={e => setConvertForm(c => ({ ...c, date_echeance: e.target.value }))} />
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '11px 13px', borderRadius: 10, border: `1.5px solid ${convertForm.valider_immediatement ? C.accent : C.border}`, background: convertForm.valider_immediatement ? `${C.accent}10` : 'transparent' }}>
               <input type="checkbox" checked={convertForm.valider_immediatement}
                 onChange={e => setConvertForm(c => ({ ...c, valider_immediatement: e.target.checked }))}
                 style={{ width: 16, height: 16, accentColor: C.accent }} />
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: C.text }}>Valider immédiatement la facture</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.text }}>{t('devis.convert_validate_now')}</div>
                 <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
-                  Génère l'écriture comptable et les sorties de stock. Sinon, la facture reste en brouillon.
+                  {t('devis.convert_validate_now_hint')}
                 </div>
               </div>
             </label>
             <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
               <button type="button" onClick={() => setShowConvert(null)}
                 style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: `1px solid ${C.border}`, background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                Annuler
+                {t('common.cancel')}
               </button>
               <button type="submit" disabled={saving} style={{ flex: 2, padding: '11px 0', borderRadius: 10, border: 'none', background: saving ? C.border : C.blue, color: saving ? C.muted : '#000', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
-                {saving ? 'Conversion...' : 'Convertir en facture'}
+                {saving ? t('devis.converting_progress') : t('devis.convert_to_invoice')}
               </button>
             </div>
           </form>
