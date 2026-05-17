@@ -390,7 +390,9 @@
     "lien_wave_intro": "Share this link with your customer. They can pay in seconds from their Wave app, and ComptaWest will automatically settle the invoice.",
     "lien_wave_url_label": "Payment link",
     "lien_wave_whatsapp_text": "Hello, here is the link to pay invoice {{numero}}: {{url}}",
-    "lien_wave_expire": "Link valid until {{date}}"
+    "lien_wave_expire": "Link valid until {{date}}",
+    "btn_simulate_payment": "Simulate a payment (demo)",
+    "lien_wave_simulated": "Payment of {{amount}} {{currency}} simulated successfully"
   },
   "devis": {
     "title": "Quotes & Proformas",

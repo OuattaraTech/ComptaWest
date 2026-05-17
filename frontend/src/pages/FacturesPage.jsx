@@ -248,6 +248,25 @@ export default function FacturesPage() {
       .catch(() => toast.error(t('parametres.copy_failed')));
   };
 
+  // Mode démo : déclenche le webhook côté backend pour simuler que le
+  // client a effectivement payé. Permet d'illustrer le flux complet en
+  // démo commerciale sans avoir un vrai compte marchand Wave.
+  const simulerPaiementWave = async () => {
+    if (!showLienWave?.facture) return;
+    try {
+      const res = await api.post(`/factures/${showLienWave.facture.id}/lien-paiement-wave/simuler-paiement`);
+      const d = res.data.data;
+      toast.success(t('factures.lien_wave_simulated', {
+        amount: formatFCFA(d.montant),
+        currency: t('common.currency'),
+      }));
+      setShowLienWave(null);
+      fetchFactures();
+    } catch (err) {
+      if (!err.handled) toast.error(err.response?.data?.message || t('factures.error_lien_wave'));
+    }
+  };
+
   const downloadPDF = async (id, numero) => {
     const toastId = toast.loading(t('rapports.export_loading'));
     try {
@@ -807,6 +826,21 @@ export default function FacturesPage() {
                 background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
               }}>{t('common.close')}</button>
             </div>
+
+            {/* Mode démo : bouton pour simuler que le client a payé. Permet
+                de montrer le flux complet (facture -> payée -> mouvement
+                de trésorerie) en présentation commerciale sans Wave. */}
+            {showLienWave.mode === 'mock' && (
+              <Can module="tresorerie" action="update">
+                <button onClick={simulerPaiementWave} style={{
+                  padding: '10px 16px', borderRadius: 10, border: `1.5px dashed ${C.gold}80`,
+                  background: `${C.gold}12`, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}>
+                  ⚡ {t('factures.btn_simulate_payment')}
+                </button>
+              </Can>
+            )}
 
             <div style={{ fontSize: 10, color: C.muted, fontStyle: 'italic' }}>
               {t('factures.lien_wave_expire', { date: new Date(showLienWave.expire_at).toLocaleString() })}

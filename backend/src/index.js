@@ -47,7 +47,12 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 // ── Parsing ───────────────────────────────────────────────────────────────
-app.use(express.json({ limit: '10mb' }));
+// On expose req.rawBody pour les webhooks signés (Wave HMAC-SHA256). Sans
+// le corps brut on ne peut pas recalculer la signature côté serveur.
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, _res, buf) => { req.rawBody = buf; },
+}));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ── Routes ────────────────────────────────────────────────────────────────

@@ -390,7 +390,9 @@
     "lien_wave_intro": "Transmettez ce lien à votre client. Il pourra payer en quelques secondes depuis son application Wave, puis ComptaWest encaissera automatiquement la facture.",
     "lien_wave_url_label": "Lien de paiement",
     "lien_wave_whatsapp_text": "Bonjour, voici le lien pour régler la facture {{numero}} : {{url}}",
-    "lien_wave_expire": "Lien valable jusqu'au {{date}}"
+    "lien_wave_expire": "Lien valable jusqu'au {{date}}",
+    "btn_simulate_payment": "Simuler un paiement (démo)",
+    "lien_wave_simulated": "Paiement {{amount}} {{currency}} simulé avec succès"
   },
   "devis": {
     "title": "Devis & Proformas",
