@@ -137,6 +137,7 @@ export default function DashboardRH() {
           sub={t('dashboard_rh.kpi_effectif_sub')}
           icon={Users}
           color={C.blue}
+          currency={false}
         />
         <KpiCard
           label={t('dashboard_rh.kpi_masse_salariale')}

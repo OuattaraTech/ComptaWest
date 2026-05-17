@@ -217,9 +217,9 @@ export default function DevisPage() {
       {/* Stats */}
       {stats && (
         <div data-onboarding="devis-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
-          <KpiCard label={t('statut.en_attente')} value={stats.en_attente} sub={`${formatFCFA(stats.montant_pipeline)} ${t('common.currency')}`} icon={Clock} color={C.gold} />
-          <KpiCard label={t('statut.accepte')} value={stats.accepte} sub={t('devis.convert_button')} icon={Check} color={C.accent} />
-          <KpiCard label={t('statut.converti')} value={stats.converti} sub={`${formatFCFA(stats.montant_converti)} ${t('common.currency')}`} icon={ArrowRightCircle} color={C.blue} />
+          <KpiCard label={t('statut.en_attente')} value={stats.en_attente} sub={`${formatFCFA(stats.montant_pipeline)} ${t('common.currency')}`} icon={Clock} color={C.gold} currency={false} />
+          <KpiCard label={t('statut.accepte')} value={stats.accepte} sub={t('devis.convert_button')} icon={Check} color={C.accent} currency={false} />
+          <KpiCard label={t('statut.converti')} value={stats.converti} sub={`${formatFCFA(stats.montant_converti)} ${t('common.currency')}`} icon={ArrowRightCircle} color={C.blue} currency={false} />
           <KpiCard label="%" value={`${stats.taux_conversion} %`} sub={t('common.total')} icon={Percent} color={C.purple} />
         </div>
       )}

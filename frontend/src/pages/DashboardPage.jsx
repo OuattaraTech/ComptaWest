@@ -151,7 +151,7 @@ export default function DashboardPage() {
         <KpiCard label={t('dashboard.kpi_expenses')}       value={kpis.total_depenses}    sub={t('dashboard.kpi_expenses_sub')}                          icon={TrendingDown} color={C.red} />
         <KpiCard label={t('dashboard.kpi_taxes_due')}      value={kpis.total_taxes_dues}  sub={t('dashboard.kpi_taxes_due_sub')}                         icon={Calculator}   color={C.purple} alert={kpis.total_taxes_dues > 0} />
         <KpiCard label={t('dashboard.kpi_profit')}         value={kpis.benefice_net}      sub={t('dashboard.kpi_profit_sub', { count: kpis.nb_factures })} icon={DollarSign}  color={C.gold} />
-        <KpiCard label={t('dashboard.kpi_clients_count')}  value={kpis.nb_clients}        sub={t('dashboard.kpi_clients_sub')}                           icon={Users}        color={C.blue} />
+        <KpiCard label={t('dashboard.kpi_clients_count')}  value={kpis.nb_clients}        sub={t('dashboard.kpi_clients_sub')}                           icon={Users}        color={C.blue} currency={false} />
       </div>
 
       {/* Graphiques */}

@@ -145,9 +145,13 @@ export const Modal = ({ title, onClose, children, width = 540 }) => {
 };
 
 // ─── KpiCard ──────────────────────────────────────────────────────────────
-export const KpiCard = ({ label, value, sub, icon: Icon, color, alert }) => {
+// `currency` (par défaut true) ajoute le suffixe FCFA après le nombre.
+// Mettre à false pour les compteurs (nb clients, nb factures, etc.).
+export const KpiCard = ({ label, value, sub, icon: Icon, color, alert, currency = true }) => {
+  const { t, i18n } = useTranslation();
   const { dark } = useTheme();
   const C = getC(dark);
+  const numberLocale = i18n.language?.startsWith('en') ? 'en-US' : 'fr-FR';
   return (
     <div style={{
       background: C.card,
@@ -170,8 +174,10 @@ export const KpiCard = ({ label, value, sub, icon: Icon, color, alert }) => {
         </div>
       </div>
       <div style={{ fontSize: 22, fontWeight: 800, color: C.text, fontFamily: 'monospace', letterSpacing: '-0.02em', marginBottom: 6 }}>
-        {typeof value === 'number' ? new Intl.NumberFormat('fr-FR').format(Math.round(value)) : value}
-        {typeof value === 'number' && <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginLeft: 5 }}>FCFA</span>}
+        {typeof value === 'number' ? new Intl.NumberFormat(numberLocale).format(Math.round(value)) : value}
+        {typeof value === 'number' && currency && (
+          <span style={{ fontSize: 11, color: C.muted, fontWeight: 400, marginLeft: 5 }}>{t('common.currency')}</span>
+        )}
       </div>
       <div style={{ fontSize: 12, color: alert ? color : C.muted, fontWeight: alert ? 600 : 400 }}>{sub}</div>
     </div>
