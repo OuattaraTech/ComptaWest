@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useEntreprise } from '../hooks/useEntreprise.jsx';
+import { usePermissions } from '../hooks/usePermissions.jsx';
 import api from '../utils/api.jsx';
 import { formatDate, initiales } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
@@ -87,7 +88,21 @@ export default function ParametresPage() {
   const { dark } = useTheme();
   const C = getC(dark);
   const { actuelle, chargerEntreprises } = useEntreprise();
+  const { can } = usePermissions();
+  // Verrous UI calculés depuis la matrice de permissions du backend.
+  // Le backend re-vérifie systématiquement de toute façon, l'UI sert
+  // uniquement à éviter d'afficher des actions qui finiraient en 403.
+  const canEditEntreprise = can('entreprise', 'update');
+  const canReadMembres    = can('users', 'read');
+  const canInviteMembre   = can('users', 'create');
+  const canChangeRole     = can('users', 'update');
+  const canRemoveMembre   = can('users', 'delete');
   const [tab, setTab] = useState('entreprise');
+  // Si l'utilisateur arrive sur un onglet auquel il n'a pas droit, on le
+  // bascule vers Entreprise (lecture seule pour tous).
+  useEffect(() => {
+    if (tab === 'membres' && !canReadMembres) setTab('entreprise');
+  }, [tab, canReadMembres]);
   const [membres, setMembres] = useState([]);
   const [form, setForm] = useState({});
   const [inviteForm, setInviteForm] = useState({ email: '', role: 'user', nom: '' });
@@ -193,13 +208,13 @@ export default function ParametresPage() {
         <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{actuelle.nom}</p>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs : on n'expose Membres qu'aux rôles autorisés à users.read */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 28 }}>
         {[
-          { id: 'entreprise',  icon: Building2, label: t('parametres.company') },
-          { id: 'membres',     icon: Users,     label: `${t('parametres.members')} (${membres.length})` },
-          { id: 'preferences', icon: Globe,     label: t('parametres.preferences') },
-        ].map(({ id, icon: Icon, label }) => (
+          { id: 'entreprise',  icon: Building2, label: t('parametres.company'),     visible: true },
+          { id: 'membres',     icon: Users,     label: `${t('parametres.members')} (${membres.length})`, visible: canReadMembres },
+          { id: 'preferences', icon: Globe,     label: t('parametres.preferences'), visible: true },
+        ].filter(item => item.visible).map(({ id, icon: Icon, label }) => (
           <button key={id} onClick={() => setTab(id)} style={{
             display: 'flex', alignItems: 'center', gap: 7,
             padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
@@ -213,6 +228,17 @@ export default function ParametresPage() {
       {/* Tab Entreprise */}
       {tab === 'entreprise' && (
         <form data-onboarding="form-entreprise" onSubmit={handleSaveEntreprise} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {!canEditEntreprise && (
+            <div style={{
+              background: `${C.gold}12`, border: `1px solid ${C.gold}40`, borderRadius: 12,
+              padding: '12px 16px', fontSize: 12, color: C.sub, lineHeight: 1.55,
+            }}>
+              {t('parametres.read_only_notice')}
+            </div>
+          )}
+          {/* fieldset disabled neutralise toutes les saisies enfant en HTML pur ;
+              le backend re-vérifie via requirePermission('entreprise','update'). */}
+          <fieldset disabled={!canEditEntreprise} style={{ border: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 20, opacity: canEditEntreprise ? 1 : 0.85 }}>
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28 }}>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 20 }}>{t('parametres.company_info')}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 16 }}>
@@ -272,13 +298,16 @@ export default function ParametresPage() {
             </div>
           </div>
 
-          <button type="submit" disabled={saving} style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            padding: '12px 32px', borderRadius: 12, border: 'none',
-            background: C.accent, color: '#000', fontSize: 14, fontWeight: 700, cursor: 'pointer', width: 'fit-content',
-          }}>
-            <Save size={16} /> {saving ? t('parametres.saving') : t('parametres.save_changes')}
-          </button>
+          {canEditEntreprise && (
+            <button type="submit" disabled={saving} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              padding: '12px 32px', borderRadius: 12, border: 'none',
+              background: C.accent, color: '#000', fontSize: 14, fontWeight: 700, cursor: 'pointer', width: 'fit-content',
+            }}>
+              <Save size={16} /> {saving ? t('parametres.saving') : t('parametres.save_changes')}
+            </button>
+          )}
+          </fieldset>
         </form>
       )}
 
@@ -305,16 +334,18 @@ export default function ParametresPage() {
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: `1px solid ${C.border}` }}>
               <div style={{ fontSize: 14, fontWeight: 700 }}>{t('parametres.team_members', { count: membres.length })}</div>
-              <button onClick={() => setShowInvite(s => !s)} style={{
-                display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 9,
-                border: 'none', background: C.accent, color: '#000', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              }}>
-                <Plus size={14} /> {t('parametres.invite_member')}
-              </button>
+              {canInviteMembre && (
+                <button onClick={() => setShowInvite(s => !s)} style={{
+                  display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 9,
+                  border: 'none', background: C.accent, color: '#000', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                }}>
+                  <Plus size={14} /> {t('parametres.invite_member')}
+                </button>
+              )}
             </div>
 
             {/* Formulaire invitation */}
-            {showInvite && (
+            {showInvite && canInviteMembre && (
               <div style={{ padding: '20px 24px', background: dark ? '#0D1220' : C.cardAlt, borderBottom: `1px solid ${C.border}` }}>
                 <form onSubmit={handleInviter} style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                   <div style={{ flex: '1 0 200px' }}>
@@ -403,18 +434,27 @@ export default function ParametresPage() {
                   </div>
                   <div style={{ fontSize: 11, color: C.muted }}>{t('parametres.member_since', { date: formatDate(m.created_at) })}</div>
                   {/* Le rôle de tout membre est modifiable (y compris propriétaire) ;
-                      le backend empêche de retirer/rétrograder le dernier propriétaire. */}
-                  <select value={m.role} onChange={e => handleChangeRole(m.id, e.target.value)}
-                    style={{ background: `${roleInfo.color}20`, border: `1px solid ${roleInfo.color}50`, borderRadius: 8, padding: '6px 10px', color: roleInfo.color, fontSize: 12, fontWeight: 700, outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                    {Object.entries(ROLES).map(([k, v]) => (
-                      <option key={k} value={k} style={{ background: C.card, color: C.text }}>{t(v.labelKey)}</option>
-                    ))}
-                  </select>
-                  <button onClick={() => handleRetirerMembre(m.id)}
-                    title={t('parametres.member_remove_tooltip')}
-                    style={{ padding: '6px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.muted }}>
-                    <X size={13} />
-                  </button>
+                      le backend empêche de retirer/rétrograder le dernier propriétaire.
+                      Les rôles sans users.update n'ont qu'un badge lecture seule. */}
+                  {canChangeRole ? (
+                    <select value={m.role} onChange={e => handleChangeRole(m.id, e.target.value)}
+                      style={{ background: `${roleInfo.color}20`, border: `1px solid ${roleInfo.color}50`, borderRadius: 8, padding: '6px 10px', color: roleInfo.color, fontSize: 12, fontWeight: 700, outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                      {Object.entries(ROLES).map(([k, v]) => (
+                        <option key={k} value={k} style={{ background: C.card, color: C.text }}>{t(v.labelKey)}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span style={{ background: `${roleInfo.color}20`, border: `1px solid ${roleInfo.color}50`, borderRadius: 8, padding: '6px 10px', color: roleInfo.color, fontSize: 12, fontWeight: 700 }}>
+                      {t(roleInfo.labelKey)}
+                    </span>
+                  )}
+                  {canRemoveMembre && (
+                    <button onClick={() => handleRetirerMembre(m.id)}
+                      title={t('parametres.member_remove_tooltip')}
+                      style={{ padding: '6px', background: 'none', border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.muted }}>
+                      <X size={13} />
+                    </button>
+                  )}
                 </div>
               );
             })}

@@ -1282,6 +1282,7 @@
     "field_email_invite": "Invitee's email",
     "field_role": "Role",
     "no_company": "No company selected",
+    "read_only_notice": "You are viewing this information in read-only mode. Only the owner and administrator can change the company settings.",
     "toast_saved": "Settings saved",
     "toast_save_err": "Save error",
     "err_load_members": "Failed to load members",

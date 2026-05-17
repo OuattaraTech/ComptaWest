@@ -1282,6 +1282,7 @@
     "field_email_invite": "Email de l'invité",
     "field_role": "Rôle",
     "no_company": "Aucune entreprise sélectionnée",
+    "read_only_notice": "Vous consultez ces informations en lecture seule. Seuls le propriétaire et l'administrateur peuvent modifier les paramètres de l'entreprise.",
     "toast_saved": "Paramètres sauvegardés",
     "toast_save_err": "Erreur sauvegarde",
     "err_load_members": "Erreur chargement membres",
