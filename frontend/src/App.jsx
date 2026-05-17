@@ -5,6 +5,7 @@ import { EntrepriseProvider } from './hooks/useEntreprise.jsx';
 import { PermissionsProvider } from './hooks/usePermissions.jsx';
 import { ThemeProvider, useTheme } from './hooks/useTheme.jsx';
 import { usePermissions } from './hooks/usePermissions.jsx';
+import PermissionGate from './components/PermissionGate.jsx';
 import Layout from './components/Layout/Layout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import InvitationPage from './pages/InvitationPage.jsx';
@@ -74,21 +75,24 @@ function AppRoutes() {
       <Route path="/invitation/:token" element={<InvitationPage />} />
       <Route path="/" element={<Protected><Layout /></Protected>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
+        {/* Chaque route est protégée par PermissionGate qui interroge
+            la matrice avant tout appel API : si refusé, page « Accès
+            refusé » lisible plutôt qu'une page blanche avec erreurs. */}
         <Route path="dashboard" element={<DashboardSwitch />} />
-        <Route path="dashboard-rh" element={<DashboardRH />} />
-        <Route path="clients" element={<ClientsPage />} />
-        <Route path="devis" element={<DevisPage />} />
-        <Route path="factures" element={<FacturesPage />} />
-        <Route path="depenses" element={<DepensesPage />} />
-        <Route path="tresorerie" element={<TresoreriePage />} />
-        <Route path="paie" element={<RHPage />} />
-        <Route path="immobilisations" element={<ImmobilisationsPage />} />
-        <Route path="produits" element={<ProduitsPage />} />
-        <Route path="fournisseurs" element={<FournisseursPage />} />
-        <Route path="taxes" element={<TaxesPage />} />
-        <Route path="rapports" element={<RapportsPage />} />
-        <Route path="comptabilite" element={<ComptabilitePage />} />
-        <Route path="audit-log" element={<AuditLogPage />} />
+        <Route path="dashboard-rh" element={<PermissionGate module="dashboard_rh"><DashboardRH /></PermissionGate>} />
+        <Route path="clients" element={<PermissionGate module="clients"><ClientsPage /></PermissionGate>} />
+        <Route path="devis" element={<PermissionGate module="devis"><DevisPage /></PermissionGate>} />
+        <Route path="factures" element={<PermissionGate module="factures"><FacturesPage /></PermissionGate>} />
+        <Route path="depenses" element={<PermissionGate module="depenses"><DepensesPage /></PermissionGate>} />
+        <Route path="tresorerie" element={<PermissionGate module="tresorerie"><TresoreriePage /></PermissionGate>} />
+        <Route path="paie" element={<PermissionGate module="paie"><RHPage /></PermissionGate>} />
+        <Route path="immobilisations" element={<PermissionGate module="immobilisations"><ImmobilisationsPage /></PermissionGate>} />
+        <Route path="produits" element={<PermissionGate module="produits"><ProduitsPage /></PermissionGate>} />
+        <Route path="fournisseurs" element={<PermissionGate module="fournisseurs"><FournisseursPage /></PermissionGate>} />
+        <Route path="taxes" element={<PermissionGate module="taxes"><TaxesPage /></PermissionGate>} />
+        <Route path="rapports" element={<PermissionGate module="rapports"><RapportsPage /></PermissionGate>} />
+        <Route path="comptabilite" element={<PermissionGate module="ecritures"><ComptabilitePage /></PermissionGate>} />
+        <Route path="audit-log" element={<PermissionGate module="audit_log"><AuditLogPage /></PermissionGate>} />
         <Route path="parametres" element={<ParametresPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

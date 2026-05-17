@@ -1,4 +1,6 @@
 import axios from 'axios';
+import toast from 'react-hot-toast';
+import i18next from 'i18next';
 
 // En dev : '/api' est proxifié vers localhost:5000 par vite.config.js.
 // En prod : VITE_API_URL doit pointer vers le backend (ex. https://comptawest-api.onrender.com/api).
@@ -15,19 +17,46 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Gérer les erreurs globalement
+// Dé-doublonnage des toasts (en cas de rafale 403 sur des requêtes parallèles)
+let dernierToastErreur = { code: null, ts: 0 };
+const showOnce = (code, message, type = 'error') => {
+  const now = Date.now();
+  if (dernierToastErreur.code === code && now - dernierToastErreur.ts < 4000) return;
+  dernierToastErreur = { code, ts: now };
+  toast[type](message);
+};
+
+// Gérer les erreurs globalement. Distingue :
+//   - 401 : session expirée -> nettoie le storage et renvoie au login
+//   - 403 : permission refusée -> toast clair, pas de plantage de page
+//   - 5xx ou pas de réponse (réseau) -> toast « erreur serveur »
+//   - 4xx métier (400/404/409/422) : laissé au .catch local (les pages
+//     savent comment traiter ces cas, ex. validations form)
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
-      // Nettoyer le stockage local et rediriger vers login
+    const t = (key, fallback) => {
+      try { return i18next.t(key, { defaultValue: fallback }); } catch { return fallback; }
+    };
+    const status = err.response?.status;
+    const serverMsg = err.response?.data?.message;
+    // Permet à un appel d'opter pour le silence (ex. probe optionnel)
+    const silent = err.config?.silent;
+
+    if (status === 401) {
       localStorage.removeItem('cw_token');
       localStorage.removeItem('cw_user');
       localStorage.removeItem('cw_entreprise_id');
-      // Éviter une boucle infinie si déjà sur /login
       if (!window.location.pathname.includes('/login')) {
+        if (!silent) showOnce('401', t('common.session_expired', 'Session expirée. Reconnectez-vous.'));
         window.location.href = '/login';
       }
+    } else if (status === 403 && !silent) {
+      // Message backend prioritaire (il sait pourquoi c'est refusé), sinon
+      // libellé générique traduit. On évite le spam grâce à showOnce.
+      showOnce('403', serverMsg || t('common.permission_denied', 'Action non autorisée pour votre rôle.'));
+    } else if ((!err.response || status >= 500) && !silent) {
+      showOnce('5xx', t('common.server_error', 'Erreur serveur — réessayez dans quelques instants.'));
     }
     return Promise.reject(err);
   }

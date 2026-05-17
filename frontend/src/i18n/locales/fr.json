@@ -97,7 +97,12 @@
     "updated": "Mis à jour",
     "show": "Afficher",
     "by": "par",
-    "select_placeholder": "Sélectionner..."
+    "select_placeholder": "Sélectionner...",
+    "session_expired": "Session expirée. Reconnectez-vous.",
+    "permission_denied": "Action non autorisée pour votre rôle.",
+    "server_error": "Erreur serveur — réessayez dans quelques instants.",
+    "access_denied_title": "Accès refusé",
+    "access_denied_body": "Cette section n'est pas accessible avec votre rôle actuel ({{role}}). Contactez l'administrateur si vous pensez avoir besoin de ce droit."
   },
   "ui": {
     "balance_ok_title": "Solde suffisant",

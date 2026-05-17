@@ -97,7 +97,12 @@
     "updated": "Updated",
     "show": "Show",
     "by": "by",
-    "select_placeholder": "Select..."
+    "select_placeholder": "Select...",
+    "session_expired": "Session expired. Please sign in again.",
+    "permission_denied": "This action is not allowed for your role.",
+    "server_error": "Server error — please try again in a moment.",
+    "access_denied_title": "Access denied",
+    "access_denied_body": "This section is not available with your current role ({{role}}). Contact the administrator if you think you need this access."
   },
   "ui": {
     "balance_ok_title": "Sufficient balance",
