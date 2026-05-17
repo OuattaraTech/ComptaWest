@@ -7,6 +7,8 @@ import { formatFCFA, formatDate } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
 import { getC, Modal } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
+import { ReadOnlyBanner } from '../components/Can.jsx';
+import { usePermissions } from '../hooks/usePermissions.jsx';
 import {
   BookOpen, FileSpreadsheet, BookMarked, Scale, Plus, Download,
   Search, ChevronLeft, ChevronRight, Trash2, AlertTriangle,
@@ -49,10 +51,12 @@ export default function ComptabilitePage() {
   const { t } = useTranslation();
   const { dark } = useTheme();
   const { actuelle } = useEntreprise();
+  const { can } = usePermissions();
   const C = getC(dark);
-  const role = actuelle?.role;
-  const peutEcrire = ['proprietaire', 'admin', 'comptable'].includes(role);
-  const peutExporter = role === 'proprietaire' || role === 'admin';
+  // Permissions issues de la matrice : créer une OD demande ecritures.create,
+  // l'export FEC et la clôture demandent cloture.read/create (EC + admin).
+  const peutEcrire = can('ecritures', 'create');
+  const peutExporter = can('cloture', 'read');
 
   const [tab, setTab] = useState('plan');
   const [showOD, setShowOD] = useState(false);
@@ -118,6 +122,8 @@ export default function ComptabilitePage() {
           )}
         </div>
       </div>
+
+      <ReadOnlyBanner module="ecritures" />
 
       {/* Onglets */}
       <div style={{

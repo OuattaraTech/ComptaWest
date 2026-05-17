@@ -6,6 +6,7 @@ import { formatFCFA, formatDate, initiales, truncate } from '../utils/helpers.js
 import toast from 'react-hot-toast';
 import { getC, Input, Modal } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
+import { Can, ReadOnlyBanner } from '../components/Can.jsx';
 import { Plus, Search, Trash2, Phone, Mail, MapPin, FileText } from 'lucide-react';
 
 const PAYS = ["Côte d'Ivoire","Sénégal","Mali","Burkina Faso","Guinée","Togo","Bénin","Niger","Cameroun","France"];
@@ -81,14 +82,18 @@ export default function ClientsPage() {
             {t(pagination.total > 1 ? 'clients.count_other' : 'clients.count_one', { count: pagination.total })}
           </p>
         </div>
-        <button data-onboarding="btn-nouveau" onClick={() => { setForm(emptyForm); setShowModal(true); }} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10,
-          border: 'none', background: C.accent, color: dark ? '#000' : '#fff',
-          fontSize: 13, fontWeight: 700, cursor: 'pointer',
-        }}>
-          <Plus size={16} /> {t('clients.new')}
-        </button>
+        <Can module="clients" action="create">
+          <button data-onboarding="btn-nouveau" onClick={() => { setForm(emptyForm); setShowModal(true); }} style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10,
+            border: 'none', background: C.accent, color: dark ? '#000' : '#fff',
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          }}>
+            <Plus size={16} /> {t('clients.new')}
+          </button>
+        </Can>
       </div>
+
+      <ReadOnlyBanner module="clients" />
 
       {/* Recherche */}
       <div style={{ position: 'relative', marginBottom: 20, maxWidth: 380 }}>
@@ -163,11 +168,13 @@ export default function ClientsPage() {
                     <button onClick={() => openDetail(c.id)} style={{ padding: '6px 8px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.sub }}>
                       <FileText size={13} />
                     </button>
-                    <button onClick={() => handleDelete(c.id)} style={{ padding: '6px 8px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.muted }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = C.red; e.currentTarget.style.color = C.red; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; }}>
-                      <Trash2 size={13} />
-                    </button>
+                    <Can module="clients" action="delete">
+                      <button onClick={() => handleDelete(c.id)} style={{ padding: '6px 8px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.muted }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = C.red; e.currentTarget.style.color = C.red; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; }}>
+                        <Trash2 size={13} />
+                      </button>
+                    </Can>
                   </div>
                 </td>
               </tr>

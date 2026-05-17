@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { getC, Modal, Input } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
 import SelecteurAnnee from '../components/SelecteurAnnee.jsx';
+import { Can, ReadOnlyBanner } from '../components/Can.jsx';
 import {
   Plus, Search, Edit2, Trash2, Download, Eye, Package, Building2,
   TrendingDown, AlertCircle, CheckCircle, XCircle, ChevronLeft,
@@ -188,13 +189,17 @@ function RegistreTab({ onSelect, C, dark }) {
           }}>{l}</button>
         ))}
         <div style={{ flex: 1 }} />
-        <button data-onboarding="btn-nouveau" onClick={() => setShowForm(true)} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
-          border: 'none', background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-        }}>
-          <Plus size={15} /> {t('immobilisations.new')}
-        </button>
+        <Can module="immobilisations" action="create">
+          <button data-onboarding="btn-nouveau" onClick={() => setShowForm(true)} style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
+            border: 'none', background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          }}>
+            <Plus size={15} /> {t('immobilisations.new')}
+          </button>
+        </Can>
       </div>
+
+      <ReadOnlyBanner module="immobilisations" />
 
       <div data-onboarding="liste" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', boxShadow: C.shadow }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

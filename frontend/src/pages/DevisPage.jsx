@@ -10,6 +10,7 @@ import {
 import { useTheme } from '../hooks/useTheme.jsx';
 import { getC, Input, Modal, KpiCard } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
+import { Can, ReadOnlyBanner } from '../components/Can.jsx';
 
 const DEVIS_STATUTS = ['', 'en_attente', 'accepte', 'refuse', 'expire', 'converti'];
 
@@ -201,13 +202,17 @@ export default function DevisPage() {
           <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>{t('devis.title')}</h1>
           <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{t('devis.subtitle')}</p>
         </div>
-        <button data-onboarding="btn-nouveau" onClick={() => { setForm({ ...emptyForm }); setShowModal(true); }} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10,
-          border: 'none', background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-        }}>
-          <Plus size={16} /> {t('devis.new')}
-        </button>
+        <Can module="devis" action="create">
+          <button data-onboarding="btn-nouveau" onClick={() => { setForm({ ...emptyForm }); setShowModal(true); }} style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10,
+            border: 'none', background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          }}>
+            <Plus size={16} /> {t('devis.new')}
+          </button>
+        </Can>
       </div>
+
+      <ReadOnlyBanner module="devis" />
 
       {/* Stats */}
       {stats && (

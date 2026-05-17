@@ -8,6 +8,7 @@ import { useTheme } from '../hooks/useTheme.jsx';
 import { usePermissions } from '../hooks/usePermissions.jsx';
 import { getC, Input, Modal, StatutBadge } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
+import { Can, ReadOnlyBanner } from '../components/Can.jsx';
 
 const STATUTS = ['', 'brouillon', 'envoyee', 'en_attente', 'payee', 'retard', 'annulee'];
 
@@ -251,13 +252,17 @@ export default function FacturesPage() {
           <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>{t('factures.title')}</h1>
           <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{t('factures.subtitle')}</p>
         </div>
-        <button data-onboarding="btn-nouveau" onClick={() => setShowModal(true)} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10,
-          border: 'none', background: C.accent, color: '#000', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-        }}>
-          <Plus size={16} /> {t('factures.new')}
-        </button>
+        <Can module="factures" action="create">
+          <button data-onboarding="btn-nouveau" onClick={() => setShowModal(true)} style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10,
+            border: 'none', background: C.accent, color: '#000', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          }}>
+            <Plus size={16} /> {t('factures.new')}
+          </button>
+        </Can>
       </div>
+
+      <ReadOnlyBanner module="factures" />
 
       {/* Filtres */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -325,25 +330,31 @@ export default function FacturesPage() {
                     <div style={{ display: 'flex', gap: 5 }}>
                       {/* Modifier (brouillon uniquement) */}
                       {f.statut === 'brouillon' && (
-                        <button onClick={() => openEdit(f.id)} title={t('factures.btn_edit_draft')}
-                          style={{ padding: '5px 8px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.sub }}>
-                          <Edit2 size={13} />
-                        </button>
+                        <Can module="factures" action="update">
+                          <button onClick={() => openEdit(f.id)} title={t('factures.btn_edit_draft')}
+                            style={{ padding: '5px 8px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.sub }}>
+                            <Edit2 size={13} />
+                          </button>
+                        </Can>
                       )}
                       {/* Supprimer (brouillon uniquement) */}
                       {f.statut === 'brouillon' && (
-                        <button onClick={() => handleDelete(f)} title={t('factures.btn_delete_draft')}
-                          style={{ padding: '5px 8px', background: `${C.red}15`, border: `1px solid ${C.red}40`, borderRadius: 7, cursor: 'pointer', color: C.red }}>
-                          <Trash2 size={13} />
-                        </button>
+                        <Can module="factures" action="delete">
+                          <button onClick={() => handleDelete(f)} title={t('factures.btn_delete_draft')}
+                            style={{ padding: '5px 8px', background: `${C.red}15`, border: `1px solid ${C.red}40`, borderRadius: 7, cursor: 'pointer', color: C.red }}>
+                            <Trash2 size={13} />
+                          </button>
+                        </Can>
                       )}
-                      {/* Enregistrer paiement */}
+                      {/* Enregistrer paiement — nécessite tresorerie.update */}
                       {['en_attente', 'retard', 'envoyee'].includes(f.statut) && (
+                        <Can module="tresorerie" action="update">
                         <button onClick={() => { setShowPaiement(f); setPaiementForm(p => ({ ...p, montant: reste.toFixed(0) })); }}
                           title={t('factures.btn_pay')}
                           style={{ padding: '5px 8px', background: `${C.accent}20`, border: `1px solid ${C.accent}40`, borderRadius: 7, cursor: 'pointer', color: C.accent, fontSize: 11, fontWeight: 600 }}>
                           <CreditCard size={13} />
                         </button>
+                        </Can>
                       )}
                       {/* Télécharger PDF */}
                       <button onClick={() => downloadPDF(f.id, f.numero)} title={t('factures.btn_download_pdf')}

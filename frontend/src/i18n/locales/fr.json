@@ -102,7 +102,8 @@
     "permission_denied": "Action non autorisée pour votre rôle.",
     "server_error": "Erreur serveur — réessayez dans quelques instants.",
     "access_denied_title": "Accès refusé",
-    "access_denied_body": "Cette section n'est pas accessible avec votre rôle actuel ({{role}}). Contactez l'administrateur si vous pensez avoir besoin de ce droit."
+    "access_denied_body": "Cette section n'est pas accessible avec votre rôle actuel ({{role}}). Contactez l'administrateur si vous pensez avoir besoin de ce droit.",
+    "read_only_mode": "Mode lecture seule — votre rôle ({{role}}) ne permet pas de modifier les données de cette section."
   },
   "ui": {
     "balance_ok_title": "Solde suffisant",

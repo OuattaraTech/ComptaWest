@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { getC, Input, Modal, StatutBadge, AlerteSolde, evaluerSortie } from '../components/UI.jsx';
 import SelecteurAnnee from '../components/SelecteurAnnee.jsx';
 import Onboarding from '../components/Onboarding.jsx';
+import { Can, ReadOnlyBanner } from '../components/Can.jsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Plus, Search, Trash2, Edit2, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -133,14 +134,18 @@ export default function DepensesPage() {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <SelecteurAnnee annee={annee} setAnnee={setAnnee} couleurActif={C.red} />
-          <button data-onboarding="btn-nouveau" onClick={openCreate} style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', borderRadius: 10,
-            border: 'none', background: C.red, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-          }}>
-            <Plus size={15} /> {t('depenses.new')}
-          </button>
+          <Can module="depenses" action="create">
+            <button data-onboarding="btn-nouveau" onClick={openCreate} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', borderRadius: 10,
+              border: 'none', background: C.red, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>
+              <Plus size={15} /> {t('depenses.new')}
+            </button>
+          </Can>
         </div>
       </div>
+
+      <ReadOnlyBanner module="depenses" />
 
       {/* Stats visuelles */}
       {stats && (

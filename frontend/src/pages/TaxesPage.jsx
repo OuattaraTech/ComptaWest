@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { getC, Modal, Input, StatutBadge } from '../components/UI.jsx';
 import SelecteurAnnee from '../components/SelecteurAnnee.jsx';
 import Onboarding from '../components/Onboarding.jsx';
+import { Can, ReadOnlyBanner } from '../components/Can.jsx';
 import { Plus, AlertTriangle, CheckCircle, Clock, Calculator } from 'lucide-react';
 
 // Couleurs des types de taxe ; les libellés sont résolus via t('taxes.type_*') au rendu.
@@ -136,14 +137,18 @@ export default function TaxesPage() {
           }}>
             <Calculator size={14} /> {t('taxes.calc_tva_button')}
           </button>
-          <button data-onboarding="btn-nouveau" onClick={() => setShowModal(true)} style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', borderRadius: 10,
-            border: 'none', background: C.purple, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-          }}>
-            <Plus size={15} /> {t('taxes.new_declaration')}
-          </button>
+          <Can module="taxes" action="create">
+            <button data-onboarding="btn-nouveau" onClick={() => setShowModal(true)} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', borderRadius: 10,
+              border: 'none', background: C.purple, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>
+              <Plus size={15} /> {t('taxes.new_declaration')}
+            </button>
+          </Can>
         </div>
       </div>
+
+      <ReadOnlyBanner module="taxes" />
 
       {/* KPIs fiscaux */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>

@@ -6,6 +6,7 @@ import { formatFCFA, formatDate, truncate } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
 import { getC, Modal, Input } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
+import { Can, ReadOnlyBanner } from '../components/Can.jsx';
 import {
   Plus, Search, Edit2, Trash2, Eye, Package, Box, Wrench,
   AlertTriangle, ArrowDownCircle, ArrowUpCircle, ClipboardCheck,
@@ -177,13 +178,17 @@ function CatalogueTab({ onSelect, C, dark }) {
           <AlertTriangle size={12} /> {t('produits.stat_low_stock')}
         </button>
         <div style={{ flex: 1 }} />
-        <button data-onboarding="btn-nouveau" onClick={() => { setEditing(null); setShowForm(true); }} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
-          border: 'none', background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-        }}>
-          <Plus size={15} /> {t('produits.new')}
-        </button>
+        <Can module="produits" action="create">
+          <button data-onboarding="btn-nouveau" onClick={() => { setEditing(null); setShowForm(true); }} style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
+            border: 'none', background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          }}>
+            <Plus size={15} /> {t('produits.new')}
+          </button>
+        </Can>
       </div>
+
+      <ReadOnlyBanner module="produits" />
 
       <div data-onboarding="liste" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', boxShadow: C.shadow }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -257,14 +262,18 @@ function CatalogueTab({ onSelect, C, dark }) {
                   </td>
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', gap: 5 }} onClick={e => e.stopPropagation()}>
-                      <button onClick={() => { setEditing(p); setShowForm(true); }}
-                        style={{ padding: '5px 7px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.sub }}>
-                        <Edit2 size={12} />
-                      </button>
-                      <button onClick={() => handleDelete(p)}
-                        style={{ padding: '5px 7px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.muted }}>
-                        <Trash2 size={12} />
-                      </button>
+                      <Can module="produits" action="update">
+                        <button onClick={() => { setEditing(p); setShowForm(true); }}
+                          style={{ padding: '5px 7px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.sub }}>
+                          <Edit2 size={12} />
+                        </button>
+                      </Can>
+                      <Can module="produits" action="delete">
+                        <button onClick={() => handleDelete(p)}
+                          style={{ padding: '5px 7px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.muted }}>
+                          <Trash2 size={12} />
+                        </button>
+                      </Can>
                     </div>
                   </td>
                 </tr>

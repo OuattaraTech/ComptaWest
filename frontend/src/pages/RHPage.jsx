@@ -7,6 +7,7 @@ import { formatFCFA, formatDate } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
 import { getC, Modal, Input, AlerteSolde, evaluerSortie } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
+import { Can, ReadOnlyBanner } from '../components/Can.jsx';
 import SelecteurAnnee from '../components/SelecteurAnnee.jsx';
 import {
   Users, FileText, Receipt, BarChart3, Plus, Search, Edit2, Trash2,
@@ -43,6 +44,8 @@ export default function RHPage() {
           {t('rh.subtitle')}
         </p>
       </div>
+
+      <ReadOnlyBanner module="paie" />
 
       {/* Onglets */}
       <div data-onboarding="tabs" style={{
@@ -124,13 +127,15 @@ function EmployesTab({ C, dark }) {
               outline: 'none', fontFamily: 'inherit',
             }} />
         </div>
-        <button data-onboarding="btn-nouveau-employe" onClick={() => { setEditing(null); setShowForm(true); }} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
-          border: 'none', background: C.accent, color: dark ? '#000' : '#fff',
-          fontSize: 13, fontWeight: 700, cursor: 'pointer',
-        }}>
-          <Plus size={15} /> {t('rh.new_employee')}
-        </button>
+        <Can module="paie" action="create">
+          <button data-onboarding="btn-nouveau-employe" onClick={() => { setEditing(null); setShowForm(true); }} style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
+            border: 'none', background: C.accent, color: dark ? '#000' : '#fff',
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          }}>
+            <Plus size={15} /> {t('rh.new_employee')}
+          </button>
+        </Can>
       </div>
 
       <div data-onboarding="liste-employes" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', boxShadow: C.shadow }}>
@@ -176,14 +181,18 @@ function EmployesTab({ C, dark }) {
                 </td>
                 <td style={{ padding: '12px 14px' }}>
                   <div style={{ display: 'flex', gap: 5 }}>
-                    <button onClick={() => { setEditing(e); setShowForm(true); }}
-                      style={{ padding: '5px 7px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.sub }}>
-                      <Edit2 size={12} />
-                    </button>
-                    <button onClick={() => handleDelete(e.id, e.nom)}
-                      style={{ padding: '5px 7px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.muted }}>
-                      <Trash2 size={12} />
-                    </button>
+                    <Can module="paie" action="update">
+                      <button onClick={() => { setEditing(e); setShowForm(true); }}
+                        style={{ padding: '5px 7px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.sub }}>
+                        <Edit2 size={12} />
+                      </button>
+                    </Can>
+                    <Can module="paie" action="delete">
+                      <button onClick={() => handleDelete(e.id, e.nom)}
+                        style={{ padding: '5px 7px', background: C.hover, border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.muted }}>
+                        <Trash2 size={12} />
+                      </button>
+                    </Can>
                   </div>
                 </td>
               </tr>

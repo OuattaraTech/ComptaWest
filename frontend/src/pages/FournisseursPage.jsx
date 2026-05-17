@@ -6,6 +6,7 @@ import { formatFCFA, formatDate, initiales, truncate } from '../utils/helpers.js
 import toast from 'react-hot-toast';
 import { getC, Modal, Input, AlerteSolde, evaluerSortie } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
+import { Can, ReadOnlyBanner } from '../components/Can.jsx';
 import {
   Plus, Search, Edit2, Trash2, FileText, ChevronLeft, Eye,
   ShoppingCart, Truck, CheckCircle, Send, AlertTriangle, Clock,
@@ -160,13 +161,17 @@ function ListeTab({ onSelect, C, dark }) {
             style={{ width: '100%', background: C.card, border: `1.5px solid ${C.border}`,
               borderRadius: 10, padding: '10px 12px 10px 36px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
         </div>
-        <button data-onboarding="btn-nouveau" onClick={() => { setEditing(null); setShowForm(true); }} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
-          border: 'none', background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-        }}>
-          <Plus size={15} /> {t('fournisseurs.new')}
-        </button>
+        <Can module="fournisseurs" action="create">
+          <button data-onboarding="btn-nouveau" onClick={() => { setEditing(null); setShowForm(true); }} style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
+            border: 'none', background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          }}>
+            <Plus size={15} /> {t('fournisseurs.new')}
+          </button>
+        </Can>
       </div>
+
+      <ReadOnlyBanner module="fournisseurs" />
 
       <div data-onboarding="liste" style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', boxShadow: C.shadow }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

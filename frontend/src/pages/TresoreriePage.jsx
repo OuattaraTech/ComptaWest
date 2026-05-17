@@ -6,6 +6,7 @@ import { formatFCFA, formatDate } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
 import { getC, Modal, Input, AlerteSolde, evaluerSortie } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
+import { Can, ReadOnlyBanner } from '../components/Can.jsx';
 import {
   Wallet, Smartphone, Banknote, Plus, Upload, ArrowDownCircle,
   ArrowUpCircle, ChevronLeft, Link2, Unlink, Trash2, ArrowLeftRight,
@@ -74,22 +75,28 @@ export default function TresoreriePage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button data-onboarding="btn-transfert" onClick={() => setShowTransfert(true)} style={{
-            display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 10,
-            border: `1.5px solid ${C.border}`, background: 'transparent',
-            color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          }}>
-            <ArrowLeftRight size={14} /> {t('tresorerie.transfer_btn')}
-          </button>
-          <button data-onboarding="btn-nouveau" onClick={() => setShowCreate(true)} style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
-            border: 'none', background: C.accent, color: dark ? '#000' : '#fff',
-            fontSize: 13, fontWeight: 700, cursor: 'pointer',
-          }}>
-            <Plus size={15} /> {t('tresorerie.new_account')}
-          </button>
+          <Can module="tresorerie" action="update">
+            <button data-onboarding="btn-transfert" onClick={() => setShowTransfert(true)} style={{
+              display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 10,
+              border: `1.5px solid ${C.border}`, background: 'transparent',
+              color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            }}>
+              <ArrowLeftRight size={14} /> {t('tresorerie.transfer_btn')}
+            </button>
+          </Can>
+          <Can module="tresorerie" action="create">
+            <button data-onboarding="btn-nouveau" onClick={() => setShowCreate(true)} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
+              border: 'none', background: C.accent, color: dark ? '#000' : '#fff',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>
+              <Plus size={15} /> {t('tresorerie.new_account')}
+            </button>
+          </Can>
         </div>
       </div>
+
+      <ReadOnlyBanner module="tresorerie" />
 
       {/* KPI : solde global + par type */}
       <div data-onboarding="kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
