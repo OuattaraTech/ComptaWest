@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import api from '../utils/api.jsx';
 import { formatFCFA, formatDate, truncate } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
-import { Plus, Search, X, Download, CreditCard, Filter, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Search, X, Download, CreditCard, Filter, Edit2, Trash2, Smartphone, Copy, MessageCircle } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme.jsx';
 import { usePermissions } from '../hooks/usePermissions.jsx';
 import { getC, Input, Modal, StatutBadge } from '../components/UI.jsx';
@@ -37,6 +37,9 @@ export default function FacturesPage() {
   const [showModal, setShowModal] = useState(false);
   const [showPaiement, setShowPaiement] = useState(null);
   const [showDetail, setShowDetail] = useState(null);
+  // Lien de paiement Wave en cours d'affichage (ouvert au clic sur "💸 Lien")
+  const [showLienWave, setShowLienWave] = useState(null);  // { facture, lien, mode, ... }
+  const [generatingLien, setGeneratingLien] = useState(null); // id facture en cours
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [editingId, setEditingId] = useState(null);
@@ -223,6 +226,28 @@ export default function FacturesPage() {
     } catch { toast.error(t('factures.error_status')); }
   };
 
+  // Génère (ou récupère) un lien de paiement Wave pour la facture donnée.
+  // Le backend renvoie un faux lien (mode mock) si l'entreprise n'a pas
+  // encore configuré son intégration Wave — pratique pour démontrer.
+  const handleLienWave = async (f) => {
+    setGeneratingLien(f.id);
+    try {
+      const res = await api.post(`/factures/${f.id}/lien-paiement-wave`);
+      setShowLienWave({ facture: f, ...res.data.data });
+    } catch (err) {
+      if (!err.handled) toast.error(err.response?.data?.message || t('factures.error_lien_wave'));
+    } finally {
+      setGeneratingLien(null);
+    }
+  };
+
+  const copierLienWave = () => {
+    if (!showLienWave?.url) return;
+    navigator.clipboard.writeText(showLienWave.url)
+      .then(() => toast.success(t('factures.lien_copie')))
+      .catch(() => toast.error(t('parametres.copy_failed')));
+  };
+
   const downloadPDF = async (id, numero) => {
     const toastId = toast.loading(t('rapports.export_loading'));
     try {
@@ -354,6 +379,19 @@ export default function FacturesPage() {
                           style={{ padding: '5px 8px', background: `${C.accent}20`, border: `1px solid ${C.accent}40`, borderRadius: 7, cursor: 'pointer', color: C.accent, fontSize: 11, fontWeight: 600 }}>
                           <CreditCard size={13} />
                         </button>
+                        </Can>
+                      )}
+                      {/* Lien de paiement Wave / Mobile Money — pour les
+                          factures à encaisser. Génère un lien que le commercial
+                          partage au client (WhatsApp, SMS). */}
+                      {['en_attente', 'retard', 'envoyee'].includes(f.statut) && reste > 0 && (
+                        <Can module="factures" action="update">
+                          <button onClick={() => handleLienWave(f)}
+                            disabled={generatingLien === f.id}
+                            title={t('factures.btn_lien_wave')}
+                            style={{ padding: '5px 8px', background: `${C.blue}20`, border: `1px solid ${C.blue}40`, borderRadius: 7, cursor: generatingLien === f.id ? 'wait' : 'pointer', color: C.blue, fontSize: 11, fontWeight: 600 }}>
+                            <Smartphone size={13} />
+                          </button>
                         </Can>
                       )}
                       {/* Télécharger PDF */}
@@ -699,6 +737,81 @@ export default function FacturesPage() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Modal : lien de paiement Wave généré */}
+      {showLienWave && (
+        <Modal
+          title={t('factures.lien_wave_title', { numero: showLienWave.facture.numero })}
+          onClose={() => setShowLienWave(null)} width={500}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Bandeau mode mock — utile en dev pour signaler que c'est un faux lien */}
+            {showLienWave.mode === 'mock' && (
+              <div style={{
+                background: `${C.gold}12`, border: `1px solid ${C.gold}40`, borderRadius: 10,
+                padding: '10px 14px', fontSize: 11, color: C.sub, lineHeight: 1.55,
+              }}>
+                {t('factures.lien_wave_mock_notice')}
+              </div>
+            )}
+
+            <div style={{ background: `${C.blue}10`, border: `1px solid ${C.blue}30`, borderRadius: 11, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <Smartphone size={16} color={C.blue} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.blue }}>
+                  {t('factures.lien_wave_amount', {
+                    amount: formatFCFA(showLienWave.montant),
+                    currency: showLienWave.devise || t('common.currency'),
+                  })}
+                </span>
+              </div>
+              <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.55 }}>
+                {t('factures.lien_wave_intro')}
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, display: 'block' }}>
+                {t('factures.lien_wave_url_label')}
+              </label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input readOnly value={showLienWave.url} onFocus={e => e.target.select()}
+                  style={{
+                    flex: 1, background: C.input, border: `1px solid ${C.border}`, borderRadius: 8,
+                    padding: '9px 12px', color: C.text, fontSize: 12, fontFamily: 'monospace', outline: 'none',
+                  }} />
+                <button onClick={copierLienWave} style={{
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 8,
+                  border: 'none', background: C.accent, color: dark ? '#000' : '#fff',
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+                }}>
+                  <Copy size={13} /> {t('parametres.btn_copy')}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <a href={`https://wa.me/?text=${encodeURIComponent(
+                t('factures.lien_wave_whatsapp_text', { numero: showLienWave.facture.numero, url: showLienWave.url })
+              )}`} target="_blank" rel="noopener noreferrer"
+                style={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  padding: '11px 16px', borderRadius: 10, border: 'none', textDecoration: 'none',
+                  background: '#25D366', color: '#fff', fontSize: 13, fontWeight: 700,
+                }}>
+                <MessageCircle size={15} /> {t('factures.btn_send_whatsapp')}
+              </a>
+              <button onClick={() => setShowLienWave(null)} style={{
+                padding: '11px 18px', borderRadius: 10, border: `1.5px solid ${C.border}`,
+                background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              }}>{t('common.close')}</button>
+            </div>
+
+            <div style={{ fontSize: 10, color: C.muted, fontStyle: 'italic' }}>
+              {t('factures.lien_wave_expire', { date: new Date(showLienWave.expire_at).toLocaleString() })}
+            </div>
+          </div>
         </Modal>
       )}
 

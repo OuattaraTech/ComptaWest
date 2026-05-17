@@ -379,7 +379,18 @@
     "cond_paiement_comptant": "Cash payment",
     "cond_paiement_50_50": "50% on order, 50% on delivery",
     "line_product_linked": "Linked to catalog",
-    "pdf_downloaded": "PDF downloaded"
+    "pdf_downloaded": "PDF downloaded",
+    "btn_lien_wave": "Generate a Wave payment link",
+    "btn_send_whatsapp": "Share on WhatsApp",
+    "error_lien_wave": "Could not generate the payment link",
+    "lien_copie": "Link copied",
+    "lien_wave_title": "Payment link · {{numero}}",
+    "lien_wave_mock_notice": "Demo mode: this link does not trigger a real payment. Configure your Wave merchant account under Settings → Integrations to go live.",
+    "lien_wave_amount": "Amount due: {{amount}} {{currency}}",
+    "lien_wave_intro": "Share this link with your customer. They can pay in seconds from their Wave app, and ComptaWest will automatically settle the invoice.",
+    "lien_wave_url_label": "Payment link",
+    "lien_wave_whatsapp_text": "Hello, here is the link to pay invoice {{numero}}: {{url}}",
+    "lien_wave_expire": "Link valid until {{date}}"
   },
   "devis": {
     "title": "Quotes & Proformas",

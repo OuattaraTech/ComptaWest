@@ -379,7 +379,18 @@
     "cond_paiement_comptant": "Paiement comptant",
     "cond_paiement_50_50": "50% commande, 50% livraison",
     "line_product_linked": "Lié au catalogue",
-    "pdf_downloaded": "PDF téléchargé"
+    "pdf_downloaded": "PDF téléchargé",
+    "btn_lien_wave": "Générer un lien de paiement Wave",
+    "btn_send_whatsapp": "Partager sur WhatsApp",
+    "error_lien_wave": "Impossible de générer le lien de paiement",
+    "lien_copie": "Lien copié",
+    "lien_wave_title": "Lien de paiement · {{numero}}",
+    "lien_wave_mock_notice": "Mode démo : ce lien ne déclenche pas de vrai paiement. Configurez votre compte marchand Wave dans Paramètres → Intégrations pour passer en production.",
+    "lien_wave_amount": "Montant à payer : {{amount}} {{currency}}",
+    "lien_wave_intro": "Transmettez ce lien à votre client. Il pourra payer en quelques secondes depuis son application Wave, puis ComptaWest encaissera automatiquement la facture.",
+    "lien_wave_url_label": "Lien de paiement",
+    "lien_wave_whatsapp_text": "Bonjour, voici le lien pour régler la facture {{numero}} : {{url}}",
+    "lien_wave_expire": "Lien valable jusqu'au {{date}}"
   },
   "devis": {
     "title": "Devis & Proformas",

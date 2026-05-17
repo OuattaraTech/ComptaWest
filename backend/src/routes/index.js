@@ -19,6 +19,7 @@ const {
 } = require('../controllers/entreprisesController');
 const { getClients, getClientById, createClient, updateClient, deleteClient, clientRules } = require('../controllers/clientsController');
 const { getFactures, getFactureById, createFacture, updateFacture, updateStatut, addPaiement, deleteFacture, factureRules, paiementRules } = require('../controllers/facturesController');
+const { creerLienWaveFacture } = require('../controllers/paymentLinksController');
 const { getDevis, getStatsDevis, updateDevisStatut, convertirEnFacture, supprimerDevis, convertirRules } = require('../controllers/devisController');
 const { getStats, getTransactionsRecentes, getAnneesDisponibles } = require('../controllers/dashboardController');
 const { getBilan, getBilanPDF, getFacturePDF } = require('../controllers/rapportsController');
@@ -140,6 +141,10 @@ router.put('/factures/:id/statut', auth, can(MODULES.FACTURES, ACTIONS.UPDATE), 
 // pour ne pas autoriser le commercial à manipuler les flux de caisse.
 router.post('/factures/:id/paiement', auth, can(MODULES.TRESORERIE, ACTIONS.UPDATE), paiementRules, validate, addPaiement);
 router.delete('/factures/:id', auth, can(MODULES.FACTURES, ACTIONS.DELETE), deleteFacture);
+// Génération d'un lien de paiement Wave pour la facture. Nécessite update
+// sur factures (le statut sera modifié au webhook) — le commercial qui
+// émet la facture peut donc générer le lien lui-même.
+router.post('/factures/:id/lien-paiement-wave', auth, can(MODULES.FACTURES, ACTIONS.UPDATE), creerLienWaveFacture);
 
 // ─── DEVIS ─────────────────────────────────────────────────────────────────
 router.get('/devis', auth, can(MODULES.DEVIS, ACTIONS.READ), getDevis);
