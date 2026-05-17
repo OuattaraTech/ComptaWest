@@ -13,19 +13,33 @@ function LogoWave({ size = 36, radius }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-label="Wave">
       <rect width="64" height="64" rx={r * 64 / size} fill="#1AA1F1" />
-      {/* Vague stylisée caractéristique de Wave : deux ondulations blanches */}
+      {/* Mascotte Wave : pingouin stylisé vu de face, version simplifiée
+          pour rester lisible aux petites tailles (36–44 px). */}
+      {/* Corps blanc (ventre) — ovale légèrement bombé */}
+      <ellipse cx="32" cy="40" rx="15" ry="17" fill="#fff" />
+      {/* Dos noir : forme en goutte qui enveloppe le corps par l'arrière */}
       <path
-        d="M10 38 Q 18 28 26 38 T 42 38 T 58 38"
-        fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round"
+        d="M32 10
+           C 18 10 15 24 16 38
+           C 17 49 22 56 27 56
+           L 27 33
+           C 27 26 29 22 32 22
+           C 35 22 37 26 37 33
+           L 37 56
+           C 42 56 47 49 48 38
+           C 49 24 46 10 32 10 Z"
+        fill="#1A1A1A"
       />
-      <path
-        d="M10 46 Q 18 36 26 46 T 42 46 T 58 46"
-        fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" opacity="0.85"
-      />
-      {/* Lettre W discrète au-dessus pour l'identification */}
-      <text x="32" y="24" textAnchor="middle"
-        fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
-        fontSize="14" fontWeight="800" fill="#fff" letterSpacing="-0.5">wave</text>
+      {/* Yeux blancs avec pupilles noires */}
+      <circle cx="28" cy="22" r="3" fill="#fff" />
+      <circle cx="36" cy="22" r="3" fill="#fff" />
+      <circle cx="28.5" cy="22.5" r="1.4" fill="#1A1A1A" />
+      <circle cx="36.5" cy="22.5" r="1.4" fill="#1A1A1A" />
+      {/* Bec orange triangulaire */}
+      <path d="M29 27 L 35 27 L 32 31 Z" fill="#FF8A1F" />
+      {/* Pattes orange */}
+      <ellipse cx="27" cy="56" rx="3.5" ry="2.2" fill="#FF8A1F" />
+      <ellipse cx="37" cy="56" rx="3.5" ry="2.2" fill="#FF8A1F" />
     </svg>
   );
 }
