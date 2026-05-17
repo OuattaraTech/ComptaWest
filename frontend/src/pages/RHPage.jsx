@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { usePermissions } from '../hooks/usePermissions.jsx';
 import { useTheme } from '../hooks/useTheme.jsx';
 import api from '../utils/api.jsx';
 import { formatFCFA, formatDate } from '../utils/helpers.jsx';
@@ -204,6 +205,7 @@ function EmployesTab({ C, dark }) {
 // ─── Formulaire création / édition employé ────────────────────────────────
 function EmployeFormModal({ employe, onClose, onSaved, C, dark }) {
   const { t } = useTranslation();
+  const { can } = usePermissions();
   const isEdit = !!employe;
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -222,8 +224,13 @@ function EmployeFormModal({ employe, onClose, onSaved, C, dark }) {
   });
 
   useEffect(() => {
-    api.get('/tresorerie/comptes').then(r => setComptes(r.data.data)).catch(() => {});
-  }, []);
+    // Le RH n'a pas accès à la trésorerie : on évite l'appel qui finirait
+    // en 403. Le champ « compte de paiement » de l'employé restera en
+    // mode auto pour ce rôle.
+    if (can('tresorerie', 'read')) {
+      api.get('/tresorerie/comptes').then(r => setComptes(r.data.data)).catch(() => {});
+    }
+  }, [can]);
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
   const setBool = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -893,6 +900,7 @@ function BulletinDetailModal({ bulletin, onClose, onSaved, C, dark }) {
 // ─── Modal : paiement d'un bulletin ────────────────────────────────────────
 function PaiementBulletinModal({ bulletin, onClose, onPaid, C, dark }) {
   const { t } = useTranslation();
+  const { can } = usePermissions();
   const [comptes, setComptes] = useState([]);
   const [form, setForm] = useState({
     compte_tresorerie_id: '',
@@ -901,8 +909,14 @@ function PaiementBulletinModal({ bulletin, onClose, onPaid, C, dark }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    api.get('/tresorerie/comptes').then(r => setComptes(r.data.data)).catch(() => {});
-  }, []);
+    // Cette modale n'est ouverte que par les rôles qui peuvent payer
+    // (admin/propriétaire qui ont tresorerie.update -> ont aussi read).
+    // Le check explicite protège néanmoins si on tombe sur un rôle qui
+    // ouvre la modale mais n'a pas la liste.
+    if (can('tresorerie', 'read')) {
+      api.get('/tresorerie/comptes').then(r => setComptes(r.data.data)).catch(() => {});
+    }
+  }, [can]);
 
   const handlePayer = async () => {
     setSaving(true);

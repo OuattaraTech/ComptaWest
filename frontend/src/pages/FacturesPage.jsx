@@ -5,6 +5,7 @@ import { formatFCFA, formatDate, truncate } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
 import { Plus, Search, X, Download, CreditCard, Filter, Edit2, Trash2 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme.jsx';
+import { usePermissions } from '../hooks/usePermissions.jsx';
 import { getC, Input, Modal, StatutBadge } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
 
@@ -22,6 +23,7 @@ const emptyForm = {
 export default function FacturesPage() {
   const { t } = useTranslation();
   const { dark } = useTheme();
+  const { can } = usePermissions();
   const C = getC(dark);
   const [factures, setFactures] = useState([]);
   const [clients, setClients] = useState([]);
@@ -42,15 +44,22 @@ export default function FacturesPage() {
   const [comptesTresorerie, setComptesTresorerie] = useState([]);
   const [produitsCatalogue, setProduitsCatalogue] = useState([]);
 
-  // Charger les comptes de trésorerie et le catalogue produits
+  // Charger les comptes de trésorerie (uniquement pour les rôles autorisés :
+  // commercial / user / lecture ne voient pas la trésorerie, on évite donc
+  // l'appel qui finirait en 403 + toast). La modale de paiement n'est de
+  // toute façon pas accessible à ces rôles côté backend.
   useEffect(() => {
-    api.get('/tresorerie/comptes')
-      .then(r => setComptesTresorerie(r.data.data))
-      .catch(() => {});
-    api.get('/produits?limit=500')
-      .then(r => setProduitsCatalogue(r.data.data))
-      .catch(() => {});
-  }, []);
+    if (can('tresorerie', 'read')) {
+      api.get('/tresorerie/comptes')
+        .then(r => setComptesTresorerie(r.data.data))
+        .catch(() => {});
+    }
+    if (can('produits', 'read')) {
+      api.get('/produits?limit=500')
+        .then(r => setProduitsCatalogue(r.data.data))
+        .catch(() => {});
+    }
+  }, [can]);
 
   // Choix d'un produit du catalogue → remplit auto la ligne
   const choisirProduit = (idx, produit) => {
