@@ -370,6 +370,188 @@ function InfoLine({ label, value, C }) {
   );
 }
 
+// ─── Onglet Fiscal : configuration FNE (DGI Côte d'Ivoire) ─────────────
+// Permet d'enregistrer le NCC, le centre fiscal et les credentials API
+// DGI. Aujourd'hui seul le mode mock est branché côté backend ; les
+// champs sandbox / prod sont prêts pour le jour où l'API DGI sera ouverte.
+function FiscalTab({ C, dark }) {
+  const { t } = useTranslation();
+  const [config, setConfig] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    ncc: '', centre_fiscal: '', fne_actif: false, fne_mode: 'mock',
+    fne_api_key: '', fne_certificat: '',
+  });
+  const [showKey, setShowKey] = useState(false);
+
+  const fetchConfig = async () => {
+    setLoading(true);
+    try {
+      const r = await api.get('/fne/config');
+      const c = r.data.data;
+      setConfig(c);
+      setForm({
+        ncc: c.ncc || '',
+        centre_fiscal: c.centre_fiscal || '',
+        fne_actif: !!c.fne_actif,
+        fne_mode: c.fne_mode || 'mock',
+        fne_api_key: '',     // jamais rempli (on n'expose pas la clé)
+        fne_certificat: '',  // idem
+      });
+    } catch (err) {
+      if (!err.handled) toast.error(t('common.loading_error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { fetchConfig(); }, []);
+
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.put('/fne/config', form);
+      toast.success(t('parametres.fne_saved'));
+      await fetchConfig();
+    } catch (err) {
+      if (!err.handled) toast.error(err.response?.data?.message || t('parametres.fne_error'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <div style={{ padding: 40, color: C.muted, fontSize: 14 }}>{t('common.loading')}</div>;
+
+  const inputStyle = {
+    background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 9,
+    padding: '10px 13px', color: C.text, fontSize: 13, outline: 'none',
+    fontFamily: 'inherit', width: '100%', boxSizing: 'border-box',
+  };
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Intro */}
+      <div style={{
+        background: `${C.blue}10`, border: `1px solid ${C.blue}30`, borderRadius: 12,
+        padding: '14px 16px', fontSize: 12, color: C.sub, lineHeight: 1.6,
+      }}>
+        {t('parametres.fne_intro')}
+      </div>
+
+      {/* Carte principale */}
+      <div style={{ background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 18 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+            background: 'linear-gradient(135deg, #007A33, #003C71)',
+            color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Shield size={20} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{t('parametres.fne_title')}</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{t('parametres.fne_subtitle')}</div>
+          </div>
+          {form.fne_actif && (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 12, background: `${C.accent}20`, color: C.accent, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <CheckCircle size={11} /> {t('parametres.fne_active', { mode: form.fne_mode })}
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <Input
+            label={t('parametres.fne_ncc')}
+            value={form.ncc}
+            onChange={set('ncc')}
+            placeholder="0123456 A"
+          />
+          <Input
+            label={t('parametres.fne_centre')}
+            value={form.centre_fiscal}
+            onChange={set('centre_fiscal')}
+            placeholder="CME Plateau"
+          />
+        </div>
+
+        <div style={{ marginTop: 16 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>
+            {t('parametres.fne_mode_label')}
+          </label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {['mock', 'sandbox', 'prod'].map(m => (
+              <button key={m} type="button" onClick={() => setForm(f => ({ ...f, fne_mode: m }))}
+                style={{
+                  flex: 1, padding: '10px 12px', borderRadius: 9, cursor: 'pointer',
+                  border: `1.5px solid ${form.fne_mode === m ? C.accent : C.border}`,
+                  background: form.fne_mode === m ? `${C.accent}15` : 'transparent',
+                  color: form.fne_mode === m ? C.accent : C.muted,
+                  fontSize: 12, fontWeight: 700,
+                }}>
+                {t(`parametres.fne_mode_${m}`)}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 8, lineHeight: 1.55 }}>
+            {form.fne_mode === 'mock' && t('parametres.fne_mode_mock_help')}
+            {form.fne_mode === 'sandbox' && t('parametres.fne_mode_sandbox_help')}
+            {form.fne_mode === 'prod' && t('parametres.fne_mode_prod_help')}
+          </div>
+        </div>
+
+        {form.fne_mode !== 'mock' && (
+          <div style={{ marginTop: 16 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>
+              {t('parametres.fne_api_key')}
+              {config?.fne_api_key_set && (
+                <span style={{ fontWeight: 400, textTransform: 'none', color: C.muted, marginLeft: 8 }}>
+                  · {config.fne_api_key_apercu}
+                </span>
+              )}
+            </label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={form.fne_api_key}
+                onChange={set('fne_api_key')}
+                placeholder={config?.fne_api_key_set ? t('parametres.integration_keep_value') : 'dgi_ci_xxxxxxxxx'}
+                style={inputStyle}
+              />
+              <button type="button" onClick={() => setShowKey(s => !s)} style={{
+                padding: '0 12px', borderRadius: 9, border: `1px solid ${C.border}`,
+                background: C.input, color: C.muted, cursor: 'pointer',
+              }}>{showKey ? <EyeOff size={14} /> : <Eye size={14} />}</button>
+            </div>
+          </div>
+        )}
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 18, cursor: 'pointer' }}>
+          <input type="checkbox" checked={form.fne_actif}
+            onChange={e => setForm(f => ({ ...f, fne_actif: e.target.checked }))}
+            style={{ width: 16, height: 16, cursor: 'pointer' }} />
+          <span style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>
+            {t('parametres.fne_actif_label')}
+          </span>
+        </label>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button type="submit" disabled={saving} style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '11px 22px', borderRadius: 10,
+          border: 'none', background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700,
+          cursor: saving ? 'wait' : 'pointer',
+        }}>
+          <Save size={14} /> {saving ? t('common.saving') : t('common.save')}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function ParametresPage() {
   const { t } = useTranslation();
   const { dark } = useTheme();
@@ -509,6 +691,7 @@ export default function ParametresPage() {
           { id: 'entreprise',   icon: Building2,  label: t('parametres.company'),       visible: true },
           { id: 'membres',      icon: Users,      label: `${t('parametres.members')} (${membres.length})`, visible: canReadMembres },
           { id: 'integrations', icon: Smartphone, label: t('parametres.integrations'),  visible: canEditEntreprise },
+          { id: 'fiscal',       icon: Shield,     label: t('parametres.fiscal'),        visible: canEditEntreprise },
           { id: 'preferences',  icon: Globe,      label: t('parametres.preferences'),   visible: true },
         ].filter(item => item.visible).map(({ id, icon: Icon, label }) => (
           <button key={id} onClick={() => setTab(id)} style={{
@@ -610,6 +793,7 @@ export default function ParametresPage() {
       {/* Tab Préférences */}
       {tab === 'preferences' && <PreferencesTab C={C} />}
       {tab === 'integrations' && canEditEntreprise && <IntegrationsTab C={C} dark={dark} />}
+      {tab === 'fiscal' && canEditEntreprise && <FiscalTab C={C} dark={dark} />}
 
       {/* Tab Membres */}
       {tab === 'membres' && (

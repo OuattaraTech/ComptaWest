@@ -29,7 +29,7 @@ const { getStats, getTransactionsRecentes, getAnneesDisponibles } = require('../
 const { getBilan, getBilanPDF, getFacturePDF } = require('../controllers/rapportsController');
 const { getDepenses, getStatsDepenses, createDepense, updateDepense, deleteDepense, getCategories, createCategorie, depenseRules, categorieDepenseRules } = require('../controllers/depensesController');
 const { scannerPiece, scannerRules } = require('../controllers/ocrController');
-const { certifierFactureRoute, getCertification } = require('../controllers/fneController');
+const { certifierFactureRoute, getCertification, getFneConfig, putFneConfig } = require('../controllers/fneController');
 const { getTaxes, getTableauBordTaxes, createTaxe, payerTaxe, calculerTVA, taxeRules, paiementTaxeRules } = require('../controllers/taxesController');
 const { getAuditLog } = require('../controllers/auditController');
 const {
@@ -170,6 +170,10 @@ router.post('/factures/:id/certifier-fne',
   auth, can(MODULES.FACTURES, ACTIONS.UPDATE), certifierFactureRoute);
 router.get('/factures/:id/certification',
   auth, can(MODULES.FACTURES, ACTIONS.READ), getCertification);
+// Configuration FNE (NCC, mode, credentials DGI) — restreint aux profils
+// avec entreprise.update car ce sont des identifiants fiscaux sensibles.
+router.get('/fne/config', auth, can(MODULES.ENTREPRISE, ACTIONS.READ),   getFneConfig);
+router.put('/fne/config', auth, can(MODULES.ENTREPRISE, ACTIONS.UPDATE), putFneConfig);
 
 // Webhooks PUBLICS (Wave / Orange / MTN nous appellent directement).
 // La sécurité est assurée par la signature configurée côté fournisseur.

@@ -125,4 +125,88 @@ async function getCertification(req, res, next) {
   }
 }
 
-module.exports = { certifierFactureRoute, getCertification };
+/**
+ * Configuration FNE de l'entreprise — lecture (la clé API n'est jamais
+ * renvoyée en clair, seul un flag « set » et un aperçu sont exposés).
+ */
+async function getFneConfig(req, res, next) {
+  try {
+    const r = await pool.query(
+      `SELECT ncc, centre_fiscal, fne_actif, fne_mode,
+              CASE WHEN fne_api_key IS NOT NULL AND fne_api_key <> '' THEN TRUE ELSE FALSE END AS fne_api_key_set,
+              CASE WHEN fne_certificat IS NOT NULL AND fne_certificat <> '' THEN TRUE ELSE FALSE END AS fne_certificat_set,
+              CASE WHEN fne_api_key IS NOT NULL THEN '•••• ' || RIGHT(fne_api_key, 4) ELSE NULL END AS fne_api_key_apercu
+         FROM entreprises WHERE id = $1`,
+      [req.entrepriseId]
+    );
+    if (r.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Entreprise introuvable' });
+    }
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Mise à jour de la config FNE. Règles :
+ *   - on ne touche jamais à fne_api_key / fne_certificat si le champ est
+ *     vide dans le body (permet à l'utilisateur de modifier le NCC sans
+ *     ressaisir sa clé) ;
+ *   - on refuse fne_mode != 'mock' si la clé API est absente ET non
+ *     fournie, pour éviter une bascule en prod sans credentials.
+ */
+async function putFneConfig(req, res, next) {
+  try {
+    const { ncc, centre_fiscal, fne_actif, fne_mode, fne_api_key, fne_certificat } = req.body;
+
+    if (fne_mode && !['mock', 'sandbox', 'prod'].includes(fne_mode)) {
+      return res.status(400).json({ success: false, message: 'Mode FNE invalide' });
+    }
+
+    // Récupère l'existant pour la règle de protection sandbox/prod
+    const cur = await pool.query(
+      'SELECT fne_api_key FROM entreprises WHERE id = $1',
+      [req.entrepriseId]
+    );
+    const cleExistante = cur.rows[0]?.fne_api_key;
+    const cleApresUpdate = (fne_api_key && fne_api_key.length > 0) ? fne_api_key : cleExistante;
+    if (fne_mode && fne_mode !== 'mock' && !cleApresUpdate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Pour activer le mode sandbox ou prod, une clé API DGI est obligatoire.',
+      });
+    }
+
+    const champs = [];
+    const valeurs = [];
+    const pousser = (col, val) => { champs.push(`${col} = $${champs.length + 1}`); valeurs.push(val); };
+
+    if (ncc !== undefined)           pousser('ncc', ncc || null);
+    if (centre_fiscal !== undefined) pousser('centre_fiscal', centre_fiscal || null);
+    if (fne_actif !== undefined)     pousser('fne_actif', !!fne_actif);
+    if (fne_mode !== undefined)      pousser('fne_mode', fne_mode);
+    // Les secrets ne sont écrasés que si un nouveau est fourni
+    if (fne_api_key && fne_api_key.length > 0)     pousser('fne_api_key', fne_api_key);
+    if (fne_certificat && fne_certificat.length > 0) pousser('fne_certificat', fne_certificat);
+
+    if (champs.length === 0) {
+      return res.status(400).json({ success: false, message: 'Aucun champ à mettre à jour' });
+    }
+
+    valeurs.push(req.entrepriseId);
+    await pool.query(
+      `UPDATE entreprises SET ${champs.join(', ')}, updated_at = NOW() WHERE id = $${valeurs.length}`,
+      valeurs
+    );
+
+    logAudit(req, 'UPDATE', 'fne_config', null, { ncc, fne_mode, fne_actif });
+
+    // Renvoie l'état mis à jour (via getFneConfig pour réutiliser le masquage)
+    return getFneConfig(req, res, next);
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { certifierFactureRoute, getCertification, getFneConfig, putFneConfig };
