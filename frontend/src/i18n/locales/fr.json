@@ -405,7 +405,21 @@
     "mtn_number_intro": "Saisissez le numéro de téléphone MTN du client. Une demande de paiement (push USSD) lui sera envoyée immédiatement.",
     "mtn_number_label": "Numéro du payeur",
     "mtn_number_send": "Envoyer la demande",
-    "mtn_number_required": "Le numéro de téléphone est obligatoire pour MTN MoMo"
+    "mtn_number_required": "Le numéro de téléphone est obligatoire pour MTN MoMo",
+    "fne_btn": "Certifier auprès de la DGI (FNE)",
+    "fne_view_title": "Certification DGI · Facture {{numero}}",
+    "fne_certified": "Facture certifiée DGI",
+    "fne_intro": "Cette facture a été déclarée à la Direction Générale des Impôts. Le numéro FNE et le QR code ci-dessous permettent à votre client de vérifier l'authenticité de la facture.",
+    "fne_number_label": "Numéro fiscal (FNE)",
+    "fne_hash_label": "Hash de contrôle (SHA-256)",
+    "fne_qr_alt": "QR code de vérification DGI",
+    "fne_qr_hint": "Le client scanne ce QR code depuis son téléphone pour vérifier la facture sur le portail DGI.",
+    "fne_mock_notice": "Mode démo : ce numéro FNE est simulé, il n'a aucune valeur fiscale. Configurez vos identifiants DGI dans Paramètres pour passer en production.",
+    "fne_copy_number": "Copier le n° FNE",
+    "fne_number_copied": "Numéro FNE copié",
+    "fne_success": "Facture certifiée avec succès",
+    "fne_error": "Impossible de certifier la facture",
+    "fne_error_load": "Impossible de charger la certification"
   },
   "devis": {
     "title": "Devis & Proformas",

@@ -405,7 +405,21 @@
     "mtn_number_intro": "Enter the customer's MTN phone number. A payment request (USSD push) will be sent right away.",
     "mtn_number_label": "Payer's number",
     "mtn_number_send": "Send request",
-    "mtn_number_required": "Phone number is required for MTN MoMo"
+    "mtn_number_required": "Phone number is required for MTN MoMo",
+    "fne_btn": "Certify with tax authority (FNE)",
+    "fne_view_title": "Tax certification · Invoice {{numero}}",
+    "fne_certified": "Invoice certified by tax authority",
+    "fne_intro": "This invoice has been declared to the Ivorian tax authority (DGI). The FNE number and QR code below let your customer verify the authenticity of the invoice.",
+    "fne_number_label": "Tax number (FNE)",
+    "fne_hash_label": "Control hash (SHA-256)",
+    "fne_qr_alt": "Tax verification QR code",
+    "fne_qr_hint": "The customer scans this QR code from their phone to verify the invoice on the DGI portal.",
+    "fne_mock_notice": "Demo mode: this FNE number is simulated and has no fiscal value. Configure your DGI credentials in Settings to go live.",
+    "fne_copy_number": "Copy FNE #",
+    "fne_number_copied": "FNE number copied",
+    "fne_success": "Invoice certified successfully",
+    "fne_error": "Could not certify the invoice",
+    "fne_error_load": "Could not load the certification"
   },
   "devis": {
     "title": "Quotes & Proformas",

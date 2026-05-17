@@ -11,8 +11,9 @@ import {
   Plus, Search, Edit2, Trash2, FileText, ChevronLeft, Eye,
   ShoppingCart, Truck, CheckCircle, Send, AlertTriangle, Clock,
   Calendar, X, ArrowRight, CreditCard, Mail, Phone, MapPin,
-  Building2, Users, TrendingUp, Receipt,
+  Building2, Users, TrendingUp, Receipt, Camera,
 } from 'lucide-react';
+import ScannerFacture from '../components/ScannerFacture.jsx';
 
 const fmt = (n) => formatFCFA(n, false);
 const fmtQ = (n) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3 }).format(parseFloat(n) || 0);
@@ -723,6 +724,8 @@ function CommandesTab({ onSelect, C, dark }) {
   const [statut, setStatut] = useState('');
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [ocrData, setOcrData] = useState(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -755,7 +758,14 @@ function CommandesTab({ onSelect, C, dark }) {
           }}>{l}</button>
         ))}
         <div style={{ flex: 1 }} />
-        <button onClick={() => setShowForm(true)} style={{
+        <button onClick={() => setShowScanner(true)} style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderRadius: 10,
+          border: `1.5px solid ${C.accent}`, background: 'transparent', color: C.accent,
+          fontSize: 13, fontWeight: 700, cursor: 'pointer',
+        }}>
+          <Camera size={15} /> {t('ocr.btn_scan')}
+        </button>
+        <button onClick={() => { setOcrData(null); setShowForm(true); }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
           border: 'none', background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
         }}>
@@ -815,16 +825,23 @@ function CommandesTab({ onSelect, C, dark }) {
 
       {showForm && (
         <CommandeFormModal
-          onClose={() => setShowForm(false)}
-          onSaved={(c) => { setShowForm(false); fetchData(); onSelect(c.id); toast.success(t('fournisseurs.created')); }}
+          onClose={() => { setShowForm(false); setOcrData(null); }}
+          onSaved={(c) => { setShowForm(false); setOcrData(null); fetchData(); onSelect(c.id); toast.success(t('fournisseurs.created')); }}
+          ocrInit={ocrData}
           C={C} dark={dark} />
       )}
+
+      <ScannerFacture
+        open={showScanner}
+        onClose={() => setShowScanner(false)}
+        onExtraction={(data) => { setOcrData(data); setShowForm(true); }}
+      />
     </div>
   );
 }
 
 // ─── MODAL CRÉATION COMMANDE ───────────────────────────────────────────────
-function CommandeFormModal({ onClose, onSaved, C, dark }) {
+function CommandeFormModal({ onClose, onSaved, ocrInit, C, dark }) {
   const { t } = useTranslation();
   const emptyLigne = { description: '', produit_id: null, quantite: 1, unite: 'unité', prix_unitaire: '', remise: 0 };
   const [fournisseurs, setFournisseurs] = useState([]);
@@ -841,6 +858,38 @@ function CommandeFormModal({ onClose, onSaved, C, dark }) {
     api.get('/fournisseurs?limit=200').then(r => setFournisseurs(r.data.data)).catch(() => {});
     api.get('/produits?limit=500').then(r => setProduits(r.data.data)).catch(() => {});
   }, []);
+
+  // Pré-remplissage depuis l'OCR : on essaie de matcher le fournisseur
+  // par nom (case-insensitive, sous-chaîne) ; à défaut le champ reste
+  // vide et l'utilisateur peut le sélectionner manuellement. Les lignes
+  // OCR sont reportées telles quelles (l'utilisateur ajuste).
+  useEffect(() => {
+    if (!ocrInit || fournisseurs.length === 0) return;
+    const normaliser = (s) => (s || '').toLowerCase().trim();
+    const cible = normaliser(ocrInit.fournisseur_nom);
+    const match = cible
+      ? fournisseurs.find(f => normaliser(f.nom).includes(cible) || cible.includes(normaliser(f.nom)))
+      : null;
+    setForm(f => ({
+      ...f,
+      fournisseur_id: match?.id || '',
+      date_commande: ocrInit.date || f.date_commande,
+      reference_fournisseur: ocrInit.numero || '',
+      taux_tva: ocrInit.taux_tva || 18,
+      notes: ocrInit.fournisseur_ifu ? `IFU fournisseur : ${ocrInit.fournisseur_ifu}` : f.notes,
+      lignes: Array.isArray(ocrInit.lignes) && ocrInit.lignes.length > 0
+        ? ocrInit.lignes.map(l => ({
+            description: l.description || '',
+            produit_id: null,
+            quantite: l.quantite || 1,
+            unite: 'unité',
+            prix_unitaire: l.prix_unitaire || l.montant_ht || 0,
+            remise: 0,
+          }))
+        : [{ ...emptyLigne, description: ocrInit.fournisseur_nom || '', prix_unitaire: ocrInit.montant_ht || 0 }],
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ocrInit, fournisseurs]);
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
   const setLigne = (i, k, v) => setForm(f => {

@@ -63,9 +63,11 @@ const getFactures = async (req, res) => {
     const total = parseInt(countRes.rows[0].count);
 
     const dataRes = await pool.query(
-      `SELECT f.*, c.nom AS client_nom, c.code AS client_code, c.email AS client_email
+      `SELECT f.*, c.nom AS client_nom, c.code AS client_code, c.email AS client_email,
+              cert.numero_fne, cert.certified_at AS fne_certified_at, cert.mode AS fne_mode
        FROM factures f
        LEFT JOIN clients c ON c.id = f.client_id
+       LEFT JOIN factures_certifications_fne cert ON cert.facture_id = f.id
        WHERE ${where}
        ORDER BY f.date_emission DESC, f.created_at DESC
        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,

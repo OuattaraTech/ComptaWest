@@ -29,6 +29,7 @@ const { getStats, getTransactionsRecentes, getAnneesDisponibles } = require('../
 const { getBilan, getBilanPDF, getFacturePDF } = require('../controllers/rapportsController');
 const { getDepenses, getStatsDepenses, createDepense, updateDepense, deleteDepense, getCategories, createCategorie, depenseRules, categorieDepenseRules } = require('../controllers/depensesController');
 const { scannerPiece, scannerRules } = require('../controllers/ocrController');
+const { certifierFactureRoute, getCertification } = require('../controllers/fneController');
 const { getTaxes, getTableauBordTaxes, createTaxe, payerTaxe, calculerTVA, taxeRules, paiementTaxeRules } = require('../controllers/taxesController');
 const { getAuditLog } = require('../controllers/auditController');
 const {
@@ -160,6 +161,15 @@ router.post('/factures/:id/lien-paiement-wave',
 // Simulation paiement (mode démo / mock uniquement, multi-fournisseur).
 router.post('/factures/:id/lien-paiement-wave/simuler-paiement',
   auth, can(MODULES.TRESORERIE, ACTIONS.UPDATE), simulerPaiementWave);
+
+// Certification fiscale DGI (FNE — Facture Normalisée Électronique).
+// Mode mock par défaut ; permet de générer numéro FNE + hash + QR code
+// même sans raccordement à l'API DGI. Le commercial qui a émis la facture
+// peut la certifier (factures.update).
+router.post('/factures/:id/certifier-fne',
+  auth, can(MODULES.FACTURES, ACTIONS.UPDATE), certifierFactureRoute);
+router.get('/factures/:id/certification',
+  auth, can(MODULES.FACTURES, ACTIONS.READ), getCertification);
 
 // Webhooks PUBLICS (Wave / Orange / MTN nous appellent directement).
 // La sécurité est assurée par la signature configurée côté fournisseur.

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import api from '../utils/api.jsx';
 import { formatFCFA, formatDate, truncate } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
-import { Plus, Search, X, Download, CreditCard, Filter, Edit2, Trash2, Smartphone, Copy, MessageCircle } from 'lucide-react';
+import { Plus, Search, X, Download, CreditCard, Filter, Edit2, Trash2, Smartphone, Copy, MessageCircle, ShieldCheck, Shield } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme.jsx';
 import { usePermissions } from '../hooks/usePermissions.jsx';
 import { getC, Input, Modal, StatutBadge } from '../components/UI.jsx';
@@ -50,6 +50,8 @@ export default function FacturesPage() {
   // Lien de paiement Wave en cours d'affichage (ouvert au clic sur "💸 Lien")
   const [showLienWave, setShowLienWave] = useState(null);  // { facture, lien, mode, ... }
   const [generatingLien, setGeneratingLien] = useState(null); // id facture en cours
+  const [certifyingFne, setCertifyingFne] = useState(null);   // id facture en cours de certification DGI
+  const [showFne, setShowFne] = useState(null);               // { facture, certification }
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [editingId, setEditingId] = useState(null);
@@ -301,6 +303,33 @@ export default function FacturesPage() {
   // Alias backward-compat (lot A.1) — utilisé par le bouton historique
   const handleLienWave = handleLienPaiement;
 
+  // Certification DGI (FNE). Si la facture est déjà certifiée on ouvre
+  // directement la modale d'aperçu, sinon on appelle l'API qui peut
+  // renvoyer la certification existante (idempotente) ou en créer une.
+  const handleCertifierFne = async (f) => {
+    if (f.numero_fne) {
+      // Déjà certifiée : on charge le détail (qr_data + hash) pour affichage.
+      try {
+        const r = await api.get(`/factures/${f.id}/certification`);
+        setShowFne({ facture: f, certification: r.data.data });
+      } catch (err) {
+        if (!err.handled) toast.error(t('factures.fne_error_load'));
+      }
+      return;
+    }
+    setCertifyingFne(f.id);
+    try {
+      const r = await api.post(`/factures/${f.id}/certifier-fne`);
+      setShowFne({ facture: f, certification: r.data.data });
+      toast.success(t('factures.fne_success'));
+      fetchFactures();
+    } catch (err) {
+      if (!err.handled) toast.error(err.response?.data?.message || t('factures.fne_error'));
+    } finally {
+      setCertifyingFne(null);
+    }
+  };
+
   const copierLienWave = () => {
     if (!showLienWave?.url) return;
     navigator.clipboard.writeText(showLienWave.url)
@@ -470,6 +499,26 @@ export default function FacturesPage() {
                             title={t('factures.btn_lien_wave')}
                             style={{ padding: '5px 8px', background: `${C.blue}20`, border: `1px solid ${C.blue}40`, borderRadius: 7, cursor: generatingLien === f.id ? 'wait' : 'pointer', color: C.blue, fontSize: 11, fontWeight: 600 }}>
                             <Smartphone size={13} />
+                          </button>
+                        </Can>
+                      )}
+                      {/* Certifier DGI (FNE) — disponible pour toute facture non brouillon.
+                          Si déjà certifiée, le bouton ouvre la modale d'aperçu (QR + numéro). */}
+                      {f.statut !== 'brouillon' && (
+                        <Can module="factures" action="update">
+                          <button onClick={() => handleCertifierFne(f)}
+                            disabled={certifyingFne === f.id}
+                            title={f.numero_fne ? t('factures.fne_view_title') : t('factures.fne_btn')}
+                            style={{
+                              padding: '5px 8px',
+                              background: f.numero_fne ? `${C.accent}20` : `${C.gold}20`,
+                              border: `1px solid ${f.numero_fne ? C.accent : C.gold}40`,
+                              borderRadius: 7,
+                              cursor: certifyingFne === f.id ? 'wait' : 'pointer',
+                              color: f.numero_fne ? C.accent : C.gold,
+                              fontSize: 11, fontWeight: 600,
+                            }}>
+                            {f.numero_fne ? <ShieldCheck size={13} /> : <Shield size={13} />}
                           </button>
                         </Can>
                       )}
@@ -1038,6 +1087,90 @@ export default function FacturesPage() {
               }}>{t('factures.mtn_number_send')}</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Modale : aperçu de la certification DGI (FNE). Affiche le numéro
+          fiscal, le QR code que le client peut scanner pour vérifier sur
+          le site DGI, le hash et le mode (mock / sandbox / prod). */}
+      {showFne && showFne.certification && (
+        <Modal
+          title={t('factures.fne_view_title', { numero: showFne.facture.numero })}
+          onClose={() => setShowFne(null)} width={520}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {showFne.certification.mode === 'mock' && (
+              <div style={{
+                background: `${C.gold}12`, border: `1px solid ${C.gold}40`, borderRadius: 10,
+                padding: '10px 14px', fontSize: 11, color: C.sub, lineHeight: 1.55,
+              }}>
+                {t('factures.fne_mock_notice')}
+              </div>
+            )}
+
+            <div style={{ background: `${C.accent}10`, border: `1px solid ${C.accent}40`, borderRadius: 11, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <ShieldCheck size={18} color={C.accent} />
+                <span style={{ fontSize: 12, fontWeight: 800, color: C.accent, letterSpacing: '0.04em' }}>
+                  {t('factures.fne_certified')}
+                </span>
+              </div>
+              <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.55, marginBottom: 10 }}>
+                {t('factures.fne_intro')}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {t('factures.fne_number_label')}
+              </div>
+              <div style={{
+                fontSize: 14, fontWeight: 800, color: C.text, fontFamily: 'monospace',
+                letterSpacing: '0.05em', marginBottom: 4,
+              }}>{showFne.certification.numero_fne}</div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 16, alignItems: 'flex-start' }}>
+              <div style={{
+                background: '#fff', border: `1.5px solid ${C.border}`, borderRadius: 12,
+                padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=4&data=${encodeURIComponent(showFne.certification.qr_data)}`}
+                  alt={t('factures.fne_qr_alt')}
+                  style={{ width: 144, height: 144, display: 'block' }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    {t('factures.fne_hash_label')}
+                  </div>
+                  <div style={{
+                    fontSize: 10, color: C.sub, fontFamily: 'monospace', wordBreak: 'break-all',
+                    background: C.input, border: `1px solid ${C.border}`, borderRadius: 7,
+                    padding: '7px 9px', lineHeight: 1.4,
+                  }}>{showFne.certification.hash_facture}</div>
+                </div>
+                <div style={{ fontSize: 10, color: C.muted, lineHeight: 1.5, fontStyle: 'italic' }}>
+                  {t('factures.fne_qr_hint')}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => {
+                navigator.clipboard.writeText(showFne.certification.numero_fne);
+                toast.success(t('factures.fne_number_copied'));
+              }} style={{
+                flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`,
+                background: 'transparent', color: C.text, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}>
+                <Copy size={13} /> {t('factures.fne_copy_number')}
+              </button>
+              <button onClick={() => setShowFne(null)} style={{
+                flex: 1, padding: '11px 0', borderRadius: 10, border: 'none',
+                background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              }}>{t('common.close')}</button>
+            </div>
+          </div>
         </Modal>
       )}
 
