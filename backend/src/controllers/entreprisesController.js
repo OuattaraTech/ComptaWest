@@ -6,6 +6,15 @@ const {
   creerJournauxDefaut, creerExerciceCourant,
 } = require('../utils/helpers');
 const { logAudit } = require('../utils/audit');
+const { ALL_ROLES, ROLES } = require('../utils/permissions');
+
+// Rôles assignables à un membre invité : tous sauf le propriétaire
+// (qui est attribué automatiquement au créateur de l'entreprise).
+// Inclut les rôles legacy user/lecture pour ne pas casser les flux existants.
+const ROLES_ASSIGNABLES = ALL_ROLES.filter(r => r !== ROLES.PROPRIETAIRE);
+// Pour le changement de rôle d'un membre existant, on autorise aussi
+// la promotion au statut de propriétaire (cas de transfert d'entreprise).
+const ROLES_MODIFIABLES = ALL_ROLES;
 
 const entrepriseRules = [
   body('nom').trim().notEmpty().withMessage('Nom requis').isLength({ max: 150 }),
@@ -129,7 +138,16 @@ const getMembres = async (req, res) => {
        FROM membres_entreprise me
        JOIN utilisateurs u ON u.id = me.utilisateur_id
        WHERE me.entreprise_id = $1
-       ORDER BY CASE me.role WHEN 'proprietaire' THEN 1 WHEN 'admin' THEN 2 WHEN 'comptable' THEN 3 WHEN 'rh' THEN 4 ELSE 5 END, u.nom ASC`,
+       ORDER BY CASE me.role
+         WHEN 'proprietaire'     THEN 1
+         WHEN 'admin'            THEN 2
+         WHEN 'expert_comptable' THEN 3
+         WHEN 'comptable'        THEN 4
+         WHEN 'rh'               THEN 5
+         WHEN 'commercial'       THEN 6
+         WHEN 'magasinier'       THEN 7
+         WHEN 'auditeur'         THEN 8
+         ELSE 9 END, u.nom ASC`,
       [id]
     );
     res.json({ success: true, data: result.rows });
@@ -148,9 +166,11 @@ const inviterMembre = async (req, res) => {
 
     if (!email) return res.status(400).json({ success: false, message: 'Email requis' });
 
-    const rolesValides = ['admin', 'comptable', 'rh', 'user', 'lecture'];
-    if (!rolesValides.includes(role)) {
-      return res.status(400).json({ success: false, message: 'Rôle invalide' });
+    if (!ROLES_ASSIGNABLES.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: `Rôle invalide. Valeurs acceptées : ${ROLES_ASSIGNABLES.join(', ')}`,
+      });
     }
 
     const emailNorm = email.trim().toLowerCase();
@@ -271,9 +291,11 @@ const updateRoleMembre = async (req, res) => {
     const { id, userId } = req.params;
     const { role } = req.body;
     // 'proprietaire' est assignable : on peut promouvoir un membre ou transférer la propriété
-    const rolesValides = ['proprietaire', 'admin', 'comptable', 'rh', 'user', 'lecture'];
-    if (!rolesValides.includes(role)) {
-      return res.status(400).json({ success: false, message: 'Rôle invalide' });
+    if (!ROLES_MODIFIABLES.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: `Rôle invalide. Valeurs acceptées : ${ROLES_MODIFIABLES.join(', ')}`,
+      });
     }
 
     const check = await pool.query(
