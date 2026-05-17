@@ -91,11 +91,14 @@ function PreferencesTab({ C }) {
 //   - mtn_momo : « Subscription key » (clé du portail MoMo Developer)
 const FOURNISSEURS_META = {
   wave:         { label: 'Wave',         letter: 'W', bg: 'linear-gradient(135deg, #1DC8F0, #0066FF)',
-                  secretLabel: 'integration_webhook_secret' },
+                  secretLabel: 'integration_webhook_secret',
+                  dashboard: 'Wave Business' },
   orange_money: { label: 'Orange Money', letter: 'O', bg: 'linear-gradient(135deg, #FF6600, #CC3300)',
-                  secretLabel: 'integration_notif_token' },
+                  secretLabel: 'integration_notif_token',
+                  dashboard: 'Orange Money Merchant' },
   mtn_momo:     { label: 'MTN MoMo',     letter: 'M', bg: 'linear-gradient(135deg, #FFCC00, #E6A800)',
-                  secretLabel: 'integration_subscription_key' },
+                  secretLabel: 'integration_subscription_key',
+                  dashboard: 'MTN MoMo Developer Portal' },
 };
 
 // ─── Onglet Intégrations : configuration des paiements externes ──────────
@@ -326,10 +329,10 @@ function CarteFournisseur({ fournisseur, integration, comptes, loading, webhookU
             padding: '12px 14px', border: `1px solid ${C.border}`,
           }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              {t('parametres.integration_webhook_url')}
+              {t('parametres.integration_webhook_url', { dashboard: meta.dashboard })}
             </div>
             <div style={{ fontSize: 11, color: C.sub, lineHeight: 1.55, marginBottom: 8 }}>
-              {t('parametres.integration_webhook_help')}
+              {t('parametres.integration_webhook_help', { dashboard: meta.dashboard, fournisseur: meta.label })}
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
               <input readOnly value={webhookUrl} onFocus={e => e.target.select()}
