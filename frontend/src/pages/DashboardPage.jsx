@@ -1,18 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useEntreprise } from '../hooks/useEntreprise.jsx';
+import { usePermissions } from '../hooks/usePermissions.jsx';
 import { useTheme } from '../hooks/useTheme.jsx';
 import api from '../utils/api.jsx';
 import { formatFCFA, formatDate } from '../utils/helpers.jsx';
 import { getC, KpiCard, CustomTooltip, StatutBadge } from '../components/UI.jsx';
 import SelecteurAnnee from '../components/SelecteurAnnee.jsx';
 import Onboarding from '../components/Onboarding.jsx';
+import ScannerFacture from '../components/ScannerFacture.jsx';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { TrendingUp, TrendingDown, Users, AlertTriangle, DollarSign, Calculator } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, AlertTriangle, DollarSign, Calculator,
+  Camera, Smartphone, ShieldCheck, Settings, ArrowRight, Sparkles } from 'lucide-react';
 
 // Salutation selon l'heure locale : renvoie une clé i18n + emoji + clé moment.
 // Les libellés sont résolus dans le composant via t().
@@ -28,13 +32,16 @@ export default function DashboardPage() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const { actuelle } = useEntreprise();
+  const { can } = usePermissions();
   const { dark } = useTheme();
   const C = getC(dark);
+  const navigate = useNavigate();
 
   const [annee, setAnnee] = useState(String(new Date().getFullYear()));
   const [stats, setStats] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showScanner, setShowScanner] = useState(false);
 
   useEffect(() => {
     if (!actuelle) return;
@@ -141,6 +148,54 @@ export default function DashboardPage() {
                 {t('dashboard.alert_taxes_due', { amount: formatFCFA(kpis.total_taxes_dues) })}
               </span>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Raccourcis productifs : accès direct aux fonctionnalités phares
+          (scanner OCR, Mobile Money, certification DGI, configuration).
+          Chaque carte n'apparaît que si l'utilisateur a la permission. */}
+      {(can('depenses', 'create') || can('factures', 'update') || can('entreprise', 'update')) && (
+        <div data-onboarding="raccourcis" style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: 12, marginBottom: 22,
+        }}>
+          {can('depenses', 'create') && (
+            <RaccourciCarte
+              icon={Camera}
+              titre={t('dashboard.shortcut_scan_title')}
+              sousTitre={t('dashboard.shortcut_scan_sub')}
+              couleur={C.accent} dark={dark} C={C}
+              onClick={() => setShowScanner(true)}
+            />
+          )}
+          {can('factures', 'update') && (
+            <RaccourciCarte
+              icon={Smartphone}
+              titre={t('dashboard.shortcut_mobile_money_title')}
+              sousTitre={t('dashboard.shortcut_mobile_money_sub')}
+              couleur={C.blue} dark={dark} C={C}
+              onClick={() => navigate('/factures')}
+            />
+          )}
+          {can('factures', 'update') && (
+            <RaccourciCarte
+              icon={ShieldCheck}
+              titre={t('dashboard.shortcut_fne_title')}
+              sousTitre={t('dashboard.shortcut_fne_sub')}
+              couleur={C.gold} dark={dark} C={C}
+              onClick={() => navigate('/factures')}
+            />
+          )}
+          {can('entreprise', 'update') && (
+            <RaccourciCarte
+              icon={Settings}
+              titre={t('dashboard.shortcut_config_title')}
+              sousTitre={t('dashboard.shortcut_config_sub')}
+              couleur={C.purple} dark={dark} C={C}
+              onClick={() => navigate('/parametres')}
+            />
           )}
         </div>
       )}
@@ -294,7 +349,55 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Scanner OCR depuis l'accueil : à validation des champs, on bascule
+          sur la page Dépenses qui pré-remplira son formulaire via
+          sessionStorage (consommé puis effacé à l'arrivée). */}
+      <ScannerFacture
+        open={showScanner}
+        onClose={() => setShowScanner(false)}
+        onExtraction={(data) => {
+          sessionStorage.setItem('cw_ocr_prefill', JSON.stringify(data));
+          setShowScanner(false);
+          navigate('/depenses');
+        }}
+      />
+
       <Onboarding pageKey="dashboard" />
     </div>
+  );
+}
+
+// ─── Carte « Raccourci » — accès rapide aux fonctionnalités phares ───────
+// Carte cliquable avec icône colorée, titre, sous-titre et flèche.
+// Reste sobre pour ne pas concurrencer visuellement les KPIs.
+function RaccourciCarte({ icon: Icon, titre, sousTitre, couleur, dark, C, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      padding: '14px 16px', borderRadius: 14,
+      background: C.card, border: `1px solid ${C.border}`, boxShadow: C.shadow,
+      cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+    }}
+    onMouseEnter={e => {
+      e.currentTarget.style.borderColor = `${couleur}80`;
+      e.currentTarget.style.transform = 'translateY(-2px)';
+    }}
+    onMouseLeave={e => {
+      e.currentTarget.style.borderColor = C.border;
+      e.currentTarget.style.transform = 'translateY(0)';
+    }}>
+      <div style={{
+        width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+        background: `${couleur}18`, border: `1px solid ${couleur}40`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <Icon size={18} color={couleur} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 2 }}>{titre}</div>
+        <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.35 }}>{sousTitre}</div>
+      </div>
+      <ArrowRight size={14} color={C.muted} style={{ flexShrink: 0 }} />
+    </button>
   );
 }

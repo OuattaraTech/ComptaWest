@@ -80,6 +80,20 @@ export default function DepensesPage() {
     api.get('/fournisseurs?limit=300').then(r => setFournisseurs(r.data.data)).catch(() => {});
   }, []);
 
+  // Si on arrive ici depuis le scanner OCR du tableau de bord, on retrouve
+  // les champs extraits dans sessionStorage et on ouvre directement le
+  // formulaire pré-rempli. Ne s'exécute qu'une fois (puis on efface).
+  useEffect(() => {
+    const raw = sessionStorage.getItem('cw_ocr_prefill');
+    if (!raw) return;
+    try {
+      const data = JSON.parse(raw);
+      prefillFromOcr(data);
+    } catch {}
+    sessionStorage.removeItem('cw_ocr_prefill');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const rechargerFournisseurs = async () => {
     try { const r = await api.get('/fournisseurs?limit=300'); setFournisseurs(r.data.data); }
     catch {}

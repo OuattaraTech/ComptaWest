@@ -93,6 +93,7 @@ export const ONBOARDING = {
     spotlight: [
       { target: 'header', titre: 'Salutation dynamique', description: 'L\'en-tête s\'adapte au moment de la journée (matin, après-midi, soir) et affiche le nom de l\'entreprise active, son régime et l\'année comptable.' },
       { target: 'annee-selector', titre: 'Sélecteur d\'année', description: 'Changez d\'année comptable pour consulter ou comparer les données d\'un autre exercice.' },
+      { target: 'raccourcis', titre: 'Raccourcis productifs', description: 'Accédez en un clic aux outils différenciants : scanner une facture (OCR), générer un lien Mobile Money, certifier auprès de la DGI, configurer vos intégrations.' },
       { target: 'kpis', titre: 'Indicateurs clés (KPI)', description: 'CA, dépenses, taxes dues, bénéfice net, marge et clients actifs. Devis et proformas exclus pour rester comptablement justes.' },
       { target: 'graphiques', titre: 'Graphiques d\'évolution', description: 'Évolution mensuelle recettes/dépenses/bénéfice, structure des charges par catégorie SYSCOHADA, top 5 clients de l\'exercice et transactions récentes.' },
     ],

@@ -83,6 +83,7 @@ export const ONBOARDING = {
     spotlight: [
       { target: 'header', titre: 'Dynamic greeting', description: 'The header adapts to the time of day (morning, afternoon, evening) and displays the active company name, its tax regime and the accounting year.' },
       { target: 'annee-selector', titre: 'Year selector', description: 'Switch accounting year to view or compare data from another fiscal period.' },
+      { target: 'raccourcis', titre: 'Productivity shortcuts', description: 'One-click access to the differentiating tools: scan an invoice (OCR), generate a Mobile Money link, certify with the DGI, configure your integrations.' },
       { target: 'kpis', titre: 'Key indicators (KPIs)', description: 'Revenue, expenses, taxes due, net profit, margin and active customers. Quotes and proformas excluded to stay accounting-correct.' },
       { target: 'graphiques', titre: 'Trend charts', description: 'Monthly evolution of income/expenses/profit, breakdown of expenses by SYSCOHADA category, top 5 customers of the period and recent transactions.' },
     ],
