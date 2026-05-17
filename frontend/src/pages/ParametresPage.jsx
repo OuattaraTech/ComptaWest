@@ -83,18 +83,29 @@ function PreferencesTab({ C }) {
   );
 }
 
+// Métadonnées visuelles par fournisseur : couleurs et lettre du logo.
+// Les libellés et descriptions viennent d'i18n (parametres.fournisseur_*).
+// Le label backend pour le webhook_secret diffère :
+//   - wave : « Webhook secret » (HMAC)
+//   - orange_money : « Notif token » (renvoyé à la création de session)
+//   - mtn_momo : « Subscription key » (clé du portail MoMo Developer)
+const FOURNISSEURS_META = {
+  wave:         { label: 'Wave',         letter: 'W', bg: 'linear-gradient(135deg, #1DC8F0, #0066FF)',
+                  secretLabel: 'integration_webhook_secret' },
+  orange_money: { label: 'Orange Money', letter: 'O', bg: 'linear-gradient(135deg, #FF6600, #CC3300)',
+                  secretLabel: 'integration_notif_token' },
+  mtn_momo:     { label: 'MTN MoMo',     letter: 'M', bg: 'linear-gradient(135deg, #FFCC00, #E6A800)',
+                  secretLabel: 'integration_subscription_key' },
+};
+
 // ─── Onglet Intégrations : configuration des paiements externes ──────────
-// Pour l'instant : Wave (Côte d'Ivoire / Sénégal). Orange Money et MTN MoMo
-// viendront dans un lot suivant. La carte affiche le statut, permet de
-// modifier la clé API (masquée), le webhook secret, le mode et le compte
-// trésorerie de destination.
 function IntegrationsTab({ C, dark }) {
   const { t } = useTranslation();
   const { actuelle } = useEntreprise();
   const [integrations, setIntegrations] = useState([]);
   const [comptes, setComptes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showWaveForm, setShowWaveForm] = useState(false);
+  const [formOuvert, setFormOuvert] = useState(null); // fournisseur en cours d'édition
 
   const fetchData = async () => {
     setLoading(true);
@@ -113,8 +124,8 @@ function IntegrationsTab({ C, dark }) {
   };
   useEffect(() => { fetchData(); }, []);
 
-  const wave = integrations.find(i => i.fournisseur === 'wave');
-  const webhookUrl = `${window.location.origin.replace(':5173', ':5000')}/api/webhooks/wave/${actuelle?.id || ''}`;
+  const webhookUrl = (fournisseur) =>
+    `${window.location.origin.replace(':5173', ':5000')}/api/webhooks/${fournisseur}/${actuelle?.id || ''}`;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -125,23 +136,26 @@ function IntegrationsTab({ C, dark }) {
         {t('parametres.integrations_intro')}
       </div>
 
-      {/* Carte Wave */}
-      <CarteWave
-        wave={wave} comptes={comptes} loading={loading} webhookUrl={webhookUrl}
-        showForm={showWaveForm} setShowForm={setShowWaveForm}
-        onSaved={fetchData}
-        C={C} dark={dark}
-      />
-
-      {/* Placeholders Orange Money / MTN MoMo : "Bientôt disponible" */}
-      <CartePlaceholder fournisseur="orange_money" C={C} dark={dark} />
-      <CartePlaceholder fournisseur="mtn_momo" C={C} dark={dark} />
+      {Object.keys(FOURNISSEURS_META).map(f => (
+        <CarteFournisseur key={f}
+          fournisseur={f}
+          integration={integrations.find(i => i.fournisseur === f)}
+          comptes={comptes}
+          loading={loading}
+          webhookUrl={webhookUrl(f)}
+          showForm={formOuvert === f}
+          setShowForm={(o) => setFormOuvert(o ? f : null)}
+          onSaved={fetchData}
+          C={C} dark={dark}
+        />
+      ))}
     </div>
   );
 }
 
-function CarteWave({ wave, comptes, loading, webhookUrl, showForm, setShowForm, onSaved, C, dark }) {
+function CarteFournisseur({ fournisseur, integration, comptes, loading, webhookUrl, showForm, setShowForm, onSaved, C, dark }) {
   const { t } = useTranslation();
+  const meta = FOURNISSEURS_META[fournisseur];
   const [form, setForm] = useState({
     mode: 'mock', actif: true, api_key: '', webhook_secret: '', compte_tresorerie_id: '',
   });
@@ -150,22 +164,22 @@ function CarteWave({ wave, comptes, loading, webhookUrl, showForm, setShowForm, 
   const [showSecret, setShowSecret] = useState(false);
 
   useEffect(() => {
-    if (wave) {
+    if (integration) {
       setForm({
-        mode: wave.mode || 'mock',
-        actif: wave.actif ?? true,
+        mode: integration.mode || 'mock',
+        actif: integration.actif ?? true,
         api_key: '',
         webhook_secret: '',
-        compte_tresorerie_id: wave.compte_tresorerie_id || '',
+        compte_tresorerie_id: integration.compte_tresorerie_id || '',
       });
     }
-  }, [wave]);
+  }, [integration]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.put('/integrations-paiement/wave', form);
+      await api.put(`/integrations-paiement/${fournisseur}`, form);
       toast.success(t('parametres.integration_saved'));
       setShowForm(false);
       onSaved();
@@ -180,8 +194,8 @@ function CarteWave({ wave, comptes, loading, webhookUrl, showForm, setShowForm, 
       .catch(() => toast.error(t('parametres.copy_failed')));
   };
 
-  const isActive = wave?.actif && wave?.api_key_set;
-  const isMockOnly = !wave?.api_key_set;
+  const isActive = integration?.actif && integration?.api_key_set;
+  const isMockOnly = !integration?.api_key_set;
   const inputStyle = {
     background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 9,
     padding: '10px 13px', color: C.text, fontSize: 13, outline: 'none',
@@ -193,17 +207,17 @@ function CarteWave({ wave, comptes, loading, webhookUrl, showForm, setShowForm, 
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 16 }}>
         <div style={{
           width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-          background: 'linear-gradient(135deg, #1DC8F0, #0066FF)', color: '#fff',
+          background: meta.bg, color: '#fff',
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18,
-        }}>W</div>
+        }}>{meta.letter}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>Wave</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{meta.label}</div>
             {isActive
               ? <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 12, background: `${C.accent}20`, color: C.accent, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <CheckCircle size={11} /> {t('parametres.integration_status_active', { mode: wave.mode })}
+                  <CheckCircle size={11} /> {t('parametres.integration_status_active', { mode: integration.mode })}
                 </span>
-              : isMockOnly
+              : integration && isMockOnly
                 ? <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 12, background: `${C.gold}20`, color: C.gold, display: 'flex', alignItems: 'center', gap: 4 }}>
                     <AlertCircle size={11} /> {t('parametres.integration_status_demo')}
                   </span>
@@ -212,7 +226,7 @@ function CarteWave({ wave, comptes, loading, webhookUrl, showForm, setShowForm, 
                   </span>}
           </div>
           <div style={{ fontSize: 12, color: C.muted, marginTop: 3, lineHeight: 1.5 }}>
-            {t('parametres.wave_desc')}
+            {t(`parametres.${fournisseur}_desc`)}
           </div>
         </div>
         {!showForm && (
@@ -221,23 +235,22 @@ function CarteWave({ wave, comptes, loading, webhookUrl, showForm, setShowForm, 
             background: 'transparent', color: C.text, fontSize: 12, fontWeight: 600, cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
           }}>
-            <Edit2 size={13} /> {wave ? t('common.edit') : t('parametres.integration_configure')}
+            <Edit2 size={13} /> {integration ? t('common.edit') : t('parametres.integration_configure')}
           </button>
         )}
       </div>
 
-      {!showForm && wave && (
+      {!showForm && integration && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginTop: 10 }}>
-          <InfoLine label={t('parametres.integration_mode')} value={t(`parametres.integration_mode_${wave.mode}`)} C={C} />
-          <InfoLine label={t('parametres.integration_api_key')} value={wave.api_key_set ? wave.api_key_apercu : t('parametres.integration_not_set')} C={C} />
-          <InfoLine label={t('parametres.integration_webhook_secret')} value={wave.webhook_secret_set ? t('parametres.integration_configured') : t('parametres.integration_not_set')} C={C} />
-          <InfoLine label={t('parametres.integration_destination')} value={wave.compte_nom || t('parametres.integration_default_account')} C={C} />
+          <InfoLine label={t('parametres.integration_mode')} value={t(`parametres.integration_mode_${integration.mode}`)} C={C} />
+          <InfoLine label={t('parametres.integration_api_key')} value={integration.api_key_set ? integration.api_key_apercu : t('parametres.integration_not_set')} C={C} />
+          <InfoLine label={t(`parametres.${meta.secretLabel}`)} value={integration.webhook_secret_set ? t('parametres.integration_configured') : t('parametres.integration_not_set')} C={C} />
+          <InfoLine label={t('parametres.integration_destination')} value={integration.compte_nom || t('parametres.integration_default_account')} C={C} />
         </div>
       )}
 
       {showForm && (
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 16 }}>
-          {/* Mode */}
           <div style={{ display: 'flex', gap: 6 }}>
             {['mock', 'sandbox', 'live'].map(m => (
               <button key={m} type="button"
@@ -257,16 +270,15 @@ function CarteWave({ wave, comptes, loading, webhookUrl, showForm, setShowForm, 
             {t(`parametres.integration_mode_${form.mode}_help`)}
           </div>
 
-          {/* Clé API */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               {t('parametres.integration_api_key')}
-              {wave?.api_key_set && <span style={{ fontWeight: 400, textTransform: 'none', color: C.muted, marginLeft: 8 }}>· {wave.api_key_apercu}</span>}
+              {integration?.api_key_set && <span style={{ fontWeight: 400, textTransform: 'none', color: C.muted, marginLeft: 8 }}>· {integration.api_key_apercu}</span>}
             </label>
             <div style={{ display: 'flex', gap: 6 }}>
               <input type={showCle ? 'text' : 'password'}
                 value={form.api_key} onChange={e => setForm(f => ({ ...f, api_key: e.target.value }))}
-                placeholder={wave?.api_key_set ? t('parametres.integration_keep_value') : 'wave_sn_prod_xxxxxxxxxxxxxx'}
+                placeholder={integration?.api_key_set ? t('parametres.integration_keep_value') : t(`parametres.${fournisseur}_api_key_placeholder`)}
                 style={inputStyle} />
               <button type="button" onClick={() => setShowCle(s => !s)} style={{
                 padding: '0 12px', borderRadius: 9, border: `1.5px solid ${C.border}`,
@@ -275,16 +287,15 @@ function CarteWave({ wave, comptes, loading, webhookUrl, showForm, setShowForm, 
             </div>
           </div>
 
-          {/* Webhook secret */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              {t('parametres.integration_webhook_secret')}
-              {wave?.webhook_secret_set && <span style={{ fontWeight: 400, textTransform: 'none', color: C.muted, marginLeft: 8 }}>· {t('parametres.integration_configured')}</span>}
+              {t(`parametres.${meta.secretLabel}`)}
+              {integration?.webhook_secret_set && <span style={{ fontWeight: 400, textTransform: 'none', color: C.muted, marginLeft: 8 }}>· {t('parametres.integration_configured')}</span>}
             </label>
             <div style={{ display: 'flex', gap: 6 }}>
               <input type={showSecret ? 'text' : 'password'}
                 value={form.webhook_secret} onChange={e => setForm(f => ({ ...f, webhook_secret: e.target.value }))}
-                placeholder={wave?.webhook_secret_set ? t('parametres.integration_keep_value') : 'whsec_xxxxxxxxxxxx'}
+                placeholder={integration?.webhook_secret_set ? t('parametres.integration_keep_value') : t(`parametres.${fournisseur}_secret_placeholder`)}
                 style={inputStyle} />
               <button type="button" onClick={() => setShowSecret(s => !s)} style={{
                 padding: '0 12px', borderRadius: 9, border: `1.5px solid ${C.border}`,
@@ -293,7 +304,6 @@ function CarteWave({ wave, comptes, loading, webhookUrl, showForm, setShowForm, 
             </div>
           </div>
 
-          {/* Compte de trésorerie destination */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               {t('parametres.integration_destination')}
@@ -311,7 +321,6 @@ function CarteWave({ wave, comptes, loading, webhookUrl, showForm, setShowForm, 
             </span>
           </div>
 
-          {/* URL webhook à recopier dans le dashboard Wave */}
           <div style={{
             background: dark ? '#0D1220' : C.cardAlt, borderRadius: 10,
             padding: '12px 14px', border: `1px solid ${C.border}`,
@@ -346,31 +355,6 @@ function CarteWave({ wave, comptes, loading, webhookUrl, showForm, setShowForm, 
           </div>
         </form>
       )}
-    </div>
-  );
-}
-
-function CartePlaceholder({ fournisseur, C, dark }) {
-  const { t } = useTranslation();
-  const visuels = {
-    orange_money: { label: 'Orange Money', bg: 'linear-gradient(135deg, #FF6600, #CC3300)', letter: 'O' },
-    mtn_momo:     { label: 'MTN MoMo',     bg: 'linear-gradient(135deg, #FFCC00, #E6A800)', letter: 'M' },
-  };
-  const v = visuels[fournisseur];
-  return (
-    <div style={{
-      background: C.card, border: `1.5px dashed ${C.border}`, borderRadius: 16, padding: 20,
-      display: 'flex', alignItems: 'center', gap: 14, opacity: 0.65,
-    }}>
-      <div style={{
-        width: 40, height: 40, borderRadius: 11, flexShrink: 0,
-        background: v.bg, color: '#fff',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 16,
-      }}>{v.letter}</div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{v.label}</div>
-        <div style={{ fontSize: 11, color: C.muted }}>{t('parametres.integration_coming_soon')}</div>
-      </div>
     </div>
   );
 }

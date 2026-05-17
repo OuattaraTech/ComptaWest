@@ -10,6 +10,15 @@ import { getC, Input, Modal, StatutBadge } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
 import { Can, ReadOnlyBanner } from '../components/Can.jsx';
 
+// Méta-données pour l'affichage des fournisseurs de paiement (picker + modale).
+// La carte de configuration vit dans ParametresPage ; ici on ne garde que ce
+// dont on a besoin pour rendre le bouton et le titre de la modale.
+const FOURNISSEURS_META = {
+  wave:         { nom: 'Wave',         bg: '#1AA1F1', lettre: 'W' },
+  orange_money: { nom: 'Orange Money', bg: '#FF7900', lettre: 'O' },
+  mtn_momo:     { nom: 'MTN MoMo',     bg: '#FFCC00', lettre: 'M' },
+};
+
 const STATUTS = ['', 'brouillon', 'envoyee', 'en_attente', 'payee', 'retard', 'annulee'];
 
 const emptyLigne = { description: '', quantite: 1, unite: 'unité', prix_unitaire: '', remise: 0, produit_id: null };
@@ -47,11 +56,17 @@ export default function FacturesPage() {
   const [paiementForm, setPaiementForm] = useState({ montant: '', date_paiement: new Date().toISOString().split('T')[0], mode_paiement: 'virement', reference: '', compte_tresorerie_id: '' });
   const [comptesTresorerie, setComptesTresorerie] = useState([]);
   const [produitsCatalogue, setProduitsCatalogue] = useState([]);
+  // Intégrations de paiement actives (Wave / Orange / MTN) — utilisé pour
+  // proposer le bon sélecteur quand on clique sur "Lien de paiement".
+  const [integrationsActives, setIntegrationsActives] = useState([]);
+  // Picker fournisseur : { facture, integrations } si l'utilisateur a
+  // plusieurs intégrations actives ; sinon on appelle directement le
+  // backend avec la seule intégration disponible.
+  const [showPickerFournisseur, setShowPickerFournisseur] = useState(null);
+  // Numéro MTN à saisir avant de générer le lien (MTN push USSD direct).
+  const [askMtnNumber, setAskMtnNumber] = useState(null);
+  const [mtnNumber, setMtnNumber] = useState('');
 
-  // Charger les comptes de trésorerie (uniquement pour les rôles autorisés :
-  // commercial / user / lecture ne voient pas la trésorerie, on évite donc
-  // l'appel qui finirait en 403 + toast). La modale de paiement n'est de
-  // toute façon pas accessible à ces rôles côté backend.
   useEffect(() => {
     if (can('tresorerie', 'read')) {
       api.get('/tresorerie/comptes')
@@ -63,6 +78,12 @@ export default function FacturesPage() {
         .then(r => setProduitsCatalogue(r.data.data))
         .catch(() => {});
     }
+    // Intégrations : tout utilisateur qui peut lire l'entreprise peut savoir
+    // quels moyens de paiement sont disponibles (sinon picker vide -> on
+    // tombe sur le défaut Wave en mode mock).
+    api.get('/integrations-paiement', { silent: true })
+      .then(r => setIntegrationsActives((r.data.data || []).filter(i => i.actif)))
+      .catch(() => {});
   }, [can]);
 
   // Choix d'un produit du catalogue → remplit auto la ligne
@@ -226,17 +247,45 @@ export default function FacturesPage() {
     } catch { toast.error(t('factures.error_status')); }
   };
 
-  // Génère (ou récupère) un lien de paiement Wave pour la facture donnée.
-  // Le backend renvoie un faux lien (mode mock) si l'entreprise n'a pas
-  // encore configuré son intégration Wave — pratique pour démontrer.
-  const handleLienWave = async (f) => {
+  // Point d'entrée : clic sur le bouton « Lien de paiement » d'une facture.
+  // - Aucune intégration active : on retombe sur Wave en mode mock (démo).
+  // - Une seule intégration : on génère directement.
+  // - Plusieurs intégrations : on ouvre le picker.
+  // - MTN choisi : on demande d'abord le numéro du payeur.
+  const handleLienPaiement = (f) => {
+    if (integrationsActives.length <= 1) {
+      // 0 ou 1 fournisseur : on prend le seul disponible, ou Wave par défaut
+      const fournisseur = integrationsActives[0]?.fournisseur || 'wave';
+      genererLien(f, fournisseur);
+    } else {
+      setShowPickerFournisseur({ facture: f });
+    }
+  };
+
+  // Génère un lien pour la facture + fournisseur. MTN demande un numéro
+  // de téléphone du payeur avant l'appel.
+  const genererLien = async (f, fournisseur, payerMobile = null) => {
+    if (fournisseur === 'mtn_momo' && !payerMobile) {
+      // Ouvre la modale de saisie du numéro MTN ; le client peut être
+      // déjà renseigné dans la facture (champ telephone).
+      const client = clients.find(c => c.id === f.client_id);
+      setMtnNumber(client?.telephone || '');
+      setAskMtnNumber({ facture: f });
+      setShowPickerFournisseur(null);
+      return;
+    }
     setGeneratingLien(f.id);
+    setShowPickerFournisseur(null);
+    setAskMtnNumber(null);
     try {
-      const res = await api.post(`/factures/${f.id}/lien-paiement-wave`);
-      // On enrichit avec le téléphone du client pour pré-remplir wa.me / SMS
+      const res = await api.post(`/factures/${f.id}/lien-paiement`, {
+        fournisseur,
+        payer_mobile: payerMobile,
+      });
       const client = clients.find(c => c.id === f.client_id);
       setShowLienWave({
         facture: f,
+        fournisseur,
         client_telephone: client?.telephone || null,
         client_nom: client?.nom || null,
         ...res.data.data,
@@ -247,6 +296,9 @@ export default function FacturesPage() {
       setGeneratingLien(null);
     }
   };
+
+  // Alias backward-compat (lot A.1) — utilisé par le bouton historique
+  const handleLienWave = handleLienPaiement;
 
   const copierLienWave = () => {
     if (!showLienWave?.url) return;
@@ -766,10 +818,14 @@ export default function FacturesPage() {
         </Modal>
       )}
 
-      {/* Modal : lien de paiement Wave généré */}
-      {showLienWave && (
+      {/* Modal : lien de paiement généré (Wave / Orange Money / MTN MoMo) */}
+      {showLienWave && (() => {
+        const fournisseur = showLienWave.fournisseur || 'wave';
+        const meta = FOURNISSEURS_META[fournisseur] || FOURNISSEURS_META.wave;
+        const isMtn = fournisseur === 'mtn_momo';
+        return (
         <Modal
-          title={t('factures.lien_wave_title', { numero: showLienWave.facture.numero })}
+          title={t('factures.lien_paiement_title', { fournisseur: meta.nom, numero: showLienWave.facture.numero })}
           onClose={() => setShowLienWave(null)} width={500}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {/* Bandeau mode mock — utile en dev pour signaler que c'est un faux lien */}
@@ -782,10 +838,10 @@ export default function FacturesPage() {
               </div>
             )}
 
-            <div style={{ background: `${C.blue}10`, border: `1px solid ${C.blue}30`, borderRadius: 11, padding: '14px 16px' }}>
+            <div style={{ background: `${meta.bg}18`, border: `1px solid ${meta.bg}50`, borderRadius: 11, padding: '14px 16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <Smartphone size={16} color={C.blue} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.blue }}>
+                <Smartphone size={16} color={meta.bg} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: meta.bg }}>
                   {t('factures.lien_wave_amount', {
                     amount: formatFCFA(showLienWave.montant),
                     currency: showLienWave.devise || t('common.currency'),
@@ -793,7 +849,7 @@ export default function FacturesPage() {
                 </span>
               </div>
               <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.55 }}>
-                {t('factures.lien_wave_intro')}
+                {isMtn ? t('factures.lien_mtn_intro') : t('factures.lien_wave_intro')}
               </div>
             </div>
 
@@ -901,6 +957,87 @@ export default function FacturesPage() {
               {t('factures.lien_wave_expire', { date: new Date(showLienWave.expire_at).toLocaleString() })}
             </div>
           </div>
+        </Modal>
+        );
+      })()}
+
+      {/* Modale : choix du fournisseur de paiement quand plusieurs sont actifs */}
+      {showPickerFournisseur && (
+        <Modal
+          title={t('factures.picker_fournisseur_title')}
+          onClose={() => setShowPickerFournisseur(null)} width={420}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.55 }}>
+              {t('factures.picker_fournisseur_intro')}
+            </div>
+            {integrationsActives.map(intg => {
+              const meta = FOURNISSEURS_META[intg.fournisseur] || { nom: intg.fournisseur, bg: C.muted, lettre: '?' };
+              return (
+                <button
+                  key={intg.fournisseur}
+                  onClick={() => genererLien(showPickerFournisseur.facture, intg.fournisseur)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '12px 14px', borderRadius: 10,
+                    border: `1.5px solid ${C.border}`, background: C.input,
+                    cursor: 'pointer', textAlign: 'left',
+                  }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10, background: meta.bg,
+                    color: '#fff', fontWeight: 800, fontSize: 16,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>{meta.lettre}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{meta.nom}</div>
+                    <div style={{ fontSize: 11, color: C.muted }}>
+                      {intg.mode === 'mock' ? t('parametres.integration_mode_mock') : t('parametres.integration_mode_live')}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </Modal>
+      )}
+
+      {/* Modale : saisie du numéro MTN du payeur avant déclenchement du push USSD */}
+      {askMtnNumber && (
+        <Modal
+          title={t('factures.mtn_number_title')}
+          onClose={() => setAskMtnNumber(null)} width={420}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const numero = mtnNumber.trim();
+              if (!numero) {
+                toast.error(t('factures.mtn_number_required'));
+                return;
+              }
+              genererLien(askMtnNumber.facture, 'mtn_momo', numero);
+            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.55 }}>
+              {t('factures.mtn_number_intro')}
+            </div>
+            <Input
+              label={t('factures.mtn_number_label')}
+              value={mtnNumber}
+              onChange={e => setMtnNumber(e.target.value)}
+              placeholder="07 XX XX XX XX"
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+              <button type="button" onClick={() => setAskMtnNumber(null)} style={{
+                flex: 1, padding: '11px 0', borderRadius: 10, border: `1px solid ${C.border}`,
+                background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              }}>{t('common.cancel')}</button>
+              <button type="submit" style={{
+                flex: 2, padding: '11px 0', borderRadius: 10, border: 'none',
+                background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              }}>{t('factures.mtn_number_send')}</button>
+            </div>
+          </form>
         </Modal>
       )}
 

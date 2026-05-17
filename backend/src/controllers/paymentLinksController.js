@@ -1,49 +1,114 @@
 /**
- * Génération de liens de paiement externes pour les factures.
+ * Génération de liens de paiement externes multi-fournisseurs
+ * (Wave, Orange Money, MTN MoMo) + webhooks d'encaissement.
  *
- * Workflow (lot A.1) :
- *   1. Le commercial valide une facture (statut != 'brouillon', reste > 0)
- *   2. POST /api/factures/:id/lien-paiement-wave
- *   3. On lit l'intégration Wave de l'entreprise (table integrations_paiement)
- *      - Si absente ou mode='mock', on génère un faux lien (utile en dev)
- *   4. On crée une session Wave (utils/wave.js)
- *   5. On persiste dans sessions_paiement (statut 'initiee')
- *   6. On renvoie { url, expire_at, mode } au frontend
+ * Architecture :
+ *   - Un service par fournisseur (utils/wave.js, utils/orange.js, utils/mtn.js)
+ *     expose la même API : creerCheckoutSession + verifierSignatureWebhook.
+ *   - Un helper genererLienPaiement() factorise la création de session
+ *     pour les 3 fournisseurs (lecture de la conf + appel du bon service +
+ *     persistance dans sessions_paiement).
+ *   - Un helper encaisserSessionPaiement() crée mouvement de trésorerie
+ *     + paiement facture + écriture comptable. Identique pour les 3.
+ *   - Les webhooks (1 par fournisseur car les payloads diffèrent) appellent
+ *     encaisserSessionPaiement quand la session passe à 'payee'.
  *
- * Le webhook (lot A.2) basculera la session à 'payee' et créera le mouvement
- * de trésorerie + le paiement de facture automatiquement.
+ * Backwards-compat : POST /factures/:id/lien-paiement-wave reste valide,
+ * appelle creerLienPaiementFacture avec fournisseur='wave' en dur.
  */
 
 const pool = require('../../config/database');
-const { creerCheckoutSession, verifierSignatureWebhook } = require('../utils/wave');
+const wave   = require('../utils/wave');
+const orange = require('../utils/orange');
+const mtn    = require('../utils/mtn');
 const { ecriturePaiementFacture } = require('../utils/comptabilite-auto');
 const { logAudit } = require('../utils/audit');
 
 const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || 'http://localhost:5173';
+const BACKEND_BASE_URL  = process.env.BACKEND_BASE_URL  || 'http://localhost:5000';
+
+const FOURNISSEURS_VALIDES = ['wave', 'orange_money', 'mtn_momo'];
+
+// Aiguillage vers le bon service selon le fournisseur
+const SERVICES = {
+  wave, orange_money: orange, mtn_momo: mtn,
+};
 
 /**
- * POST /api/factures/:id/lien-paiement-wave
- * Crée (ou récupère) un lien de paiement Wave pour la facture donnée.
- *
- * Réponse :
- *   { success: true, data: { url, session_id, statut, mode, montant, devise, expire_at } }
+ * Appelle le service du fournisseur pour créer une session de paiement.
+ * Normalise la réponse en { id, url, status, mode, raw, ... } quel que
+ * soit le fournisseur.
  */
-const creerLienWaveFacture = async (req, res) => {
+async function appelerServiceFournisseur(fournisseur, integration, facture, payerMobile, entrepriseId) {
+  const montant = Math.round((parseFloat(facture.total_ttc) - parseFloat(facture.montant_paye || 0)) * 100) / 100;
+  const currency = facture.devise || 'XOF';
+  const ref = facture.numero;
+  const successUrl = `${FRONTEND_BASE_URL}/factures?paiement=success&facture=${ref}`;
+  const errorUrl   = `${FRONTEND_BASE_URL}/factures?paiement=error&facture=${ref}`;
+  const notifUrl   = `${BACKEND_BASE_URL}/api/webhooks/${fournisseur}/${entrepriseId}`;
+
+  if (fournisseur === 'wave') {
+    const s = await wave.creerCheckoutSession({
+      apiKey: integration.api_key,
+      mode:   integration.mode || 'mock',
+      amount: montant, currency, clientReference: ref,
+      successUrl, errorUrl,
+    });
+    return { ...s, url: s.wave_launch_url, montant, currency };
+  }
+  if (fournisseur === 'orange_money') {
+    const s = await orange.creerCheckoutSession({
+      apiKey: integration.api_key,
+      mode:   integration.mode || 'mock',
+      amount: montant, currency, clientReference: ref,
+      returnUrl: successUrl, cancelUrl: errorUrl, notifUrl,
+    });
+    return { ...s, url: s.payment_url, montant, currency };
+  }
+  if (fournisseur === 'mtn_momo') {
+    if (!payerMobile) throw new Error('Numéro du payeur requis pour MTN MoMo');
+    const s = await mtn.creerCheckoutSession({
+      apiKey: integration.api_key,
+      subscriptionKey: integration.webhook_secret, // on réutilise webhook_secret pour le subscription_key MTN
+      mode: integration.mode || 'mock',
+      amount: montant, currency, clientReference: ref,
+      payerMobile,
+    });
+    return { ...s, url: s.payment_url, payer_mobile: s.payer_mobile, montant, currency };
+  }
+  throw new Error(`Fournisseur inconnu : ${fournisseur}`);
+}
+
+/**
+ * POST /api/factures/:id/lien-paiement
+ * Body : { fournisseur: 'wave' | 'orange_money' | 'mtn_momo',
+ *          payer_mobile?: '+225 07 ...'  (requis pour mtn_momo) }
+ *
+ * Crée (ou réutilise) une session de paiement pour la facture donnée.
+ */
+const creerLienPaiementFacture = async (req, res) => {
   const client = await pool.connect();
   try {
     const { id: factureId } = req.params;
     const eid = req.entrepriseId;
+    const fournisseur = (req.body?.fournisseur || req.params?.fournisseur || 'wave').toLowerCase();
+    const payerMobile = req.body?.payer_mobile || null;
 
-    // 1. Récupérer la facture
+    if (!FOURNISSEURS_VALIDES.includes(fournisseur)) {
+      return res.status(400).json({
+        success: false,
+        message: `Fournisseur invalide. Valeurs acceptées : ${FOURNISSEURS_VALIDES.join(', ')}`,
+      });
+    }
+
+    // 1. Facture
     const fRes = await client.query(
       `SELECT id, numero, total_ttc, montant_paye, statut, client_id, devise
        FROM factures WHERE id = $1 AND entreprise_id = $2`,
       [factureId, eid]
     );
     const facture = fRes.rows[0];
-    if (!facture) {
-      return res.status(404).json({ success: false, message: 'Facture introuvable' });
-    }
+    if (!facture) return res.status(404).json({ success: false, message: 'Facture introuvable' });
     if (facture.statut === 'brouillon') {
       return res.status(400).json({
         success: false,
@@ -52,131 +117,104 @@ const creerLienWaveFacture = async (req, res) => {
     }
     const reste = Math.round((parseFloat(facture.total_ttc) - parseFloat(facture.montant_paye || 0)) * 100) / 100;
     if (reste <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cette facture est déjà entièrement payée.',
-      });
+      return res.status(400).json({ success: false, message: 'Cette facture est déjà entièrement payée.' });
     }
 
-    // 2. Si une session 'initiee' ou 'en_attente' existe déjà, la renvoyer
-    //    au lieu d'en créer une nouvelle (idempotence).
+    // 2. Idempotence : si une session active non expirée existe pour ce
+    //    couple (facture, fournisseur), on la renvoie.
     const existing = await client.query(
-      `SELECT id, session_id_externe, url_paiement, statut, montant, devise, expire_at
+      `SELECT id, session_id_externe, url_paiement, statut, montant, devise, expire_at, payeur_telephone
        FROM sessions_paiement
-       WHERE facture_id = $1 AND fournisseur = 'wave' AND statut IN ('initiee', 'en_attente')
+       WHERE facture_id = $1 AND fournisseur = $2 AND statut IN ('initiee', 'en_attente')
        ORDER BY created_at DESC LIMIT 1`,
-      [factureId]
+      [factureId, fournisseur]
     );
     if (existing.rows[0] && existing.rows[0].expire_at && new Date(existing.rows[0].expire_at) > new Date()) {
       const e = existing.rows[0];
       return res.json({
         success: true,
         data: {
-          url: e.url_paiement,
-          session_id: e.session_id_externe,
-          statut: e.statut,
-          mode: 'reused',
-          montant: parseFloat(e.montant),
-          devise: e.devise,
-          expire_at: e.expire_at,
+          url: e.url_paiement, session_id: e.session_id_externe,
+          statut: e.statut, mode: 'reused', fournisseur,
+          montant: parseFloat(e.montant), devise: e.devise,
+          payer_mobile: e.payeur_telephone, expire_at: e.expire_at,
         },
       });
     }
 
-    // 3. Charger la configuration Wave de l'entreprise (peut être absente)
+    // 3. Conf du fournisseur (peut être absente -> mode mock)
     const intRes = await client.query(
-      `SELECT api_key, mode FROM integrations_paiement
-       WHERE entreprise_id = $1 AND fournisseur = 'wave' AND actif = true`,
-      [eid]
+      `SELECT api_key, webhook_secret, mode FROM integrations_paiement
+       WHERE entreprise_id = $1 AND fournisseur = $2 AND actif = true`,
+      [eid, fournisseur]
     );
-    const integration = intRes.rows[0] || { api_key: null, mode: 'mock' };
+    const integration = intRes.rows[0] || { api_key: null, webhook_secret: null, mode: 'mock' };
 
-    // 4. Créer la session via le service Wave (mock par défaut)
-    const session = await creerCheckoutSession({
-      apiKey: integration.api_key,
-      mode: integration.mode || 'mock',
-      amount: reste,
-      currency: facture.devise || 'XOF',
-      clientReference: facture.numero,
-      successUrl: `${FRONTEND_BASE_URL}/factures?paiement=success&facture=${facture.numero}`,
-      errorUrl:   `${FRONTEND_BASE_URL}/factures?paiement=error&facture=${facture.numero}`,
-    });
+    // 4. Appel du service
+    const session = await appelerServiceFournisseur(fournisseur, integration, facture, payerMobile, eid);
 
-    // 5. Persister la session
-    const expireAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+    // 5. Persistance
+    const expireAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const persistee = await client.query(
       `INSERT INTO sessions_paiement (
-        entreprise_id, facture_id, fournisseur, session_id_externe,
-        url_paiement, montant, devise, statut, expire_at, raw_payload, cree_par
-      ) VALUES ($1, $2, 'wave', $3, $4, $5, $6, 'initiee', $7, $8, $9)
-      RETURNING id, session_id_externe, url_paiement, statut, expire_at`,
+         entreprise_id, facture_id, fournisseur, session_id_externe,
+         url_paiement, montant, devise, statut, expire_at, raw_payload,
+         payeur_telephone, cree_par
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'initiee', $8, $9, $10, $11)
+       RETURNING id, session_id_externe, url_paiement, statut, expire_at`,
       [
-        eid, factureId, session.id, session.wave_launch_url,
-        reste, facture.devise || 'XOF', expireAt, JSON.stringify(session.raw),
+        eid, factureId, fournisseur, session.id, session.url,
+        session.montant, session.currency, expireAt,
+        JSON.stringify(session.raw),
+        session.payer_mobile || payerMobile,
         req.user?.id,
       ]
     );
     const row = persistee.rows[0];
 
     logAudit(req, 'CREATE', 'sessions_paiement', row.id, {
-      facture: facture.numero, fournisseur: 'wave', montant: reste, mode: session.mode,
+      facture: facture.numero, fournisseur, montant: session.montant, mode: session.mode,
     });
 
     return res.json({
       success: true,
       data: {
-        url: row.url_paiement,
-        session_id: row.session_id_externe,
-        statut: row.statut,
-        mode: session.mode,
-        montant: reste,
-        devise: facture.devise || 'XOF',
+        url: row.url_paiement, session_id: row.session_id_externe,
+        statut: row.statut, mode: session.mode, fournisseur,
+        montant: session.montant, devise: session.currency,
+        payer_mobile: session.payer_mobile || payerMobile,
         expire_at: row.expire_at,
       },
     });
   } catch (err) {
-    console.error('Erreur creerLienWaveFacture:', err.message);
-    res.status(500).json({ success: false, message: 'Impossible de générer le lien de paiement' });
+    console.error('Erreur creerLienPaiementFacture:', err.message);
+    res.status(500).json({ success: false, message: err.message || 'Impossible de générer le lien' });
   } finally {
     client.release();
   }
 };
 
+// Alias rétrocompatible (lot A.1) : POST /factures/:id/lien-paiement-wave
+const creerLienWaveFacture = (req, res) => {
+  req.body = { ...(req.body || {}), fournisseur: 'wave' };
+  return creerLienPaiementFacture(req, res);
+};
+
 /**
- * Helper interne : encaisse une session de paiement Wave qui vient d'être
- * confirmée. Doit être appelé dans une transaction (client.query('BEGIN')
- * faite par l'appelant). Idempotent : si la session est déjà 'payee', on
- * ne fait rien.
- *
- * Étapes :
- *   1. Reload session FOR UPDATE
- *   2. Si déjà payée, return sans erreur
- *   3. Détermine le compte de trésorerie cible (intégration.compte_id ou
- *      compte par défaut de type 'mobile_money')
- *   4. Crée le mouvement de trésorerie (entrée)
- *   5. Si une facture est liée :
- *      - INSERT paiements (facture_id, montant, mode='mobile_money', ref)
- *      - UPDATE factures.montant_paye + statut
- *      - Génère l'écriture comptable d'encaissement
- *   6. UPDATE sessions_paiement.statut='payee', paye_at, mouvement_id,
- *      payeur_telephone, payeur_nom
- *
- * @returns {object} { session, facture, paiement, mouvement_id, deja_payee }
+ * Helper : encaisse une session (mouvement trésorerie + paiement facture
+ * + écriture comptable). Idempotent.
  */
-async function encaisserSessionWave(client, { session, payeurTelephone = null, payeurNom = null, dateOperation = null }) {
+async function encaisserSession(client, { session, payeurTelephone = null, payeurNom = null, dateOperation = null }) {
   const eid = session.entreprise_id;
-  // Re-lecture FOR UPDATE pour éviter les race-conditions sur un double webhook
   const sRes = await client.query(
     `SELECT * FROM sessions_paiement WHERE id = $1 FOR UPDATE`,
     [session.id]
   );
   const s = sRes.rows[0];
   if (!s) throw new Error('Session de paiement introuvable');
-  if (s.statut === 'payee') {
-    return { session: s, deja_payee: true };
-  }
+  if (s.statut === 'payee') return { session: s, deja_payee: true };
 
-  // Compte de trésorerie cible : configuration intégration ou défaut Wave
+  // Compte de trésorerie cible (intégration ou fallback)
   const intRes = await client.query(
     `SELECT compte_tresorerie_id FROM integrations_paiement
      WHERE entreprise_id = $1 AND fournisseur = $2 AND actif = true`,
@@ -184,7 +222,6 @@ async function encaisserSessionWave(client, { session, payeurTelephone = null, p
   );
   let compteId = intRes.rows[0]?.compte_tresorerie_id || null;
   if (!compteId) {
-    // Fallback : premier compte mobile_money de l'entreprise, sinon banque
     const r = await client.query(
       `SELECT id FROM comptes_tresorerie
        WHERE entreprise_id = $1 AND archived_at IS NULL
@@ -200,8 +237,9 @@ async function encaisserSessionWave(client, { session, payeurTelephone = null, p
 
   const datePaiement = dateOperation || new Date().toISOString().split('T')[0];
   const montant = parseFloat(s.montant);
+  const fournisseurLabel = s.fournisseur.replace('_', ' ').toUpperCase();
 
-  // Mouvement de trésorerie (entrée)
+  // Mouvement de trésorerie
   const mvtRes = await client.query(
     `INSERT INTO mouvements_tresorerie
        (entreprise_id, compte_id, date_operation, sens, montant, libelle, reference, source_type, cree_par)
@@ -209,13 +247,12 @@ async function encaisserSessionWave(client, { session, payeurTelephone = null, p
      RETURNING id`,
     [
       eid, compteId, datePaiement, montant,
-      `Encaissement ${s.fournisseur.toUpperCase()} ${payeurTelephone || ''}`.trim(),
+      `Encaissement ${fournisseurLabel} ${payeurTelephone || s.payeur_telephone || ''}`.trim(),
       s.session_id_externe,
     ]
   );
   const mouvementId = mvtRes.rows[0].id;
 
-  // Si une facture est liée : créer le paiement + maj facture + écriture compta
   let facture = null, paiement = null;
   if (s.facture_id) {
     const fRes = await client.query(
@@ -224,20 +261,18 @@ async function encaisserSessionWave(client, { session, payeurTelephone = null, p
     );
     facture = fRes.rows[0];
     if (facture) {
-      // INSERT paiement
       const pRes = await client.query(
         `INSERT INTO paiements (facture_id, montant, date_paiement, mode_paiement, reference, notes, compte_tresorerie_id)
          VALUES ($1, $2, $3, 'mobile_money', $4, $5, $6) RETURNING *`,
         [
           facture.id, montant, datePaiement,
           s.session_id_externe,
-          `Paiement Wave ${payeurTelephone || ''} ${payeurNom || ''}`.trim(),
+          `Paiement ${fournisseurLabel} ${payeurTelephone || s.payeur_telephone || ''} ${payeurNom || ''}`.trim(),
           compteId,
         ]
       );
       paiement = pRes.rows[0];
 
-      // Maj facture
       const nouveauPaye = Math.round((parseFloat(facture.montant_paye) + montant) * 100) / 100;
       const ttc = parseFloat(facture.total_ttc);
       const nouveauStatut = nouveauPaye >= ttc - 0.01 ? 'payee' : 'en_attente';
@@ -248,24 +283,22 @@ async function encaisserSessionWave(client, { session, payeurTelephone = null, p
       facture.montant_paye = nouveauPaye;
       facture.statut = nouveauStatut;
 
-      // Écriture comptable (best-effort, ne casse pas l'encaissement)
       try {
         await ecriturePaiementFacture(client, {
-          entrepriseId: eid,
-          utilisateurId: s.cree_par,
-          facture, paiement,
+          entrepriseId: eid, utilisateurId: s.cree_par, facture, paiement,
         });
       } catch (err) {
-        console.warn('Écriture compta encaissement Wave échouée:', err.message);
+        console.warn('Écriture compta encaissement échouée:', err.message);
       }
     }
   }
 
-  // Maj session
   await client.query(
     `UPDATE sessions_paiement
      SET statut = 'payee', paye_at = NOW(), mouvement_id = $1,
-         payeur_telephone = $2, payeur_nom = $3, updated_at = NOW()
+         payeur_telephone = COALESCE($2, payeur_telephone),
+         payeur_nom = COALESCE($3, payeur_nom),
+         updated_at = NOW()
      WHERE id = $4`,
     [mouvementId, payeurTelephone, payeurNom, s.id]
   );
@@ -274,82 +307,96 @@ async function encaisserSessionWave(client, { session, payeurTelephone = null, p
 }
 
 /**
- * POST /api/webhooks/wave/:entreprise_id
- * Endpoint public appelé par Wave après une tentative de paiement.
- *
- * Sécurité :
- *  - Vérifie la signature HMAC-SHA256 du payload (en-tête Wave-Signature)
- *    contre le webhook_secret stocké dans integrations_paiement.
- *  - Sans secret configuré, on rejette en 400 (sinon n'importe qui pourrait
- *    faire passer une facture en payée).
- *
- * Événements gérés :
- *  - checkout.session.completed     -> encaissement
- *  - checkout.session.payment_failed -> statut = 'echouee'
- *
- * Le body doit avoir été parsé en RAW (Buffer) côté Express pour pouvoir
- * vérifier la signature ; voir middleware rawBodyForWebhook dans index.js.
+ * POST /api/webhooks/:fournisseur/:entreprise_id
+ * Endpoint PUBLIC appelé par Wave/Orange/MTN après une tentative de paiement.
+ * La sécurité repose sur la signature configurée côté fournisseur.
  */
-const webhookWave = async (req, res) => {
+const webhookFournisseur = async (req, res) => {
   const client = await pool.connect();
   try {
-    const { entreprise_id: entrepriseId } = req.params;
+    const { fournisseur, entreprise_id: entrepriseId } = req.params;
+    if (!FOURNISSEURS_VALIDES.includes(fournisseur)) {
+      return res.status(400).json({ success: false, message: 'Fournisseur invalide' });
+    }
     if (!entrepriseId || !/^[0-9a-f-]{36}$/i.test(entrepriseId)) {
       return res.status(400).json({ success: false, message: 'Entreprise invalide' });
     }
 
-    // 1. Charger les credentials Wave de l'entreprise
     const intRes = await client.query(
-      `SELECT webhook_secret, mode FROM integrations_paiement
-       WHERE entreprise_id = $1 AND fournisseur = 'wave' AND actif = true`,
-      [entrepriseId]
+      `SELECT api_key, webhook_secret, mode FROM integrations_paiement
+       WHERE entreprise_id = $1 AND fournisseur = $2 AND actif = true`,
+      [entrepriseId, fournisseur]
     );
     const integration = intRes.rows[0];
     if (!integration || !integration.webhook_secret) {
-      return res.status(400).json({
-        success: false,
-        message: 'Webhook secret non configuré pour cette entreprise',
-      });
+      return res.status(400).json({ success: false, message: 'Webhook secret non configuré' });
     }
 
-    // 2. Vérifier la signature
-    const signature = req.headers['wave-signature'] || req.headers['Wave-Signature'];
+    const signature = req.headers['x-signature']
+                   || req.headers['wave-signature']
+                   || req.headers['x-callback-signature'];
     const payloadBrut = req.rawBody?.toString('utf8') || JSON.stringify(req.body);
-    const signatureValide = verifierSignatureWebhook({
-      payloadBrut, signature,
-      webhookSecret: integration.webhook_secret,
-    });
+
+    // Aiguillage du verifier
+    let signatureValide = false;
+    if (fournisseur === 'wave') {
+      signatureValide = wave.verifierSignatureWebhook({
+        payloadBrut, signature, webhookSecret: integration.webhook_secret,
+      });
+    } else if (fournisseur === 'orange_money') {
+      signatureValide = orange.verifierSignatureWebhook({
+        payloadBrut, signature, webhookSecret: integration.webhook_secret,
+        notifToken: integration.webhook_secret, // Orange : on stocke le notif_token côté secret
+      });
+    } else if (fournisseur === 'mtn_momo') {
+      signatureValide = mtn.verifierSignatureWebhook({
+        payloadBrut, signature, webhookSecret: integration.webhook_secret,
+      });
+    }
     if (!signatureValide) {
       return res.status(401).json({ success: false, message: 'Signature invalide' });
     }
 
-    // 3. Parser l'événement
+    // Extraction de l'ID de session côté fournisseur + statut
     const event = req.body;
-    const eventType = event?.type;
-    const sessionExterne = event?.data?.id;
+    let sessionExterne, statutExterne, payeurMobile, payeurNom;
+    if (fournisseur === 'wave') {
+      sessionExterne = event?.data?.id;
+      statutExterne  = event?.type === 'checkout.session.completed' ? 'completed'
+                     : event?.type === 'checkout.session.payment_failed' ? 'failed'
+                     : 'pending';
+      payeurMobile = event?.data?.payment_address?.mobile;
+      payeurNom    = event?.data?.payment_address?.name;
+    } else if (fournisseur === 'orange_money') {
+      sessionExterne = event?.pay_token || event?.txnid;
+      statutExterne  = event?.status === 'SUCCESS' ? 'completed'
+                     : event?.status === 'FAILED'  ? 'failed' : 'pending';
+      payeurMobile = event?.customer_msisdn;
+    } else if (fournisseur === 'mtn_momo') {
+      sessionExterne = event?.referenceId || event?.financialTransactionId;
+      statutExterne  = event?.status === 'SUCCESSFUL' ? 'completed'
+                     : event?.status === 'FAILED'     ? 'failed' : 'pending';
+      payeurMobile = event?.payer?.partyId;
+    }
     if (!sessionExterne) {
       return res.status(400).json({ success: false, message: 'Payload sans session id' });
     }
 
-    // 4. Retrouver la session locale correspondante
     const sRes = await client.query(
-      `SELECT * FROM sessions_paiement WHERE fournisseur = 'wave' AND session_id_externe = $1`,
-      [sessionExterne]
+      `SELECT * FROM sessions_paiement WHERE fournisseur = $1 AND session_id_externe = $2`,
+      [fournisseur, sessionExterne]
     );
     const session = sRes.rows[0];
     if (!session) {
-      // On accepte (200) pour éviter que Wave réessaye en boucle, mais on log
-      console.warn(`[webhook wave] session externe ${sessionExterne} inconnue`);
+      console.warn(`[webhook ${fournisseur}] session externe ${sessionExterne} inconnue`);
       return res.json({ success: true, ignored: true });
     }
 
     await client.query('BEGIN');
 
-    if (eventType === 'checkout.session.completed') {
-      const result = await encaisserSessionWave(client, {
-        session,
-        payeurTelephone: event.data.payment_address?.mobile || null,
-        payeurNom:       event.data.payment_address?.name   || null,
+    if (statutExterne === 'completed') {
+      const result = await encaisserSession(client, {
+        session, payeurTelephone: payeurMobile, payeurNom,
       });
       await client.query(
         `UPDATE sessions_paiement SET raw_payload = $1, updated_at = NOW() WHERE id = $2`,
@@ -359,10 +406,9 @@ const webhookWave = async (req, res) => {
       return res.json({ success: true, deja_payee: result.deja_payee });
     }
 
-    if (eventType === 'checkout.session.payment_failed') {
+    if (statutExterne === 'failed') {
       await client.query(
-        `UPDATE sessions_paiement
-         SET statut = 'echouee', raw_payload = $1, updated_at = NOW()
+        `UPDATE sessions_paiement SET statut = 'echouee', raw_payload = $1, updated_at = NOW()
          WHERE id = $2 AND statut NOT IN ('payee')`,
         [JSON.stringify(event), session.id]
       );
@@ -370,40 +416,42 @@ const webhookWave = async (req, res) => {
       return res.json({ success: true });
     }
 
-    // Autres événements : on accuse réception sans rien faire
     await client.query('COMMIT');
     return res.json({ success: true, ignored: true });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch {}
-    console.error('Erreur webhookWave:', err.message);
+    console.error('Erreur webhookFournisseur:', err.message);
     res.status(500).json({ success: false, message: 'Erreur traitement webhook' });
   } finally {
     client.release();
   }
 };
 
+// Backwards-compat lot A.2
+const webhookWave = (req, res) => {
+  req.params.fournisseur = 'wave';
+  return webhookFournisseur(req, res);
+};
+
 /**
  * POST /api/factures/:id/lien-paiement-wave/simuler-paiement
- * Réservé au mode démo : déclenche manuellement l'encaissement d'une
- * session Wave existante, comme si Wave avait envoyé un webhook
- * checkout.session.completed.
  *
- * Pratique pour montrer le flux complet en démo commerciale sans avoir
- * de compte marchand Wave réel ni de tunnel ngrok.
- *
- * Refusé si l'intégration n'est pas en mode 'mock'.
+ * Simule l'encaissement d'une session existante (mode 'mock' uniquement).
+ * Réutilisable pour les 3 fournisseurs : prend la session active la plus
+ * récente, peu importe le fournisseur.
  */
 const simulerPaiementWave = async (req, res) => {
   const dbClient = await pool.connect();
   try {
     const { id: factureId } = req.params;
     const eid = req.entrepriseId;
+    const fournisseurDemande = (req.body?.fournisseur || 'wave').toLowerCase();
 
-    // Vérification du mode démo
+    // Vérifie le mode mock pour le fournisseur demandé
     const intRes = await dbClient.query(
       `SELECT mode FROM integrations_paiement
-       WHERE entreprise_id = $1 AND fournisseur = 'wave' AND actif = true`,
-      [eid]
+       WHERE entreprise_id = $1 AND fournisseur = $2 AND actif = true`,
+      [eid, fournisseurDemande]
     );
     const mode = intRes.rows[0]?.mode || 'mock';
     if (mode !== 'mock') {
@@ -413,31 +461,31 @@ const simulerPaiementWave = async (req, res) => {
       });
     }
 
-    // Charger la session active la plus récente pour cette facture
     const sRes = await dbClient.query(
       `SELECT * FROM sessions_paiement
-       WHERE facture_id = $1 AND fournisseur = 'wave' AND statut IN ('initiee', 'en_attente')
+       WHERE facture_id = $1 AND fournisseur = $2 AND statut IN ('initiee', 'en_attente')
        ORDER BY created_at DESC LIMIT 1`,
-      [factureId]
+      [factureId, fournisseurDemande]
     );
     const session = sRes.rows[0];
     if (!session) {
       return res.status(404).json({
         success: false,
-        message: 'Aucune session de paiement active pour cette facture. Générez d\'abord un lien.',
+        message: 'Aucune session de paiement active. Générez d\'abord un lien.',
       });
     }
 
     await dbClient.query('BEGIN');
-    const result = await encaisserSessionWave(dbClient, {
+    const result = await encaisserSession(dbClient, {
       session,
-      payeurTelephone: '+225 07 00 00 00 00',
+      payeurTelephone: session.payeur_telephone || '+225 07 00 00 00 00',
       payeurNom: 'Client Démo',
     });
     await dbClient.query('COMMIT');
 
     logAudit(req, 'PAY', 'sessions_paiement', session.id, {
-      facture_id: factureId, mode: 'mock-simulation', montant: parseFloat(session.montant),
+      facture_id: factureId, fournisseur: fournisseurDemande,
+      mode: 'mock-simulation', montant: parseFloat(session.montant),
     });
 
     return res.json({
@@ -445,17 +493,24 @@ const simulerPaiementWave = async (req, res) => {
       data: {
         deja_payee: result.deja_payee,
         montant: parseFloat(session.montant),
+        fournisseur: fournisseurDemande,
         facture_statut: result.facture?.statut,
         facture_montant_paye: result.facture?.montant_paye,
       },
     });
   } catch (err) {
     try { await dbClient.query('ROLLBACK'); } catch {}
-    console.error('Erreur simulerPaiementWave:', err.message);
+    console.error('Erreur simulerPaiement:', err.message);
     res.status(500).json({ success: false, message: err.message || 'Erreur simulation' });
   } finally {
     dbClient.release();
   }
 };
 
-module.exports = { creerLienWaveFacture, webhookWave, simulerPaiementWave };
+module.exports = {
+  creerLienPaiementFacture,
+  creerLienWaveFacture,        // alias backward-compat
+  webhookFournisseur,
+  webhookWave,                 // alias backward-compat
+  simulerPaiementWave,
+};

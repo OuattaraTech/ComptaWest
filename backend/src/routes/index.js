@@ -19,7 +19,10 @@ const {
 } = require('../controllers/entreprisesController');
 const { getClients, getClientById, createClient, updateClient, deleteClient, clientRules } = require('../controllers/clientsController');
 const { getFactures, getFactureById, createFacture, updateFacture, updateStatut, addPaiement, deleteFacture, factureRules, paiementRules } = require('../controllers/facturesController');
-const { creerLienWaveFacture, webhookWave, simulerPaiementWave } = require('../controllers/paymentLinksController');
+const {
+  creerLienPaiementFacture, creerLienWaveFacture,
+  webhookFournisseur, webhookWave, simulerPaiementWave,
+} = require('../controllers/paymentLinksController');
 const { listerIntegrations, upsertIntegration, desactiverIntegration } = require('../controllers/integrationsPaiementController');
 const { getDevis, getStatsDevis, updateDevisStatut, convertirEnFacture, supprimerDevis, convertirRules } = require('../controllers/devisController');
 const { getStats, getTransactionsRecentes, getAnneesDisponibles } = require('../controllers/dashboardController');
@@ -145,14 +148,22 @@ router.delete('/factures/:id', auth, can(MODULES.FACTURES, ACTIONS.DELETE), dele
 // Génération d'un lien de paiement Wave pour la facture. Nécessite update
 // sur factures (le statut sera modifié au webhook) — le commercial qui
 // émet la facture peut donc générer le lien lui-même.
-router.post('/factures/:id/lien-paiement-wave', auth, can(MODULES.FACTURES, ACTIONS.UPDATE), creerLienWaveFacture);
-// Simulation paiement (mode démo / mock uniquement). Réservée aux rôles
-// avec tresorerie.update (ce sont eux qui peuvent encaisser).
+// Génération de lien de paiement — endpoint générique multi-fournisseurs.
+// Body : { fournisseur: 'wave' | 'orange_money' | 'mtn_momo', payer_mobile? }
+router.post('/factures/:id/lien-paiement',
+  auth, can(MODULES.FACTURES, ACTIONS.UPDATE), creerLienPaiementFacture);
+// Alias rétrocompatible (lot A.1).
+router.post('/factures/:id/lien-paiement-wave',
+  auth, can(MODULES.FACTURES, ACTIONS.UPDATE), creerLienWaveFacture);
+
+// Simulation paiement (mode démo / mock uniquement, multi-fournisseur).
 router.post('/factures/:id/lien-paiement-wave/simuler-paiement',
   auth, can(MODULES.TRESORERIE, ACTIONS.UPDATE), simulerPaiementWave);
 
-// Webhook Wave PUBLIC (pas d'auth JWT — Wave nous appelle directement).
-// La sécurité est assurée par la signature HMAC dans le contrôleur.
+// Webhooks PUBLICS (Wave / Orange / MTN nous appellent directement).
+// La sécurité est assurée par la signature configurée côté fournisseur.
+router.post('/webhooks/:fournisseur/:entreprise_id', webhookFournisseur);
+// Alias rétrocompatible explicite Wave (lot A.2).
 router.post('/webhooks/wave/:entreprise_id', webhookWave);
 
 // ─── INTÉGRATIONS DE PAIEMENT ─────────────────────────────────────────────
