@@ -162,6 +162,12 @@
       "assets": { "title": "Immobilisations", "desc": "Amortissements linéaire et dégressif, dotations annuelles et cessions automatisées." },
       "accounting": { "title": "Comptabilité SYSCOHADA", "desc": "Écritures automatiques, grand livre, balance et export du fichier FEC." },
       "reports": { "title": "Taxes & rapports", "desc": "TVA, IS, CNSS avec alertes DGI, bilan et compte de résultat en temps réel." }
+    },
+    "differentiators_label": "Ce qui nous rend unique",
+    "differentiators": {
+      "mobile_money": { "title": "Encaissement Mobile Money", "desc": "Lien Wave, Orange Money ou MTN MoMo envoyé par WhatsApp · facture payée automatiquement." },
+      "ocr": { "title": "Scanner OCR des reçus", "desc": "Photographiez une facture fournisseur · les champs sont extraits et pré-remplis." },
+      "fne": { "title": "Certification fiscale DGI", "desc": "Numéro FNE officiel + QR code de vérification apposé sur chaque facture émise." }
     }
   },
   "nav": {

@@ -8,6 +8,7 @@ import api from '../utils/api.jsx';
 import {
   Sun, Moon, FileText, Wallet, BarChart3, ArrowRight,
   Truck, Box, UserCheck, Package, BookMarked,
+  Smartphone, Camera, ShieldCheck, Sparkles,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import LanguageSwitcher from '../components/LanguageSwitcher.jsx';
@@ -33,6 +34,15 @@ const FEATURES = [
   { icon: Package,    key: 'assets'    },
   { icon: BookMarked, key: 'accounting'},
   { icon: BarChart3,  key: 'reports'   },
+];
+
+// Les différenciateurs sont les fonctionnalités qui distinguent ComptaWest
+// des suites comptables classiques. Affichés au-dessus de la grille avec
+// un style plus accentué (gradient, animation au survol).
+const DIFFERENCIATEURS = [
+  { icon: Smartphone,  key: 'mobile_money' },
+  { icon: Camera,      key: 'ocr'          },
+  { icon: ShieldCheck, key: 'fne'          },
 ];
 
 const Input = ({ label, type = 'text', value, onChange, placeholder, required, C }) => (
@@ -183,11 +193,52 @@ export default function LoginPage() {
               {t('login.hero_title_line2')}
             </h1>
             <p style={{
-              fontSize: 14.5, color: '#9BAACC', lineHeight: 1.65, margin: '0 0 36px 0',
+              fontSize: 14.5, color: '#9BAACC', lineHeight: 1.65, margin: '0 0 28px 0',
               maxWidth: 480,
             }}>
               {t('login.hero_subtitle')}
             </p>
+
+            {/* Différenciateurs : Mobile Money, OCR, FNE — mis en avant
+                au-dessus de la grille des fonctionnalités classiques. */}
+            <div style={{ maxWidth: 560, marginBottom: 28 }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14,
+                fontSize: 11, fontWeight: 700, color: C.accent,
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+              }}>
+                <Sparkles size={13} />
+                {t('login.differentiators_label')}
+              </div>
+              <div style={{
+                display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12,
+              }} className="cw-differenciateurs-grid">
+                {DIFFERENCIATEURS.map(({ icon: Icon, key }) => (
+                  <div key={key} style={{
+                    background: `linear-gradient(135deg, ${C.accent}18, rgba(78,139,245,0.10))`,
+                    border: `1px solid ${C.accent}40`,
+                    borderRadius: 12, padding: '14px 14px',
+                    position: 'relative', overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      width: 30, height: 30, borderRadius: 8,
+                      background: `linear-gradient(135deg, ${C.accent}, #4E8BF5)`,
+                      color: '#000',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      marginBottom: 9,
+                    }}>
+                      <Icon size={15} />
+                    </div>
+                    <div style={{ fontSize: 12.5, fontWeight: 800, color: '#fff', marginBottom: 3, lineHeight: 1.2 }}>
+                      {t(`login.differentiators.${key}.title`)}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#9BAACC', lineHeight: 1.4 }}>
+                      {t(`login.differentiators.${key}.desc`)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             {/* Grille de fonctionnalités */}
             <div style={{
@@ -341,6 +392,7 @@ export default function LoginPage() {
           .cw-login-grid { grid-template-columns: 1fr !important; }
           .cw-login-hero { padding: 40px 28px !important; }
           .cw-features-grid { grid-template-columns: 1fr !important; }
+          .cw-differenciateurs-grid { grid-template-columns: 1fr !important; }
         }
         @media (max-width: 480px) {
           .cw-login-hero { padding: 32px 20px !important; }

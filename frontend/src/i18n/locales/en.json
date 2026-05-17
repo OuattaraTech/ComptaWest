@@ -162,6 +162,12 @@
       "assets": { "title": "Fixed assets", "desc": "Straight-line and declining-balance depreciation, annual entries and automated disposals." },
       "accounting": { "title": "SYSCOHADA accounting", "desc": "Automatic entries, general ledger, trial balance and FEC export." },
       "reports": { "title": "Taxes & reports", "desc": "VAT, IS, CNSS with DGI alerts, balance sheet and P&L in real time." }
+    },
+    "differentiators_label": "What makes us different",
+    "differentiators": {
+      "mobile_money": { "title": "Mobile Money collection", "desc": "Wave, Orange Money or MTN MoMo link shared via WhatsApp · invoice settled automatically." },
+      "ocr": { "title": "OCR receipt scanner", "desc": "Take a picture of a supplier invoice · fields are extracted and pre-filled." },
+      "fne": { "title": "DGI tax certification", "desc": "Official FNE number + verification QR code attached to every issued invoice." }
     }
   },
   "nav": {
