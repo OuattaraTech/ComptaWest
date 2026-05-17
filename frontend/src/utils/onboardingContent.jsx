@@ -7,10 +7,20 @@
  *
  * Chaque entrée intro : { titre, description, icon, points[] }
  * Chaque entrée spotlight : { target, titre, description, position? }
+ *
+ * Versionnage : bumper ONBOARDING_VERSION à chaque refonte significative
+ * (ajout de slides sur des fonctionnalités nouvelles) pour que les
+ * utilisateurs existants re-voient le tour automatiquement.
+ *
+ *   v1 — version initiale (avril 2026)
+ *   v2 — ajouts mai 2026 : Mobile Money multi-fournisseurs, OCR scanner,
+ *        certification DGI/FNE, refonte des rôles (10 rôles), onglets
+ *        Paramètres → Intégrations et Fiscal.
  */
+export const ONBOARDING_VERSION = 2;
 import {
   LayoutDashboard, Users, FileText, Wallet, Receipt,
-  BarChart3, BookOpen, Shield, Settings,
+  BarChart3, BookOpen, Shield, ShieldCheck, Settings,
   TrendingUp, AlertCircle, Calendar, Calculator, Plus,
   Download, Filter, Eye, CheckCircle2, PieChart, Building2,
   Smartphone, Banknote, Upload, Link2, ArrowLeftRight,
@@ -18,6 +28,7 @@ import {
   Package, TrendingDown,
   Box, ClipboardCheck, AlertTriangle,
   Truck, ShoppingCart, Clock,
+  Camera, MessageCircle, Sparkles, QrCode,
 } from 'lucide-react';
 
 export const ONBOARDING = {
@@ -65,6 +76,17 @@ export const ONBOARDING = {
           '**Encaissé** : montant réellement reçu sur les factures payées',
           '**Dépenses** : seulement les charges payées (les en attente ne pèsent pas sur le bénéfice)',
           '**Top clients** : classés sur leur CA facturé (pas leurs devis)',
+        ],
+      },
+      {
+        icon: Sparkles,
+        titre: 'Les outils qui font la différence',
+        description: 'ComptaWest va au-delà de la comptabilité classique : trois leviers concrets pour réduire votre charge administrative quotidienne et accélérer vos encaissements.',
+        points: [
+          '**Lien de paiement Mobile Money** (Factures) — Wave, Orange Money, MTN MoMo : le client paie en deux clics depuis WhatsApp ou un QR code, l\'encaissement est automatique.',
+          '**Scanner OCR** (Dépenses & Commandes d\'achat) — photographiez une facture, ComptaWest extrait fournisseur, date, montants et TVA pour pré-remplir la saisie.',
+          '**Certification fiscale DGI / FNE** (Factures) — chaque facture émise reçoit un numéro fiscal officiel et un QR code de vérification opposable.',
+          'Tout est configurable depuis Paramètres → Intégrations (Mobile Money) et Paramètres → Fiscal (DGI).',
         ],
       },
     ],
@@ -179,6 +201,32 @@ export const ONBOARDING = {
         ],
       },
       {
+        icon: Smartphone,
+        titre: 'Lien de paiement Mobile Money (Wave · Orange Money · MTN MoMo)',
+        description: 'Pour les factures en attente, un bouton « Smartphone » génère un lien de paiement sécurisé. Le client paie depuis son téléphone en quelques secondes, et le webhook du fournisseur encaisse automatiquement la facture côté ComptaWest.',
+        points: [
+          '3 fournisseurs supportés : Wave, Orange Money, MTN MoMo',
+          'Quand plusieurs intégrations sont actives, un sélecteur de fournisseur apparaît',
+          'MTN MoMo : push USSD direct sur le numéro du client (demande de paiement)',
+          'Modale de partage avec **QR code**, **WhatsApp pré-rempli** et lien copiable',
+          'Encaissement automatique : mouvement de trésorerie + écriture comptable + statut « payée »',
+          'Mode démo intégré pour tester sans compte marchand (configurable dans Paramètres → Intégrations)',
+        ],
+      },
+      {
+        icon: ShieldCheck,
+        titre: 'Certification fiscale DGI (FNE)',
+        description: 'Pour anticiper l\'obligation de Facture Normalisée Électronique, chaque facture non brouillon peut être certifiée auprès de la Direction Générale des Impôts. Un numéro fiscal officiel, un hash de contrôle et un QR code de vérification sont apposés sur la facture.',
+        points: [
+          'Bouton bouclier (gris) → certifie la facture · bouclier vert = déjà certifiée',
+          'Modale d\'aperçu : numéro FNE, QR code, hash SHA-256',
+          'QR code scannable par le client pour vérifier l\'authenticité sur le portail DGI',
+          'Idempotent : un appel répété ne crée pas de doublon',
+          'Mode démo (préfixe MOCK-) tant que vos identifiants DGI ne sont pas configurés',
+          'Configuration (NCC, centre fiscal, clé DGI) dans Paramètres → Fiscal',
+        ],
+      },
+      {
         icon: AlertTriangle,
         titre: 'Avoirs : règles SYSCOHADA',
         description: 'Un avoir annule partiellement ou totalement une facture. La référence à la facture d\'origine est obligatoire — ComptaWest le rend impossible sans. L\'avoir validé contre-passe l\'écriture initiale et remet le stock à jour.',
@@ -193,7 +241,7 @@ export const ONBOARDING = {
     spotlight: [
       { target: 'btn-nouveau', titre: 'Nouvelle facture', description: 'Créez une facture ou un avoir. Les devis et proformas se gèrent depuis leur propre page.' },
       { target: 'filtres-statut', titre: 'Filtres par statut', description: 'Affichez seulement les factures payées, en attente, en retard, brouillon, envoyée ou annulée.' },
-      { target: 'liste-factures', titre: 'Liste des factures', description: 'Toutes vos factures avec leur numéro, client, montant TTC, montant payé et statut. Actions : enregistrer un paiement, télécharger le PDF.' },
+      { target: 'liste-factures', titre: 'Liste des factures', description: 'Toutes vos factures avec leur numéro, client, montant TTC, montant payé et statut. Actions sur chaque ligne : encaisser, générer un lien Mobile Money, certifier DGI, télécharger le PDF.' },
     ],
   },
 
@@ -291,6 +339,19 @@ export const ONBOARDING = {
         ],
       },
       {
+        icon: Camera,
+        titre: 'Scanner OCR : zéro saisie',
+        description: 'Photographiez votre reçu ou facture fournisseur, ComptaWest extrait automatiquement les champs comptables : fournisseur, date, numéro, HT, TVA, TTC. Le formulaire de dépense s\'ouvre déjà pré-rempli — vous validez et c\'est en compta.',
+        points: [
+          'Bouton **« Scanner »** à côté de « Nouvelle dépense »',
+          'Capture caméra directe sur mobile (ouvre l\'appareil photo)',
+          'Sur ordinateur : sélection de fichier (JPG, PNG, WEBP)',
+          'Compression intelligente de l\'image avant analyse',
+          'Indication de la confiance OCR (0-100 %)',
+          'Mode démo intégré (données fictives) ; passez en production avec une clé Mistral dans MISTRAL_API_KEY',
+        ],
+      },
+      {
         icon: Filter,
         titre: 'Filtrer, analyser, justifier',
         description: 'Les filtres par statut, période et catégorie permettent de retrouver une dépense ou de préparer une analyse.',
@@ -303,7 +364,7 @@ export const ONBOARDING = {
       },
     ],
     spotlight: [
-      { target: 'btn-nouveau', titre: 'Nouvelle dépense', description: 'Saisissez une charge avec son statut, son mode de paiement et son compte de trésorerie. L\'écriture comptable est générée automatiquement à la validation.' },
+      { target: 'btn-nouveau', titre: 'Scanner ou créer manuellement', description: 'À côté de « Nouvelle dépense », le bouton « Scanner » photographie une facture pour pré-remplir le formulaire. À droite, saisie manuelle classique avec statut, mode de paiement et compte de trésorerie.' },
       { target: 'filtres-statut', titre: 'Filtres', description: 'Affichez les dépenses selon leur statut de paiement (payée, en attente, annulée).' },
       { target: 'liste-depenses', titre: 'Liste des dépenses', description: 'Tableau récapitulatif avec catégorie, fournisseur, montant et statut. Cliquez sur une ligne pour la modifier ou la convertir en immobilisation.' },
     ],
@@ -434,13 +495,14 @@ export const ONBOARDING = {
       },
       {
         icon: ShoppingCart,
-        titre: 'Bons de commande',
-        description: 'Formalisez vos engagements avant que la facture n\'arrive. Workflow : Brouillon → Envoyée → Réceptionnée → Facturée. La réception déclenche l\'entrée en stock automatique des produits liés.',
+        titre: 'Bons de commande (avec scanner OCR)',
+        description: 'Formalisez vos engagements avant que la facture n\'arrive. Workflow : Brouillon → Envoyée → Réceptionnée → Facturée. La réception déclenche l\'entrée en stock automatique des produits liés. Pour gagner du temps à la saisie, un bouton **« Scanner »** à côté de « Nouvelle commande » permet de photographier une facture fournisseur : ComptaWest pré-remplit le formulaire (fournisseur reconnu par nom, date, référence, lignes, TVA).',
         points: [
           'Devis fournisseurs traçables',
           'Lignes avec produits du catalogue ou description libre',
           'Réception → mouvement de stock entrée automatique',
           'Conversion en facture fournisseur (dépense) en un clic',
+          '**Scanner OCR** : ouvre la modale, photographie un document, pré-remplit la commande',
         ],
       },
       {
@@ -890,15 +952,45 @@ export const ONBOARDING = {
       },
       {
         icon: Shield,
-        titre: '6 rôles pour 6 niveaux d\'accès',
-        description: 'Chaque rôle donne un périmètre précis. Un membre peut avoir des rôles différents dans des entreprises différentes.',
+        titre: '10 rôles métier pour un accès finement contrôlé',
+        description: 'Chaque rôle donne un périmètre précis basé sur une matrice de permissions module × action. Un membre peut avoir des rôles différents dans des entreprises différentes.',
         points: [
-          '**Propriétaire** — tout, y compris la suppression d\'entreprise',
+          '**Propriétaire** — tout, y compris la suppression de l\'entreprise',
           '**Admin** — tout sauf la révocation du propriétaire',
+          '**Expert-comptable** — accès complet en lecture/écriture sur tout le cycle comptable',
           '**Comptable** — saisie/édition de tout le cycle comptable + paie',
           '**RH** — accès exclusif à la paie (employés, bulletins, rubriques), pas de comptabilité',
+          '**Commercial** — clients, devis, factures (avec lien Mobile Money) — pas d\'accès aux coûts d\'achat',
+          '**Magasinier** — produits, stocks, inventaires, réception des commandes',
+          '**Auditeur** — lecture seule sur toute l\'entreprise + accès au journal d\'audit',
           '**Utilisateur** — saisie standard (clients, factures, dépenses…)',
           '**Lecture seule** — consultation uniquement',
+        ],
+      },
+      {
+        icon: Smartphone,
+        titre: 'Onglet « Intégrations » — Mobile Money',
+        description: 'Réservé aux administrateurs. Configurez vos comptes marchands Wave, Orange Money et MTN MoMo pour activer les liens de paiement et l\'encaissement automatique sur les factures.',
+        points: [
+          'Trois cartes (Wave, Orange Money, MTN MoMo) avec leur logo officiel',
+          'Mode **Démo / Sandbox / Production** par fournisseur',
+          'Clé API et secret de webhook masqués (aperçu **•••• xxxx**)',
+          'Choix du compte de trésorerie crédité lors de l\'encaissement',
+          'URL de webhook fournie à copier dans le tableau de bord du fournisseur',
+          'Sans configuration : le mode démo fonctionne (génère des liens factices pour tester le flux)',
+        ],
+      },
+      {
+        icon: ShieldCheck,
+        titre: 'Onglet « Fiscal » — Certification DGI / FNE',
+        description: 'Réservé aux administrateurs. Renseignez votre identité fiscale pour activer la certification des factures auprès de la Direction Générale des Impôts (Facture Normalisée Électronique).',
+        points: [
+          '**NCC** (Numéro de Compte Contribuable) et centre fiscal de rattachement',
+          'Sélecteur de mode : Démo · Bac à sable · Production',
+          'Clé API DGI masquée, avec aperçu si déjà configurée',
+          'Interrupteur « Activer la certification automatique des factures émises »',
+          'La bascule vers Sandbox/Prod refuse l\'activation sans clé API',
+          'Tant que la DGI n\'a pas publié son SDK officiel, seul le mode Démo certifie réellement (préfixe MOCK-)',
         ],
       },
       {
@@ -914,11 +1006,11 @@ export const ONBOARDING = {
       {
         icon: Eye,
         titre: 'Préférences d\'affichage',
-        description: 'Mode clair ou sombre selon votre confort. Le choix est mémorisé par appareil.',
+        description: 'Mode clair ou sombre selon votre confort, langue de l\'interface (français / anglais).',
         points: [
-          'Bouton soleil/lune dans la sidebar',
-          'Persistance dans le navigateur',
-          'Toute la palette de couleurs s\'adapte',
+          'Bouton soleil/lune dans la sidebar (mémorisé par appareil)',
+          'Sélecteur de langue (français · anglais) — toute l\'app bascule instantanément',
+          'Toute la palette de couleurs s\'adapte au mode choisi',
         ],
       },
     ],

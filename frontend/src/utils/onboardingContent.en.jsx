@@ -10,7 +10,7 @@
  */
 import {
   LayoutDashboard, Users, FileText, Wallet, Receipt,
-  BarChart3, BookOpen, Shield, Settings,
+  BarChart3, BookOpen, Shield, ShieldCheck, Settings,
   TrendingUp, AlertCircle, Calendar, Calculator, Plus,
   Download, Filter, Eye, CheckCircle2, PieChart, Building2,
   Smartphone, Banknote, Upload, Link2, ArrowLeftRight,
@@ -18,6 +18,7 @@ import {
   Package, TrendingDown,
   Box, ClipboardCheck, AlertTriangle,
   Truck, ShoppingCart, Clock,
+  Camera, MessageCircle, Sparkles, QrCode,
 } from 'lucide-react';
 
 export const ONBOARDING = {
@@ -65,6 +66,17 @@ export const ONBOARDING = {
           '**Collected**: amount actually received on paid invoices',
           '**Expenses**: only paid expenses (pending ones do not weigh on profit)',
           '**Top customers**: ranked on their invoiced revenue (not their quotes)',
+        ],
+      },
+      {
+        icon: Sparkles,
+        titre: 'The tools that make the difference',
+        description: 'ComptaWest goes beyond classic accounting: three concrete levers to reduce your daily admin load and speed up collections.',
+        points: [
+          '**Mobile Money payment link** (Invoices) — Wave, Orange Money, MTN MoMo: the customer pays in two clicks from WhatsApp or a QR code, the invoice is settled automatically.',
+          '**OCR scanner** (Expenses & Purchase orders) — take a picture of an invoice, ComptaWest extracts supplier, date, amounts and VAT to pre-fill the form.',
+          '**DGI / FNE tax certification** (Invoices) — every issued invoice receives an official tax number and a verifiable QR code.',
+          'Configure everything from Settings → Integrations (Mobile Money) and Settings → Tax (DGI).',
         ],
       },
     ],
@@ -179,6 +191,32 @@ export const ONBOARDING = {
         ],
       },
       {
+        icon: Smartphone,
+        titre: 'Mobile Money payment link (Wave · Orange Money · MTN MoMo)',
+        description: 'For pending invoices, a "Smartphone" button generates a secure payment link. The customer pays from their phone in seconds, and the provider webhook automatically settles the invoice in ComptaWest.',
+        points: [
+          '3 supported providers: Wave, Orange Money, MTN MoMo',
+          'When several integrations are active, a provider picker appears',
+          'MTN MoMo: direct USSD push to the customer\'s number (payment request)',
+          'Share modal with **QR code**, **pre-filled WhatsApp** message and copyable link',
+          'Automatic collection: treasury movement + accounting entry + status « paid »',
+          'Demo mode built-in so you can test without a merchant account (configure in Settings → Integrations)',
+        ],
+      },
+      {
+        icon: ShieldCheck,
+        titre: 'Tax certification (DGI / FNE)',
+        description: 'To anticipate the upcoming mandate for Electronic Standardised Invoices, every non-draft invoice can be certified with the Ivorian tax authority. An official tax number, a control hash and a verification QR code are attached to the invoice.',
+        points: [
+          'Shield button (grey) → certifies the invoice · green shield = already certified',
+          'Preview modal: FNE number, QR code, SHA-256 hash',
+          'QR code the customer can scan to verify authenticity on the DGI portal',
+          'Idempotent: a repeated call does not create duplicates',
+          'Demo mode (MOCK- prefix) as long as your DGI credentials are not configured',
+          'Configuration (NCC, tax office, DGI key) in Settings → Tax',
+        ],
+      },
+      {
         icon: AlertTriangle,
         titre: 'Credit notes: SYSCOHADA rules',
         description: 'A credit note cancels an invoice partially or fully. The reference to the original invoice is mandatory — ComptaWest makes it impossible without one. The validated credit note reverses the initial entry and updates stock.',
@@ -193,7 +231,7 @@ export const ONBOARDING = {
     spotlight: [
       { target: 'btn-nouveau', titre: 'New invoice', description: 'Create an invoice or credit note. Quotes and proformas are managed from their own page.' },
       { target: 'filtres-statut', titre: 'Status filters', description: 'Show only paid, pending, overdue, draft, sent or cancelled invoices.' },
-      { target: 'liste-factures', titre: 'Invoice list', description: 'All your invoices with their number, customer, gross amount, paid amount and status. Actions: record a payment, download the PDF.' },
+      { target: 'liste-factures', titre: 'Invoice list', description: 'All your invoices with their number, customer, gross amount, paid amount and status. Per-row actions: record a payment, generate a Mobile Money link, certify with DGI, download the PDF.' },
     ],
   },
 
@@ -291,6 +329,19 @@ export const ONBOARDING = {
         ],
       },
       {
+        icon: Camera,
+        titre: 'OCR scanner: zero data entry',
+        description: 'Take a picture of your receipt or supplier invoice, ComptaWest automatically extracts the accounting fields: supplier, date, number, net, VAT, gross. The expense form opens already pre-filled — you validate and it lands in your books.',
+        points: [
+          '**Scan** button next to "New expense"',
+          'Direct camera capture on mobile (opens the camera)',
+          'On desktop: file picker (JPG, PNG, WEBP)',
+          'Smart image compression before analysis',
+          'OCR confidence indicator (0-100%)',
+          'Built-in demo mode (fake data); switch to production with a Mistral key in MISTRAL_API_KEY',
+        ],
+      },
+      {
         icon: Filter,
         titre: 'Filter, analyze, justify',
         description: 'Filters by status, period and category let you find an expense or prepare an analysis.',
@@ -303,7 +354,7 @@ export const ONBOARDING = {
       },
     ],
     spotlight: [
-      { target: 'btn-nouveau', titre: 'New expense', description: 'Enter an expense with its status, payment method and treasury account. The accounting entry is generated automatically upon validation.' },
+      { target: 'btn-nouveau', titre: 'Scan or create manually', description: 'Next to "New expense", the "Scan" button photographs an invoice to pre-fill the form. To its right, the classic manual flow with status, payment method and treasury account.' },
       { target: 'filtres-statut', titre: 'Filters', description: 'Show expenses by their payment status (paid, pending, cancelled).' },
       { target: 'liste-depenses', titre: 'Expense list', description: 'Summary table with category, supplier, amount and status. Click a row to edit it or convert it to a fixed asset.' },
     ],
@@ -434,13 +485,14 @@ export const ONBOARDING = {
       },
       {
         icon: ShoppingCart,
-        titre: 'Purchase orders',
-        description: 'Formalize your commitments before the invoice arrives. Workflow: Draft → Sent → Received → Invoiced. Receipt triggers automatic stock-in of linked products.',
+        titre: 'Purchase orders (with OCR scanner)',
+        description: 'Formalize your commitments before the invoice arrives. Workflow: Draft → Sent → Received → Invoiced. Receipt triggers automatic stock-in of linked products. To save typing, a **"Scan"** button next to "New order" lets you photograph a supplier invoice: ComptaWest pre-fills the form (supplier matched by name, date, reference, lines, VAT).',
         points: [
           'Traceable supplier quotes',
           'Lines with catalog products or free description',
           'Receipt → automatic stock-in movement',
           'Conversion to supplier invoice (expense) in one click',
+          '**OCR scanner**: opens the modal, photographs a document, pre-fills the order',
         ],
       },
       {
@@ -890,15 +942,45 @@ export const ONBOARDING = {
       },
       {
         icon: Shield,
-        titre: '6 roles for 6 access levels',
-        description: 'Each role grants a precise scope. A member can have different roles in different companies.',
+        titre: '10 business roles for fine-grained access control',
+        description: 'Each role grants a precise scope based on a module × action permissions matrix. A member can have different roles in different companies.',
         points: [
-          '**Owner** — everything, including company deletion',
+          '**Owner** — everything, including deletion of the company',
           '**Admin** — everything except revoking the owner',
+          '**Chartered accountant** — full read/write access to the whole accounting cycle',
           '**Accountant** — entry/editing of the full accounting cycle + payroll',
           '**HR** — exclusive access to payroll (employees, payslips, items), no accounting',
+          '**Salesperson** — customers, quotes, invoices (with Mobile Money link) — no access to purchase costs',
+          '**Warehouse keeper** — products, stock, inventories, receipt of purchase orders',
+          '**Auditor** — read-only on the whole company + access to the audit log',
           '**User** — standard entry (customers, invoices, expenses...)',
           '**Read-only** — viewing only',
+        ],
+      },
+      {
+        icon: Smartphone,
+        titre: '"Integrations" tab — Mobile Money',
+        description: 'Reserved to administrators. Configure your Wave, Orange Money and MTN MoMo merchant accounts to enable payment links and automatic settlement on invoices.',
+        points: [
+          'Three cards (Wave, Orange Money, MTN MoMo) with their official logo',
+          '**Demo / Sandbox / Production** mode per provider',
+          'API key and webhook secret masked (preview **•••• xxxx**)',
+          'Choice of the treasury account credited at settlement',
+          'Webhook URL ready to copy into the provider dashboard',
+          'Without configuration: demo mode works (generates fake links so you can test the flow)',
+        ],
+      },
+      {
+        icon: ShieldCheck,
+        titre: '"Tax" tab — DGI / FNE certification',
+        description: 'Reserved to administrators. Enter your fiscal identity to enable invoice certification with the Ivorian tax authority (Electronic Standardised Invoice).',
+        points: [
+          '**NCC** (Taxpayer Account Number) and attached tax office',
+          'Mode selector: Demo · Sandbox · Production',
+          'Masked DGI API key, with preview if already configured',
+          'Toggle "Automatically certify all issued invoices"',
+          'Switching to Sandbox/Prod is refused if no API key is set',
+          'As long as the DGI has not published its official SDK, only Demo mode actually certifies (MOCK- prefix)',
         ],
       },
       {
@@ -914,11 +996,11 @@ export const ONBOARDING = {
       {
         icon: Eye,
         titre: 'Display preferences',
-        description: 'Light or dark mode according to your comfort. The choice is remembered per device.',
+        description: 'Light or dark mode according to your comfort, interface language (French / English).',
         points: [
-          'Sun/moon button in the sidebar',
-          'Persistence in the browser',
-          'The whole color palette adapts',
+          'Sun/moon button in the sidebar (persisted per device)',
+          'Language selector (French · English) — the whole app switches instantly',
+          'The whole color palette adapts to the chosen mode',
         ],
       },
     ],

@@ -18,11 +18,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme.jsx';
 import { getC } from './UI.jsx';
-import { getOnboarding as getOnboardingFr } from '../utils/onboardingContent.jsx';
+import { getOnboarding as getOnboardingFr, ONBOARDING_VERSION } from '../utils/onboardingContent.jsx';
 import { getOnboarding as getOnboardingEn } from '../utils/onboardingContent.en.jsx';
 import { X, ChevronLeft, ChevronRight, HelpCircle, Sparkles } from 'lucide-react';
 
-const SEEN_KEY = (pageKey) => `cw_onboarding_${pageKey}_seen`;
+// La version est intégrée dans la clé : quand l'onboarding s'enrichit
+// significativement, on bumpe ONBOARDING_VERSION et tous les utilisateurs
+// revoient le tour mis à jour (sans avoir à purger leur localStorage).
+const SEEN_KEY = (pageKey) => `cw_onboarding_${pageKey}_v${ONBOARDING_VERSION}_seen`;
 
 export default function Onboarding({ pageKey }) {
   const { t, i18n } = useTranslation();
