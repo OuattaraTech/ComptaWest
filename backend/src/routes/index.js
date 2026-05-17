@@ -28,6 +28,7 @@ const { getDevis, getStatsDevis, updateDevisStatut, convertirEnFacture, supprime
 const { getStats, getTransactionsRecentes, getAnneesDisponibles } = require('../controllers/dashboardController');
 const { getBilan, getBilanPDF, getFacturePDF } = require('../controllers/rapportsController');
 const { getDepenses, getStatsDepenses, createDepense, updateDepense, deleteDepense, getCategories, createCategorie, depenseRules, categorieDepenseRules } = require('../controllers/depensesController');
+const { scannerPiece, scannerRules } = require('../controllers/ocrController');
 const { getTaxes, getTableauBordTaxes, createTaxe, payerTaxe, calculerTVA, taxeRules, paiementTaxeRules } = require('../controllers/taxesController');
 const { getAuditLog } = require('../controllers/auditController');
 const {
@@ -189,6 +190,11 @@ router.get('/depenses', auth, can(MODULES.DEPENSES, ACTIONS.READ), getDepenses);
 router.post('/depenses', auth, can(MODULES.DEPENSES, ACTIONS.CREATE), depenseRules, validate, createDepense);
 router.put('/depenses/:id', auth, can(MODULES.DEPENSES, ACTIONS.UPDATE), depenseRules, validate, updateDepense);
 router.delete('/depenses/:id', auth, can(MODULES.DEPENSES, ACTIONS.DELETE), deleteDepense);
+
+// ─── OCR (scan de factures et reçus) ───────────────────────────────────────
+// Réservé à ceux qui peuvent au moins créer une dépense, car le résultat
+// sert à pré-remplir un formulaire de dépense ou de facture fournisseur.
+router.post('/ocr/scanner', auth, can(MODULES.DEPENSES, ACTIONS.CREATE), scannerRules, validate, scannerPiece);
 
 // ─── TAXES ─────────────────────────────────────────────────────────────────
 router.get('/taxes/tableau-de-bord', auth, can(MODULES.TAXES, ACTIONS.READ), getTableauBordTaxes);

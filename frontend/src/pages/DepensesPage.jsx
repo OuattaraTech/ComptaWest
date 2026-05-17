@@ -9,7 +9,8 @@ import SelecteurAnnee from '../components/SelecteurAnnee.jsx';
 import Onboarding from '../components/Onboarding.jsx';
 import { Can, ReadOnlyBanner } from '../components/Can.jsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Plus, Search, Trash2, Edit2, Package } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, Package, Camera } from 'lucide-react';
+import ScannerFacture from '../components/ScannerFacture.jsx';
 import { useNavigate } from 'react-router-dom';
 import { FournisseurFormModal } from './FournisseursPage.jsx';
 
@@ -89,6 +90,28 @@ export default function DepensesPage() {
   const montantTTC = (parseFloat(form.montant_ht) || 0) + montantTVA;
 
   const openCreate = () => { setEditId(null); setForm(emptyForm); setShowModal(true); };
+
+  // Scan d'une facture/reçu : ouvre une modale d'OCR, et au retour
+  // pré-remplit le formulaire de dépense avec les champs extraits.
+  const [showScanner, setShowScanner] = useState(false);
+  const prefillFromOcr = (data) => {
+    setEditId(null);
+    setForm({
+      ...emptyForm,
+      description: data.fournisseur_nom
+        ? `Achat ${data.fournisseur_nom}${data.numero ? ` · ${data.numero}` : ''}`
+        : (data.numero ? `Facture ${data.numero}` : ''),
+      fournisseur: data.fournisseur_nom || '',
+      fournisseur_id: null,
+      montant_ht: data.montant_ht ? String(data.montant_ht) : '',
+      taux_tva: data.taux_tva || 18,
+      date_depense: data.date || new Date().toISOString().split('T')[0],
+      reference: data.numero || '',
+      notes: data.fournisseur_ifu ? `IFU : ${data.fournisseur_ifu}` : '',
+      statut: 'en_attente',
+    });
+    setShowModal(true);
+  };
   const openEdit = (d) => {
     setEditId(d.id);
     setForm({
@@ -135,6 +158,13 @@ export default function DepensesPage() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <SelecteurAnnee annee={annee} setAnnee={setAnnee} couleurActif={C.red} />
           <Can module="depenses" action="create">
+            <button onClick={() => setShowScanner(true)} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '9px 16px', borderRadius: 10,
+              border: `1.5px solid ${C.accent}`, background: 'transparent', color: C.accent,
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>
+              <Camera size={15} /> {t('ocr.btn_scan')}
+            </button>
             <button data-onboarding="btn-nouveau" onClick={openCreate} style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', borderRadius: 10,
               border: 'none', background: C.red, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
@@ -467,6 +497,12 @@ export default function DepensesPage() {
           }}
           C={C} dark={dark} />
       )}
+
+      <ScannerFacture
+        open={showScanner}
+        onClose={() => setShowScanner(false)}
+        onExtraction={prefillFromOcr}
+      />
 
       <Onboarding pageKey="depenses" />
     </div>
