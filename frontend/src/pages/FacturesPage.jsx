@@ -233,7 +233,14 @@ export default function FacturesPage() {
     setGeneratingLien(f.id);
     try {
       const res = await api.post(`/factures/${f.id}/lien-paiement-wave`);
-      setShowLienWave({ facture: f, ...res.data.data });
+      // On enrichit avec le téléphone du client pour pré-remplir wa.me / SMS
+      const client = clients.find(c => c.id === f.client_id);
+      setShowLienWave({
+        facture: f,
+        client_telephone: client?.telephone || null,
+        client_nom: client?.nom || null,
+        ...res.data.data,
+      });
     } catch (err) {
       if (!err.handled) toast.error(err.response?.data?.message || t('factures.error_lien_wave'));
     } finally {
@@ -790,39 +797,87 @@ export default function FacturesPage() {
               </div>
             </div>
 
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, display: 'block' }}>
-                {t('factures.lien_wave_url_label')}
-              </label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input readOnly value={showLienWave.url} onFocus={e => e.target.select()}
-                  style={{
-                    flex: 1, background: C.input, border: `1px solid ${C.border}`, borderRadius: 8,
-                    padding: '9px 12px', color: C.text, fontSize: 12, fontFamily: 'monospace', outline: 'none',
-                  }} />
-                <button onClick={copierLienWave} style={{
-                  display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 8,
-                  border: 'none', background: C.accent, color: dark ? '#000' : '#fff',
-                  fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
-                }}>
-                  <Copy size={13} /> {t('parametres.btn_copy')}
-                </button>
+            {/* Bloc QR code + URL côte à côte. Le client peut soit cliquer
+                sur le lien depuis son téléphone, soit scanner le QR depuis
+                un autre appareil (cas typique d'une PME avec un PC caisse). */}
+            <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 16, alignItems: 'flex-start' }}>
+              <div style={{
+                background: '#fff', border: `1.5px solid ${C.border}`, borderRadius: 12,
+                padding: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=4&data=${encodeURIComponent(showLienWave.url)}`}
+                  alt={t('factures.lien_wave_qr_alt')}
+                  style={{ width: 144, height: 144, display: 'block' }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, display: 'block' }}>
+                    {t('factures.lien_wave_url_label')}
+                  </label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input readOnly value={showLienWave.url} onFocus={e => e.target.select()}
+                      style={{
+                        flex: 1, background: C.input, border: `1px solid ${C.border}`, borderRadius: 8,
+                        padding: '9px 12px', color: C.text, fontSize: 11, fontFamily: 'monospace', outline: 'none',
+                        minWidth: 0,
+                      }} />
+                    <button onClick={copierLienWave} style={{
+                      display: 'flex', alignItems: 'center', gap: 5, padding: '9px 12px', borderRadius: 8,
+                      border: 'none', background: C.accent, color: dark ? '#000' : '#fff',
+                      fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+                    }}>
+                      <Copy size={12} /> {t('parametres.btn_copy')}
+                    </button>
+                  </div>
+                </div>
+                <div style={{ fontSize: 10, color: C.muted, lineHeight: 1.45, fontStyle: 'italic' }}>
+                  {t('factures.lien_wave_qr_hint')}
+                </div>
               </div>
             </div>
 
+            {/* Partage : WhatsApp pré-rempli avec le numéro client si on l'a,
+                sinon ouverture du chooser WhatsApp. + bouton SMS deep link. */}
             <div style={{ display: 'flex', gap: 8 }}>
-              <a href={`https://wa.me/?text=${encodeURIComponent(
-                t('factures.lien_wave_whatsapp_text', { numero: showLienWave.facture.numero, url: showLienWave.url })
-              )}`} target="_blank" rel="noopener noreferrer"
-                style={{
-                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  padding: '11px 16px', borderRadius: 10, border: 'none', textDecoration: 'none',
-                  background: '#25D366', color: '#fff', fontSize: 13, fontWeight: 700,
-                }}>
-                <MessageCircle size={15} /> {t('factures.btn_send_whatsapp')}
-              </a>
+              {(() => {
+                // Normalise le téléphone (chiffres uniquement) pour wa.me / sms:
+                const telBrut = showLienWave.client_telephone || '';
+                const tel = telBrut.replace(/[^\d+]/g, '').replace(/^\+/, '');
+                const message = t('factures.lien_wave_whatsapp_text', {
+                  numero: showLienWave.facture.numero,
+                  url: showLienWave.url,
+                });
+                const waUrl  = tel ? `https://wa.me/${tel}?text=${encodeURIComponent(message)}`
+                                   : `https://wa.me/?text=${encodeURIComponent(message)}`;
+                const smsUrl = tel ? `sms:+${tel}?body=${encodeURIComponent(message)}`
+                                   : `sms:?body=${encodeURIComponent(message)}`;
+                return (
+                  <>
+                    <a href={waUrl} target="_blank" rel="noopener noreferrer"
+                      style={{
+                        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                        padding: '11px 16px', borderRadius: 10, border: 'none', textDecoration: 'none',
+                        background: '#25D366', color: '#fff', fontSize: 13, fontWeight: 700,
+                      }}>
+                      <MessageCircle size={15} /> {tel ? t('factures.btn_send_whatsapp_to', { tel: telBrut }) : t('factures.btn_send_whatsapp')}
+                    </a>
+                    <a href={smsUrl}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        padding: '11px 14px', borderRadius: 10, border: `1.5px solid ${C.border}`,
+                        background: 'transparent', color: C.text, fontSize: 12, fontWeight: 600,
+                        textDecoration: 'none',
+                      }}
+                      title={t('factures.btn_send_sms')}>
+                      💬 SMS
+                    </a>
+                  </>
+                );
+              })()}
               <button onClick={() => setShowLienWave(null)} style={{
-                padding: '11px 18px', borderRadius: 10, border: `1.5px solid ${C.border}`,
+                padding: '11px 16px', borderRadius: 10, border: `1.5px solid ${C.border}`,
                 background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
               }}>{t('common.close')}</button>
             </div>

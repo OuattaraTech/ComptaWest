@@ -5,7 +5,7 @@ import { usePermissions } from '../hooks/usePermissions.jsx';
 import api from '../utils/api.jsx';
 import { formatDate, initiales } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
-import { Users, Building2, Plus, X, Edit2, Trash2, Shield, Save, Copy, Link2, Globe } from 'lucide-react';
+import { Users, Building2, Plus, X, Edit2, Trash2, Shield, Save, Copy, Link2, Globe, Smartphone, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme.jsx';
 import { getC, Input } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
@@ -79,6 +79,307 @@ function PreferencesTab({ C }) {
           <LanguageSwitcher variant="dropdown" C={C} />
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Onglet Intégrations : configuration des paiements externes ──────────
+// Pour l'instant : Wave (Côte d'Ivoire / Sénégal). Orange Money et MTN MoMo
+// viendront dans un lot suivant. La carte affiche le statut, permet de
+// modifier la clé API (masquée), le webhook secret, le mode et le compte
+// trésorerie de destination.
+function IntegrationsTab({ C, dark }) {
+  const { t } = useTranslation();
+  const { actuelle } = useEntreprise();
+  const [integrations, setIntegrations] = useState([]);
+  const [comptes, setComptes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showWaveForm, setShowWaveForm] = useState(false);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [intRes, comptesRes] = await Promise.all([
+        api.get('/integrations-paiement'),
+        api.get('/tresorerie/comptes'),
+      ]);
+      setIntegrations(intRes.data.data || []);
+      setComptes(comptesRes.data.data || []);
+    } catch (err) {
+      if (!err.handled) toast.error(t('common.loading_error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { fetchData(); }, []);
+
+  const wave = integrations.find(i => i.fournisseur === 'wave');
+  const webhookUrl = `${window.location.origin.replace(':5173', ':5000')}/api/webhooks/wave/${actuelle?.id || ''}`;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{
+        background: `${C.blue}10`, border: `1px solid ${C.blue}30`, borderRadius: 12,
+        padding: '14px 16px', fontSize: 12, color: C.sub, lineHeight: 1.6,
+      }}>
+        {t('parametres.integrations_intro')}
+      </div>
+
+      {/* Carte Wave */}
+      <CarteWave
+        wave={wave} comptes={comptes} loading={loading} webhookUrl={webhookUrl}
+        showForm={showWaveForm} setShowForm={setShowWaveForm}
+        onSaved={fetchData}
+        C={C} dark={dark}
+      />
+
+      {/* Placeholders Orange Money / MTN MoMo : "Bientôt disponible" */}
+      <CartePlaceholder fournisseur="orange_money" C={C} dark={dark} />
+      <CartePlaceholder fournisseur="mtn_momo" C={C} dark={dark} />
+    </div>
+  );
+}
+
+function CarteWave({ wave, comptes, loading, webhookUrl, showForm, setShowForm, onSaved, C, dark }) {
+  const { t } = useTranslation();
+  const [form, setForm] = useState({
+    mode: 'mock', actif: true, api_key: '', webhook_secret: '', compte_tresorerie_id: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [showCle, setShowCle] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
+
+  useEffect(() => {
+    if (wave) {
+      setForm({
+        mode: wave.mode || 'mock',
+        actif: wave.actif ?? true,
+        api_key: '',
+        webhook_secret: '',
+        compte_tresorerie_id: wave.compte_tresorerie_id || '',
+      });
+    }
+  }, [wave]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.put('/integrations-paiement/wave', form);
+      toast.success(t('parametres.integration_saved'));
+      setShowForm(false);
+      onSaved();
+    } catch (err) {
+      if (!err.handled) toast.error(err.response?.data?.message || t('parametres.toast_save_err'));
+    } finally { setSaving(false); }
+  };
+
+  const copierWebhook = () => {
+    navigator.clipboard.writeText(webhookUrl)
+      .then(() => toast.success(t('parametres.webhook_url_copied')))
+      .catch(() => toast.error(t('parametres.copy_failed')));
+  };
+
+  const isActive = wave?.actif && wave?.api_key_set;
+  const isMockOnly = !wave?.api_key_set;
+  const inputStyle = {
+    background: C.input, border: `1.5px solid ${C.border}`, borderRadius: 9,
+    padding: '10px 13px', color: C.text, fontSize: 13, outline: 'none',
+    fontFamily: 'inherit', width: '100%', boxSizing: 'border-box',
+  };
+
+  return (
+    <div style={{ background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 16 }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+          background: 'linear-gradient(135deg, #1DC8F0, #0066FF)', color: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18,
+        }}>W</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>Wave</div>
+            {isActive
+              ? <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 12, background: `${C.accent}20`, color: C.accent, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <CheckCircle size={11} /> {t('parametres.integration_status_active', { mode: wave.mode })}
+                </span>
+              : isMockOnly
+                ? <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 12, background: `${C.gold}20`, color: C.gold, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <AlertCircle size={11} /> {t('parametres.integration_status_demo')}
+                  </span>
+                : <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 12, background: C.hover, color: C.muted }}>
+                    {t('parametres.integration_status_inactive')}
+                  </span>}
+          </div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 3, lineHeight: 1.5 }}>
+            {t('parametres.wave_desc')}
+          </div>
+        </div>
+        {!showForm && (
+          <button onClick={() => setShowForm(true)} style={{
+            padding: '8px 14px', borderRadius: 9, border: `1.5px solid ${C.border}`,
+            background: 'transparent', color: C.text, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+          }}>
+            <Edit2 size={13} /> {wave ? t('common.edit') : t('parametres.integration_configure')}
+          </button>
+        )}
+      </div>
+
+      {!showForm && wave && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginTop: 10 }}>
+          <InfoLine label={t('parametres.integration_mode')} value={t(`parametres.integration_mode_${wave.mode}`)} C={C} />
+          <InfoLine label={t('parametres.integration_api_key')} value={wave.api_key_set ? wave.api_key_apercu : t('parametres.integration_not_set')} C={C} />
+          <InfoLine label={t('parametres.integration_webhook_secret')} value={wave.webhook_secret_set ? t('parametres.integration_configured') : t('parametres.integration_not_set')} C={C} />
+          <InfoLine label={t('parametres.integration_destination')} value={wave.compte_nom || t('parametres.integration_default_account')} C={C} />
+        </div>
+      )}
+
+      {showForm && (
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 16 }}>
+          {/* Mode */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            {['mock', 'sandbox', 'live'].map(m => (
+              <button key={m} type="button"
+                onClick={() => setForm(f => ({ ...f, mode: m }))}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 9,
+                  border: `1.5px solid ${form.mode === m ? C.accent : C.border}`,
+                  background: form.mode === m ? `${C.accent}15` : 'transparent',
+                  color: form.mode === m ? C.accent : C.muted,
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                }}>
+                {t(`parametres.integration_mode_${m}`)}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: -8, fontStyle: 'italic' }}>
+            {t(`parametres.integration_mode_${form.mode}_help`)}
+          </div>
+
+          {/* Clé API */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              {t('parametres.integration_api_key')}
+              {wave?.api_key_set && <span style={{ fontWeight: 400, textTransform: 'none', color: C.muted, marginLeft: 8 }}>· {wave.api_key_apercu}</span>}
+            </label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input type={showCle ? 'text' : 'password'}
+                value={form.api_key} onChange={e => setForm(f => ({ ...f, api_key: e.target.value }))}
+                placeholder={wave?.api_key_set ? t('parametres.integration_keep_value') : 'wave_sn_prod_xxxxxxxxxxxxxx'}
+                style={inputStyle} />
+              <button type="button" onClick={() => setShowCle(s => !s)} style={{
+                padding: '0 12px', borderRadius: 9, border: `1.5px solid ${C.border}`,
+                background: 'transparent', color: C.muted, cursor: 'pointer',
+              }}>{showCle ? <EyeOff size={14} /> : <Eye size={14} />}</button>
+            </div>
+          </div>
+
+          {/* Webhook secret */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              {t('parametres.integration_webhook_secret')}
+              {wave?.webhook_secret_set && <span style={{ fontWeight: 400, textTransform: 'none', color: C.muted, marginLeft: 8 }}>· {t('parametres.integration_configured')}</span>}
+            </label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input type={showSecret ? 'text' : 'password'}
+                value={form.webhook_secret} onChange={e => setForm(f => ({ ...f, webhook_secret: e.target.value }))}
+                placeholder={wave?.webhook_secret_set ? t('parametres.integration_keep_value') : 'whsec_xxxxxxxxxxxx'}
+                style={inputStyle} />
+              <button type="button" onClick={() => setShowSecret(s => !s)} style={{
+                padding: '0 12px', borderRadius: 9, border: `1.5px solid ${C.border}`,
+                background: 'transparent', color: C.muted, cursor: 'pointer',
+              }}>{showSecret ? <EyeOff size={14} /> : <Eye size={14} />}</button>
+            </div>
+          </div>
+
+          {/* Compte de trésorerie destination */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              {t('parametres.integration_destination')}
+            </label>
+            <select value={form.compte_tresorerie_id || ''}
+              onChange={e => setForm(f => ({ ...f, compte_tresorerie_id: e.target.value || null }))}
+              style={inputStyle}>
+              <option value="">{t('parametres.integration_default_account')}</option>
+              {comptes.filter(c => c.type === 'mobile_money').map(c => (
+                <option key={c.id} value={c.id}>{c.nom} (Mobile Money)</option>
+              ))}
+            </select>
+            <span style={{ fontSize: 10, color: C.muted, fontStyle: 'italic' }}>
+              {t('parametres.integration_destination_help')}
+            </span>
+          </div>
+
+          {/* URL webhook à recopier dans le dashboard Wave */}
+          <div style={{
+            background: dark ? '#0D1220' : C.cardAlt, borderRadius: 10,
+            padding: '12px 14px', border: `1px solid ${C.border}`,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              {t('parametres.integration_webhook_url')}
+            </div>
+            <div style={{ fontSize: 11, color: C.sub, lineHeight: 1.55, marginBottom: 8 }}>
+              {t('parametres.integration_webhook_help')}
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input readOnly value={webhookUrl} onFocus={e => e.target.select()}
+                style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 11 }} />
+              <button type="button" onClick={copierWebhook} style={{
+                padding: '0 14px', borderRadius: 9, border: 'none',
+                background: C.accent, color: dark ? '#000' : '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 5,
+              }}><Copy size={12} /> {t('parametres.btn_copy')}</button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+            <button type="button" onClick={() => setShowForm(false)} style={{
+              flex: 1, padding: '11px 0', borderRadius: 10, border: `1.5px solid ${C.border}`,
+              background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            }}>{t('common.cancel')}</button>
+            <button type="submit" disabled={saving} style={{
+              flex: 2, padding: '11px 0', borderRadius: 10, border: 'none',
+              background: saving ? C.border : C.accent, color: saving ? C.muted : (dark ? '#000' : '#fff'),
+              fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer',
+            }}>{saving ? t('common.saving') : t('common.save')}</button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function CartePlaceholder({ fournisseur, C, dark }) {
+  const { t } = useTranslation();
+  const visuels = {
+    orange_money: { label: 'Orange Money', bg: 'linear-gradient(135deg, #FF6600, #CC3300)', letter: 'O' },
+    mtn_momo:     { label: 'MTN MoMo',     bg: 'linear-gradient(135deg, #FFCC00, #E6A800)', letter: 'M' },
+  };
+  const v = visuels[fournisseur];
+  return (
+    <div style={{
+      background: C.card, border: `1.5px dashed ${C.border}`, borderRadius: 16, padding: 20,
+      display: 'flex', alignItems: 'center', gap: 14, opacity: 0.65,
+    }}>
+      <div style={{
+        width: 40, height: 40, borderRadius: 11, flexShrink: 0,
+        background: v.bg, color: '#fff',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 16,
+      }}>{v.letter}</div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{v.label}</div>
+        <div style={{ fontSize: 11, color: C.muted }}>{t('parametres.integration_coming_soon')}</div>
+      </div>
+    </div>
+  );
+}
+
+function InfoLine({ label, value, C }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ fontSize: 12, color: C.text, fontWeight: 600, marginTop: 3, fontFamily: 'monospace' }}>{value}</div>
     </div>
   );
 }
@@ -215,12 +516,14 @@ export default function ParametresPage() {
         <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{actuelle.nom}</p>
       </div>
 
-      {/* Tabs : on n'expose Membres qu'aux rôles autorisés à users.read */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 28 }}>
+      {/* Tabs : on n'expose Membres qu'aux rôles autorisés à users.read,
+          Intégrations seulement aux admins (entreprise.update) */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 28, flexWrap: 'wrap' }}>
         {[
-          { id: 'entreprise',  icon: Building2, label: t('parametres.company'),     visible: true },
-          { id: 'membres',     icon: Users,     label: `${t('parametres.members')} (${membres.length})`, visible: canReadMembres },
-          { id: 'preferences', icon: Globe,     label: t('parametres.preferences'), visible: true },
+          { id: 'entreprise',   icon: Building2,  label: t('parametres.company'),       visible: true },
+          { id: 'membres',      icon: Users,      label: `${t('parametres.members')} (${membres.length})`, visible: canReadMembres },
+          { id: 'integrations', icon: Smartphone, label: t('parametres.integrations'),  visible: canEditEntreprise },
+          { id: 'preferences',  icon: Globe,      label: t('parametres.preferences'),   visible: true },
         ].filter(item => item.visible).map(({ id, icon: Icon, label }) => (
           <button key={id} onClick={() => setTab(id)} style={{
             display: 'flex', alignItems: 'center', gap: 7,
@@ -320,6 +623,7 @@ export default function ParametresPage() {
 
       {/* Tab Préférences */}
       {tab === 'preferences' && <PreferencesTab C={C} />}
+      {tab === 'integrations' && canEditEntreprise && <IntegrationsTab C={C} dark={dark} />}
 
       {/* Tab Membres */}
       {tab === 'membres' && (

@@ -20,6 +20,7 @@ const {
 const { getClients, getClientById, createClient, updateClient, deleteClient, clientRules } = require('../controllers/clientsController');
 const { getFactures, getFactureById, createFacture, updateFacture, updateStatut, addPaiement, deleteFacture, factureRules, paiementRules } = require('../controllers/facturesController');
 const { creerLienWaveFacture, webhookWave, simulerPaiementWave } = require('../controllers/paymentLinksController');
+const { listerIntegrations, upsertIntegration, desactiverIntegration } = require('../controllers/integrationsPaiementController');
 const { getDevis, getStatsDevis, updateDevisStatut, convertirEnFacture, supprimerDevis, convertirRules } = require('../controllers/devisController');
 const { getStats, getTransactionsRecentes, getAnneesDisponibles } = require('../controllers/dashboardController');
 const { getBilan, getBilanPDF, getFacturePDF } = require('../controllers/rapportsController');
@@ -153,6 +154,13 @@ router.post('/factures/:id/lien-paiement-wave/simuler-paiement',
 // Webhook Wave PUBLIC (pas d'auth JWT — Wave nous appelle directement).
 // La sécurité est assurée par la signature HMAC dans le contrôleur.
 router.post('/webhooks/wave/:entreprise_id', webhookWave);
+
+// ─── INTÉGRATIONS DE PAIEMENT ─────────────────────────────────────────────
+// Lecture : tout rôle ayant entreprise.read (paramètres généraux)
+router.get('/integrations-paiement', auth, can(MODULES.ENTREPRISE, ACTIONS.READ), listerIntegrations);
+// Écriture : seul admin/propriétaire (entreprise.update)
+router.put('/integrations-paiement/:fournisseur', auth, can(MODULES.ENTREPRISE, ACTIONS.UPDATE), upsertIntegration);
+router.delete('/integrations-paiement/:fournisseur', auth, can(MODULES.ENTREPRISE, ACTIONS.UPDATE), desactiverIntegration);
 
 // ─── DEVIS ─────────────────────────────────────────────────────────────────
 router.get('/devis', auth, can(MODULES.DEVIS, ACTIONS.READ), getDevis);
