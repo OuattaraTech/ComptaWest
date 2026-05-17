@@ -157,11 +157,13 @@ export default function TresoreriePage() {
           <div style={{ fontSize: 13, color: C.muted, marginBottom: 18 }}>
             {t('tresorerie.empty_desc')}
           </div>
-          <button onClick={() => setShowCreate(true)} style={{
-            padding: '10px 22px', borderRadius: 10, border: 'none',
-            background: C.accent, color: dark ? '#000' : '#fff',
-            fontSize: 13, fontWeight: 700, cursor: 'pointer',
-          }}>{t('tresorerie.empty_btn')}</button>
+          <Can module="tresorerie" action="create">
+            <button onClick={() => setShowCreate(true)} style={{
+              padding: '10px 22px', borderRadius: 10, border: 'none',
+              background: C.accent, color: dark ? '#000' : '#fff',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>{t('tresorerie.empty_btn')}</button>
+          </Can>
         </div>
       ) : (
         <div data-onboarding="liste-comptes" style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
@@ -605,25 +607,32 @@ function DetailCompte({ compte: compteInit, onBack, C, dark }) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={() => setShowEdit(true)} style={btnSec(C)}>{t('tresorerie.btn_edit')}</button>
+            <Can module="tresorerie" action="update">
+              <button onClick={() => setShowEdit(true)} style={btnSec(C)}>{t('tresorerie.btn_edit')}</button>
+            </Can>
             {compte.type !== 'caisse' && (
               <>
+                {/* Consultation des relevés (lecture seule de l'historique) */}
                 <button onClick={() => setShowReleves(true)} style={btnSec(C)}>
                   <FileSpreadsheet size={13} /> {t('tresorerie.btn_statements')}
                 </button>
-                <button onClick={() => setShowImport(true)} style={btnSec(C)}>
-                  <Upload size={13} /> {t('tresorerie.btn_import')}
-                </button>
+                <Can module="tresorerie" action="update">
+                  <button onClick={() => setShowImport(true)} style={btnSec(C)}>
+                    <Upload size={13} /> {t('tresorerie.btn_import')}
+                  </button>
+                </Can>
               </>
             )}
-            <button onClick={() => setShowMouvement(true)} style={{
-              padding: '9px 16px', borderRadius: 9, border: 'none',
-              background: C.accent, color: dark ? '#000' : '#fff',
-              fontSize: 12, fontWeight: 700, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}>
-              <Plus size={13} /> {t('tresorerie.btn_movement')}
-            </button>
+            <Can module="tresorerie" action="update">
+              <button onClick={() => setShowMouvement(true)} style={{
+                padding: '9px 16px', borderRadius: 9, border: 'none',
+                background: C.accent, color: dark ? '#000' : '#fff',
+                fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <Plus size={13} /> {t('tresorerie.btn_movement')}
+              </button>
+            </Can>
           </div>
         </div>
 
@@ -723,12 +732,14 @@ function DetailCompte({ compte: compteInit, onBack, C, dark }) {
                 <td style={{ padding: '11px 14px' }}>
                   {(m.source_type === 'manuel' || m.source_type === 'transfert')
                     && m.statut_rapprochement !== 'rapproche' && (
-                    <button onClick={() => handleDeleteMouvement(m.id)} style={{
-                      padding: '5px 7px', background: C.hover, border: `1px solid ${C.border}`,
-                      borderRadius: 7, cursor: 'pointer', color: C.muted,
-                    }}>
-                      <Trash2 size={12} />
-                    </button>
+                    <Can module="tresorerie" action="update">
+                      <button onClick={() => handleDeleteMouvement(m.id)} style={{
+                        padding: '5px 7px', background: C.hover, border: `1px solid ${C.border}`,
+                        borderRadius: 7, cursor: 'pointer', color: C.muted,
+                      }}>
+                        <Trash2 size={12} />
+                      </button>
+                    </Can>
                   )}
                 </td>
               </tr>
@@ -1010,20 +1021,24 @@ function RelevesModal({ compte, onClose, C, dark }) {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => setReleveActif(r.id)} style={{
-                    padding: '8px 14px', borderRadius: 8, border: 'none',
-                    background: C.accent, color: dark ? '#000' : '#fff',
-                    fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: 5,
-                  }}>
-                    <Eye size={12} /> {t('tresorerie.statements_reconcile')}
-                  </button>
-                  <button onClick={() => handleDeleteReleve(r.id)} style={{
-                    padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`,
-                    background: 'transparent', color: C.muted, cursor: 'pointer',
-                  }}>
-                    <Trash2 size={12} />
-                  </button>
+                  <Can module="tresorerie" action="update">
+                    <button onClick={() => setReleveActif(r.id)} style={{
+                      padding: '8px 14px', borderRadius: 8, border: 'none',
+                      background: C.accent, color: dark ? '#000' : '#fff',
+                      fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 5,
+                    }}>
+                      <Eye size={12} /> {t('tresorerie.statements_reconcile')}
+                    </button>
+                  </Can>
+                  <Can module="tresorerie" action="delete">
+                    <button onClick={() => handleDeleteReleve(r.id)} style={{
+                      padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`,
+                      background: 'transparent', color: C.muted, cursor: 'pointer',
+                    }}>
+                      <Trash2 size={12} />
+                    </button>
+                  </Can>
                 </div>
               </div>
             );
