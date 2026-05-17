@@ -10,7 +10,9 @@ import {
   Truck, Box, UserCheck, Package, BookMarked,
   Smartphone, Camera, ShieldCheck, Sparkles,
   CheckCircle2, Zap, MessageCircle, Lock,
+  UserPlus, Send, Check,
 } from 'lucide-react';
+import LogoFournisseur from '../components/LogoFournisseur.jsx';
 import toast from 'react-hot-toast';
 import LanguageSwitcher from '../components/LanguageSwitcher.jsx';
 
@@ -417,6 +419,108 @@ export default function LoginPage() {
         </div>
       </section>
 
+      {/* ═══════════════ LOGOS PARTENAIRES ═══════════════
+          Bandeau fin de réassurance : montre l'écosystème auquel
+          ComptaWest se connecte. Volontairement minimaliste pour
+          ne pas voler la vedette aux différenciateurs en dessous. */}
+      <section style={{
+        padding: '32px 56px',
+        background: dark ? '#0A0E18' : '#FAFCFE',
+        borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`,
+      }} className="cw-section">
+        <div style={{ maxWidth: 1180, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 32, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, letterSpacing: '0.05em' }}>
+            {t('login.partners_intro')}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap', justifyContent: 'center', opacity: 0.85 }}>
+            <LogoFournisseur fournisseur="wave"         size={36} radius={10} />
+            <LogoFournisseur fournisseur="orange_money" size={36} radius={10} />
+            <LogoFournisseur fournisseur="mtn_momo"     size={36} radius={10} />
+            {/* DGI : badge texte officiel */}
+            <div style={{
+              width: 56, height: 36, borderRadius: 8,
+              background: 'linear-gradient(135deg, #007A33, #003C71)',
+              color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 13, fontWeight: 900, letterSpacing: '0.05em',
+            }}>DGI</div>
+            {/* WhatsApp : badge officiel */}
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: '#25D366', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <MessageCircle size={20} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════ COMMENT ÇA MARCHE ═══════════════
+          Trois étapes concrètes du parcours utilisateur. Pas de
+          baratin marketing : on dit ce qu'on fait, en combien de
+          temps, avec un exemple ivoirien si possible. */}
+      <section style={{ padding: '80px 56px', background: C.bg }} className="cw-section">
+        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 56 }}>
+            <h2 style={{ fontSize: 36, fontWeight: 900, letterSpacing: '-0.02em', color: C.text, margin: '0 0 12px 0' }}>
+              {t('login.how_title')}
+            </h2>
+            <p style={{ fontSize: 15, color: C.muted, maxWidth: 620, margin: '0 auto', lineHeight: 1.55 }}>
+              {t('login.how_subtitle')}
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 22, position: 'relative' }} className="cw-how-grid">
+            {[
+              { icon: UserPlus, key: 'step1', duration: t('login.how_step1_time') },
+              { icon: Camera,   key: 'step2', duration: t('login.how_step2_time') },
+              { icon: Send,     key: 'step3', duration: t('login.how_step3_time') },
+            ].map(({ icon: Icon, key, duration }, i) => (
+              <div key={key} style={{
+                background: C.card, border: `1px solid ${C.border}`, borderRadius: 18,
+                padding: '32px 26px', position: 'relative',
+                boxShadow: dark ? '0 6px 24px rgba(0,0,0,0.30)' : '0 4px 16px rgba(15,23,42,0.06)',
+              }}>
+                {/* Numéro géant en filigrane derrière */}
+                <div style={{
+                  position: 'absolute', top: 18, right: 22,
+                  fontSize: 64, fontWeight: 900, lineHeight: 1,
+                  color: 'transparent', WebkitTextStroke: `1.5px ${C.accent}30`,
+                  pointerEvents: 'none', userSelect: 'none',
+                }}>0{i + 1}</div>
+
+                <div style={{
+                  width: 50, height: 50, borderRadius: 13,
+                  background: `linear-gradient(135deg, ${C.accent}, #4E8BF5)`,
+                  color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  marginBottom: 20,
+                }}>
+                  <Icon size={22} />
+                </div>
+
+                <h3 style={{ fontSize: 17, fontWeight: 800, color: C.text, margin: '0 0 8px 0', letterSpacing: '-0.01em' }}>
+                  {t(`login.how_${key}_title`)}
+                </h3>
+                <p style={{ fontSize: 13.5, color: C.muted, lineHeight: 1.6, margin: '0 0 14px 0' }}>
+                  {t(`login.how_${key}_desc`)}
+                </p>
+
+                {/* Petite ligne durée */}
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '4px 10px', borderRadius: 100,
+                  background: `${C.accent}15`, color: C.accent,
+                  fontSize: 11, fontWeight: 700,
+                }}>
+                  <Zap size={11} /> {duration}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ═══════════════ DIFFÉRENCIATEURS ═══════════════ */}
       <section style={{ padding: '80px 56px', background: C.bg }} className="cw-section">
         <div style={{ maxWidth: 1180, margin: '0 auto' }}>
@@ -499,6 +603,115 @@ export default function LoginPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════ TARIFICATION ═══════════════
+          3 plans : Démo (gratuit, à vie), PME (mensuel), Pro
+          (multi-entreprise). Prix indicatifs en FCFA. Le plan PME
+          est mis en avant (badge populaire) car c'est le sweet spot
+          de la cible. Ton : « démarrer ne coûte rien, grandir non
+          plus ». */}
+      <section style={{
+        padding: '80px 56px',
+        background: dark
+          ? 'linear-gradient(180deg, transparent 0%, rgba(0,212,170,0.04) 50%, transparent 100%)'
+          : 'linear-gradient(180deg, transparent 0%, rgba(0,168,130,0.05) 50%, transparent 100%)',
+      }} className="cw-section">
+        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 56 }}>
+            <h2 style={{ fontSize: 36, fontWeight: 900, letterSpacing: '-0.02em', color: C.text, margin: '0 0 12px 0' }}>
+              {t('login.pricing_title')}
+            </h2>
+            <p style={{ fontSize: 15, color: C.muted, maxWidth: 620, margin: '0 auto', lineHeight: 1.55 }}>
+              {t('login.pricing_subtitle')}
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 22, alignItems: 'stretch' }} className="cw-pricing-grid">
+            {[
+              { key: 'demo', price: t('login.plan_demo_price'),  unit: '',                          highlight: false },
+              { key: 'pme',  price: '15 000', unit: t('login.plan_unit'),  highlight: true  },
+              { key: 'pro',  price: '35 000', unit: t('login.plan_unit'),  highlight: false },
+            ].map(({ key, price, unit, highlight }) => (
+              <div key={key} style={{
+                background: highlight
+                  ? `linear-gradient(135deg, ${C.accent}10, rgba(78,139,245,0.08))`
+                  : C.card,
+                border: highlight ? `2px solid ${C.accent}` : `1px solid ${C.border}`,
+                borderRadius: 20, padding: '32px 28px',
+                position: 'relative',
+                boxShadow: highlight
+                  ? (dark ? '0 16px 48px rgba(0,212,170,0.20)' : '0 16px 48px rgba(0,168,130,0.15)')
+                  : (dark ? '0 6px 24px rgba(0,0,0,0.30)' : '0 4px 16px rgba(15,23,42,0.06)'),
+                transform: highlight ? 'translateY(-8px)' : 'none',
+                display: 'flex', flexDirection: 'column',
+              }}>
+                {highlight && (
+                  <div style={{
+                    position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)',
+                    padding: '4px 14px', borderRadius: 100,
+                    background: C.accent, color: '#000',
+                    fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase',
+                  }}>
+                    {t('login.plan_popular_badge')}
+                  </div>
+                )}
+
+                <div style={{ fontSize: 13, fontWeight: 800, color: C.accent, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
+                  {t(`login.plan_${key}_name`)}
+                </div>
+                <div style={{ fontSize: 13, color: C.muted, marginBottom: 18, lineHeight: 1.5 }}>
+                  {t(`login.plan_${key}_tagline`)}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 20 }}>
+                  <span style={{ fontSize: 40, fontWeight: 900, color: C.text, letterSpacing: '-0.03em', lineHeight: 1 }}>
+                    {price}
+                  </span>
+                  {unit && (
+                    <span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>{unit}</span>
+                  )}
+                </div>
+
+                {/* Features list */}
+                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+                  {[1, 2, 3, 4, 5].map(n => {
+                    const text = t(`login.plan_${key}_feat${n}`, { defaultValue: '' });
+                    if (!text) return null;
+                    return (
+                      <li key={n} style={{ display: 'flex', alignItems: 'flex-start', gap: 9, fontSize: 13, color: C.sub, lineHeight: 1.5 }}>
+                        <Check size={15} color={C.accent} style={{ flexShrink: 0, marginTop: 2 }} />
+                        <span>{text}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+
+                <button onClick={key === 'demo' ? handleDemoLogin : () => { setMode('register'); document.getElementById('cw-auth-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
+                  disabled={loading}
+                  style={{
+                    padding: '13px 0', borderRadius: 11, border: 'none',
+                    background: highlight ? `linear-gradient(135deg, #00D4AA, #00A882)` : 'transparent',
+                    color: highlight ? '#000' : C.text,
+                    border: highlight ? 'none' : `1.5px solid ${C.border}`,
+                    fontSize: 14, fontWeight: 700,
+                    cursor: loading ? 'wait' : 'pointer', transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                  }}>
+                  {t(`login.plan_${key}_cta`)} <ArrowRight size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Note humaine en bas */}
+          <div style={{
+            textAlign: 'center', marginTop: 32,
+            fontSize: 12.5, color: C.muted, lineHeight: 1.6,
+          }}>
+            {t('login.pricing_note')}
           </div>
         </div>
       </section>
@@ -640,6 +853,9 @@ export default function LoginPage() {
           .cw-stats { grid-template-columns: 1fr 1fr !important; gap: 20px !important; }
           .cw-diff-grid { grid-template-columns: 1fr !important; }
           .cw-feats-grid { grid-template-columns: 1fr 1fr !important; }
+          .cw-how-grid { grid-template-columns: 1fr !important; }
+          .cw-pricing-grid { grid-template-columns: 1fr !important; }
+          .cw-pricing-grid > div { transform: none !important; }
         }
         @media (max-width: 480px) {
           .cw-headline { font-size: 32px !important; }
