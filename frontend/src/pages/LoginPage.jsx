@@ -436,14 +436,15 @@ export default function LoginPage() {
             <LogoFournisseur fournisseur="wave"         size={36} radius={10} />
             <LogoFournisseur fournisseur="orange_money" size={36} radius={10} />
             <LogoFournisseur fournisseur="mtn_momo"     size={36} radius={10} />
-            {/* DGI Côte d'Ivoire : logo officiel depuis dgi.gouv.ci.
-                Si le serveur est inaccessible, fallback sur le badge
-                texte ci-dessous (géré par onError -> nextSibling). */}
-            <div style={{ position: 'relative', height: 36, display: 'flex', alignItems: 'center' }}>
+            {/* DGI Côte d'Ivoire : tente d'abord /logos/dgi.png (à poser
+                par toi dans frontend/public/logos/dgi.png pour avoir le
+                vrai logo officiel) ; à défaut, fallback sur un badge
+                officiel avec drapeau CI + sceau DGI. */}
+            <div style={{ height: 36, display: 'flex', alignItems: 'center' }}>
               <img
-                src="https://www.dgi.gouv.ci/wp-content/uploads/2021/02/cropped-LOGO-DGI-1-180x180.png"
+                src="/logos/dgi.png"
                 alt="DGI Côte d'Ivoire"
-                style={{ height: 36, width: 'auto', maxWidth: 80, objectFit: 'contain', display: 'block' }}
+                style={{ height: 36, width: 'auto', maxWidth: 100, objectFit: 'contain', display: 'block' }}
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                   if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
@@ -451,11 +452,24 @@ export default function LoginPage() {
               />
               <div style={{
                 display: 'none',
-                width: 56, height: 36, borderRadius: 8,
-                background: 'linear-gradient(135deg, #007A33, #003C71)',
-                color: '#fff', alignItems: 'center', justifyContent: 'center',
-                fontSize: 13, fontWeight: 900, letterSpacing: '0.05em',
-              }}>DGI</div>
+                height: 36, borderRadius: 8,
+                background: dark ? '#0F172A' : '#FFFFFF',
+                border: `1px solid ${dark ? '#1E2D40' : '#D1DBE8'}`,
+                padding: '4px 12px 4px 5px',
+                alignItems: 'center', gap: 9,
+                boxShadow: dark ? 'none' : '0 1px 3px rgba(15,23,42,0.06)',
+              }}>
+                {/* Drapeau CI : 3 bandes verticales (orange, blanc, vert) */}
+                <div style={{ display: 'flex', height: 26, width: 20, borderRadius: 3, overflow: 'hidden', flexShrink: 0, boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.08)' }}>
+                  <div style={{ width: '33.33%', background: '#F77F00' }} />
+                  <div style={{ width: '33.33%', background: '#FFFFFF' }} />
+                  <div style={{ width: '33.33%', background: '#009E60' }} />
+                </div>
+                <div style={{ lineHeight: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 900, color: dark ? '#fff' : '#0F172A', letterSpacing: '0.04em' }}>DGI</div>
+                  <div style={{ fontSize: 8, color: dark ? '#9BAACC' : '#64748B', marginTop: 3, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 700 }}>Côte d'Ivoire</div>
+                </div>
+              </div>
             </div>
             {/* WhatsApp : logo officiel SVG via simpleicons.org
                 (CDN dédié aux logos de marques, très fiable). */}
