@@ -436,20 +436,47 @@ export default function LoginPage() {
             <LogoFournisseur fournisseur="wave"         size={36} radius={10} />
             <LogoFournisseur fournisseur="orange_money" size={36} radius={10} />
             <LogoFournisseur fournisseur="mtn_momo"     size={36} radius={10} />
-            {/* DGI : badge texte officiel */}
-            <div style={{
-              width: 56, height: 36, borderRadius: 8,
-              background: 'linear-gradient(135deg, #007A33, #003C71)',
-              color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 13, fontWeight: 900, letterSpacing: '0.05em',
-            }}>DGI</div>
-            {/* WhatsApp : badge officiel */}
-            <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: '#25D366', color: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <MessageCircle size={20} />
+            {/* DGI Côte d'Ivoire : logo officiel depuis dgi.gouv.ci.
+                Si le serveur est inaccessible, fallback sur le badge
+                texte ci-dessous (géré par onError -> nextSibling). */}
+            <div style={{ position: 'relative', height: 36, display: 'flex', alignItems: 'center' }}>
+              <img
+                src="https://www.dgi.gouv.ci/wp-content/uploads/2021/02/cropped-LOGO-DGI-1-180x180.png"
+                alt="DGI Côte d'Ivoire"
+                style={{ height: 36, width: 'auto', maxWidth: 80, objectFit: 'contain', display: 'block' }}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
+                }}
+              />
+              <div style={{
+                display: 'none',
+                width: 56, height: 36, borderRadius: 8,
+                background: 'linear-gradient(135deg, #007A33, #003C71)',
+                color: '#fff', alignItems: 'center', justifyContent: 'center',
+                fontSize: 13, fontWeight: 900, letterSpacing: '0.05em',
+              }}>DGI</div>
+            </div>
+            {/* WhatsApp : logo officiel SVG via simpleicons.org
+                (CDN dédié aux logos de marques, très fiable). */}
+            <div style={{ position: 'relative', height: 36, display: 'flex', alignItems: 'center' }}>
+              <img
+                src="https://cdn.simpleicons.org/whatsapp/25D366"
+                alt="WhatsApp"
+                style={{ height: 32, width: 32, display: 'block' }}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
+                }}
+              />
+              <div style={{
+                display: 'none',
+                width: 36, height: 36, borderRadius: 10,
+                background: '#25D366', color: '#fff',
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <MessageCircle size={20} />
+              </div>
             </div>
           </div>
         </div>
