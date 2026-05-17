@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { Users, Building2, Plus, X, Edit2, Trash2, Shield, Save, Copy, Link2, Globe, Smartphone, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme.jsx';
 import { getC, Input } from '../components/UI.jsx';
+import LogoFournisseur from '../components/LogoFournisseur.jsx';
 import Onboarding from '../components/Onboarding.jsx';
 import LanguageSwitcher from '../components/LanguageSwitcher.jsx';
 
@@ -208,11 +209,9 @@ function CarteFournisseur({ fournisseur, integration, comptes, loading, webhookU
   return (
     <div style={{ background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 16 }}>
-        <div style={{
-          width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-          background: meta.bg, color: '#fff',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18,
-        }}>{meta.letter}</div>
+        <div style={{ flexShrink: 0 }}>
+          <LogoFournisseur fournisseur={fournisseur} size={44} radius={12} />
+        </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{meta.label}</div>

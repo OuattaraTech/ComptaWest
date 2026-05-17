@@ -9,6 +9,7 @@ import { usePermissions } from '../hooks/usePermissions.jsx';
 import { getC, Input, Modal, StatutBadge } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
 import { Can, ReadOnlyBanner } from '../components/Can.jsx';
+import LogoFournisseur from '../components/LogoFournisseur.jsx';
 
 // Méta-données pour l'affichage des fournisseurs de paiement (picker + modale).
 // La carte de configuration vit dans ParametresPage ; ici on ne garde que ce
@@ -838,18 +839,20 @@ export default function FacturesPage() {
               </div>
             )}
 
-            <div style={{ background: `${meta.bg}18`, border: `1px solid ${meta.bg}50`, borderRadius: 11, padding: '14px 16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <Smartphone size={16} color={meta.bg} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: meta.bg }}>
+            <div style={{ background: `${meta.bg}18`, border: `1px solid ${meta.bg}50`, borderRadius: 11, padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <div style={{ flexShrink: 0, marginTop: 2 }}>
+                <LogoFournisseur fournisseur={fournisseur} size={36} radius={9} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: meta.bg, marginBottom: 4 }}>
                   {t('factures.lien_wave_amount', {
                     amount: formatFCFA(showLienWave.montant),
                     currency: showLienWave.devise || t('common.currency'),
                   })}
-                </span>
-              </div>
-              <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.55 }}>
-                {isMtn ? t('factures.lien_mtn_intro') : t('factures.lien_wave_intro')}
+                </div>
+                <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.55 }}>
+                  {isMtn ? t('factures.lien_mtn_intro') : t('factures.lien_wave_intro')}
+                </div>
               </div>
             </div>
 
@@ -982,12 +985,9 @@ export default function FacturesPage() {
                     border: `1.5px solid ${C.border}`, background: C.input,
                     cursor: 'pointer', textAlign: 'left',
                   }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 10, background: meta.bg,
-                    color: '#fff', fontWeight: 800, fontSize: 16,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0,
-                  }}>{meta.lettre}</div>
+                  <div style={{ flexShrink: 0 }}>
+                    <LogoFournisseur fournisseur={intg.fournisseur} size={36} radius={10} />
+                  </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{meta.nom}</div>
                     <div style={{ fontSize: 11, color: C.muted }}>
