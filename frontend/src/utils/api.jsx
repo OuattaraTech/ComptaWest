@@ -52,11 +52,18 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     } else if (status === 403 && !silent) {
-      // Message backend prioritaire (il sait pourquoi c'est refusé), sinon
-      // libellé générique traduit. On évite le spam grâce à showOnce.
-      showOnce('403', serverMsg || t('common.permission_denied', 'Action non autorisée pour votre rôle.'));
+      // On affiche TOUJOURS le libellé i18n générique : le message backend
+      // (« action read sur le module users non autorisée... ») est utile
+      // au debug mais hostile pour l'utilisateur final. On le garde dans
+      // la console pour les développeurs.
+      if (serverMsg) console.warn('[403]', serverMsg);
+      showOnce('403', t('common.permission_denied', 'Action non autorisée pour votre rôle.'));
+      // Marqueur pour que les .catch locaux puissent skipper leur propre
+      // toast (évite le double « 403 » + « Erreur chargement X »).
+      err.handled = true;
     } else if ((!err.response || status >= 500) && !silent) {
       showOnce('5xx', t('common.server_error', 'Erreur serveur — réessayez dans quelques instants.'));
+      err.handled = true;
     }
     return Promise.reject(err);
   }

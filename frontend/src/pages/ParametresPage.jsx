@@ -122,15 +122,22 @@ export default function ParametresPage() {
         regime_fiscal: actuelle.regime_fiscal || 'RSI',
         taux_tva: actuelle.taux_tva || 18,
       });
-      fetchMembres();
+      // Ne pas tenter de charger les membres si l'utilisateur n'a pas
+      // users.read — sinon l'API renvoie 403 et l'utilisateur voit un
+      // toast en plus du verrouillage UI déjà appliqué.
+      if (canReadMembres) fetchMembres();
     }
-  }, [actuelle?.id]);
+  }, [actuelle?.id, canReadMembres]);
 
   const fetchMembres = async () => {
     try {
       const res = await api.get(`/entreprises/${actuelle.id}/membres`);
       setMembres(res.data.data);
-    } catch { toast.error(t('parametres.err_load_members')); }
+    } catch (err) {
+      // Si l'intercepteur a déjà notifié (403/5xx/réseau), on n'affiche
+      // pas un second toast. Sinon on tombe sur un cas inattendu (404…).
+      if (!err.handled) toast.error(t('parametres.err_load_members'));
+    }
   };
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
