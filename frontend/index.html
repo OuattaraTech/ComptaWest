@@ -13,6 +13,51 @@
       ::-webkit-scrollbar-track { background: #0B0F1A; }
       ::-webkit-scrollbar-thumb { background: #1E2D40; border-radius: 3px; }
       select option { background: #111827; color: #E8EDF5; }
+
+      /* ─── Responsive global ──────────────────────────────────────────
+         Règles appliquées à toutes les pages sans avoir à toucher leur
+         JSX individuel. Les classes utilitaires .cw-page et les sélecteurs
+         génériques (table, .recharts) prennent le relais sur mobile. */
+
+      /* Padding des pages : réduit sur tablette et plus encore sur mobile */
+      @media (max-width: 900px) {
+        [class*="cw-page"], main > div { padding: 20px 16px !important; }
+      }
+      @media (max-width: 480px) {
+        [class*="cw-page"], main > div { padding: 16px 12px !important; }
+      }
+
+      /* Tableaux : sur mobile, on autorise un scroll horizontal et on
+         garde une largeur minimale pour ne pas écraser les colonnes.
+         La règle :has(> table) cible le parent direct d'un <table> pour
+         le passer en overflow-x: auto (au lieu du hidden hérité). */
+      @media (max-width: 900px) {
+        table { min-width: 600px; }
+        div:has(> table) { overflow-x: auto !important; }
+      }
+
+      /* Cartes de page (header de page, etc.) : champs en flex-wrap */
+      @media (max-width: 700px) {
+        /* Empile les en-têtes de page (titre + actions) qui débordent */
+        h1 + p { font-size: 12px !important; }
+      }
+
+      /* Recharts : laisse les graphiques respirer un peu en bas */
+      .recharts-responsive-container { min-width: 0 !important; }
+
+      /* Formulaires en grille : sur mobile (≤ 600 px), on empile les
+         grilles à colonnes fixes 1fr/2fr/3fr qui deviendraient illisibles.
+         On cible le style inline via [style*="..."] — React sérialise
+         camelCase en kebab-case dans l'attribut, donc on matche les deux. */
+      @media (max-width: 600px) {
+        [style*="1fr 1fr 1fr"],
+        [style*="2fr 1fr 1fr"],
+        [style*="1fr 1fr 1fr 1fr"],
+        [style*="3fr 2fr"],
+        [style*="2fr 1fr"]:not(.cw-keep-grid) {
+          grid-template-columns: 1fr !important;
+        }
+      }
     </style>
   </head>
   <body>

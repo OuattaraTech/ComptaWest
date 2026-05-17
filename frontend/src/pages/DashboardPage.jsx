@@ -84,7 +84,7 @@ export default function DashboardPage() {
   })();
 
   return (
-    <div style={{ padding: '32px 36px', minHeight: '100vh', background: C.bg, transition: 'background 0.2s' }}>
+    <div className="cw-page" style={{ padding: '32px 36px', minHeight: '100vh', background: C.bg, transition: 'background 0.2s' }}>
 
       {/* Header — accueil */}
       <div data-onboarding="header" style={{
@@ -200,8 +200,13 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* KPI Cards */}
-      <div data-onboarding="kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 24 }}>
+      {/* KPI Cards — auto-fit pour s'adapter de 5 colonnes (desktop large)
+          à 2-1 colonnes sur mobile sans débordement. */}
+      <div data-onboarding="kpis" style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: 16, marginBottom: 24,
+      }}>
         <KpiCard label={t('dashboard.kpi_revenue')}        value={kpis.ca_total}          sub={t('dashboard.kpi_revenue_sub', { value: kpis.marge })}     icon={TrendingUp}   color={C.accent} />
         <KpiCard label={t('dashboard.kpi_expenses')}       value={kpis.total_depenses}    sub={t('dashboard.kpi_expenses_sub')}                          icon={TrendingDown} color={C.red} />
         <KpiCard label={t('dashboard.kpi_taxes_due')}      value={kpis.total_taxes_dues}  sub={t('dashboard.kpi_taxes_due_sub')}                         icon={Calculator}   color={C.purple} alert={kpis.total_taxes_dues > 0} />
@@ -209,8 +214,10 @@ export default function DashboardPage() {
         <KpiCard label={t('dashboard.kpi_clients_count')}  value={kpis.nb_clients}        sub={t('dashboard.kpi_clients_sub')}                           icon={Users}        color={C.blue} currency={false} />
       </div>
 
-      {/* Graphiques */}
-      <div data-onboarding="graphiques" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20, marginBottom: 22 }}>
+      {/* Graphiques — passe en colonne unique sur tablette (≤ 900 px) */}
+      <div data-onboarding="graphiques" className="cw-dashboard-charts" style={{
+        display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20, marginBottom: 22,
+      }}>
         {/* Évolution mensuelle */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, boxShadow: C.shadow }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3, color: C.text }}>{t('dashboard.chart_evolution_title', { year: annee })}</div>
@@ -273,13 +280,14 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Transactions + Top clients */}
-      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 20 }}>
+      {/* Transactions + Top clients — passe en colonne unique sur tablette */}
+      <div className="cw-dashboard-bottom" style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 20 }}>
         {/* Transactions */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, boxShadow: C.shadow }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 3, color: C.text }}>{t('dashboard.transactions_title')}</div>
           <div style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>{t('dashboard.transactions_sub')}</div>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}` }}>
                 {[
@@ -312,6 +320,7 @@ export default function DashboardPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* Top clients */}
@@ -363,6 +372,13 @@ export default function DashboardPage() {
       />
 
       <Onboarding pageKey="dashboard" />
+
+      <style>{`
+        @media (max-width: 900px) {
+          .cw-dashboard-charts { grid-template-columns: 1fr !important; }
+          .cw-dashboard-bottom { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }

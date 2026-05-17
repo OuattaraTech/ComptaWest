@@ -57,7 +57,7 @@ const ROLE_COLORS = {
   lecture:          { bg: '#6B7A9922', color: '#6B7A99' },
 };
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = false }) {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
   const { entreprises, actuelle, switchEntreprise, ajouterEntreprise } = useEntreprise();
@@ -119,8 +119,13 @@ export default function Sidebar() {
       width: 240, height: '100vh', background: C.bg,
       borderRight: `1px solid ${C.border}`,
       display: 'flex', flexDirection: 'column',
-      position: 'fixed', top: 0, left: 0, zIndex: 50,
-      transition: 'background 0.2s, border-color 0.2s',
+      position: 'fixed', top: 0, left: 0,
+      // Sur mobile la sidebar passe au-dessus de l'overlay (z 100 > 90)
+      // et se cache hors écran tant qu'elle n'est pas ouverte.
+      zIndex: isMobile ? 100 : 50,
+      transform: isMobile && !mobileOpen ? 'translateX(-100%)' : 'translateX(0)',
+      transition: 'transform 0.25s ease, background 0.2s, border-color 0.2s',
+      boxShadow: isMobile && mobileOpen ? '0 16px 48px rgba(0,0,0,0.35)' : 'none',
     }}>
       {/* Logo */}
       <div style={{ padding: '20px 16px 16px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>

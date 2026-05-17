@@ -108,38 +108,48 @@ export const Select = ({ label, value, onChange, children, required }) => {
 };
 
 // ─── Modal ────────────────────────────────────────────────────────────────
+// Sur mobile, le padding extérieur est réduit (8 vs 20), le radius diminue
+// pour récupérer de l'espace utile, et le contenu peut occuper jusqu'à 95vw.
 export const Modal = ({ title, onClose, children, width = 540 }) => {
   const { dark } = useTheme();
   const C = getC(dark);
   return (
-    <div style={{
+    <div className="cw-modal-overlay" style={{
       position: 'fixed', inset: 0, zIndex: 200,
       background: dark ? 'rgba(0,0,0,0.8)' : 'rgba(10,22,40,0.45)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
       backdropFilter: 'blur(2px)',
     }}>
-      <div style={{
+      <div className="cw-modal-card" style={{
         background: C.card, border: `1px solid ${C.border}`, borderRadius: 20,
         width: '100%', maxWidth: width, maxHeight: '90vh', overflow: 'auto',
         boxShadow: dark ? '0 30px 80px rgba(0,0,0,0.6)' : '0 20px 60px rgba(10,22,40,0.18)',
       }}>
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        <div className="cw-modal-head" style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
           padding: '22px 26px 18px', borderBottom: `1px solid ${C.border}`,
           background: dark ? 'transparent' : C.cardAlt,
         }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: C.text }}>{title}</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: C.text, minWidth: 0, flex: 1, wordBreak: 'break-word' }}>{title}</div>
           <button onClick={onClose} style={{
             background: C.hover, border: `1px solid ${C.border}`, borderRadius: 8,
             width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', color: C.muted, transition: 'all 0.15s',
+            cursor: 'pointer', color: C.muted, transition: 'all 0.15s', flexShrink: 0,
           }}
             onMouseEnter={e => { e.currentTarget.style.background = C.red + '20'; e.currentTarget.style.color = C.red; }}
             onMouseLeave={e => { e.currentTarget.style.background = C.hover; e.currentTarget.style.color = C.muted; }}
           ><X size={16} /></button>
         </div>
-        <div style={{ padding: '24px 26px' }}>{children}</div>
+        <div className="cw-modal-body" style={{ padding: '24px 26px' }}>{children}</div>
       </div>
+      <style>{`
+        @media (max-width: 600px) {
+          .cw-modal-overlay { padding: 8px !important; align-items: flex-start !important; padding-top: 16px !important; }
+          .cw-modal-card { max-height: 95vh !important; border-radius: 14px !important; }
+          .cw-modal-head { padding: 16px 18px 14px !important; }
+          .cw-modal-body { padding: 18px !important; }
+        }
+      `}</style>
     </div>
   );
 };
