@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme.jsx';
-import { useEntreprise } from '../hooks/useEntreprise.jsx';
 import api from '../utils/api.jsx';
 import { formatDate } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
 import { getC } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
-import { Shield, Filter, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Shield, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // Listes : la valeur reste le code interne, le libellé est résolu via t().
 const ENTITES = ['', 'factures', 'depenses', 'taxes', 'clients', 'membres', 'entreprises', 'auth'];
@@ -28,11 +27,11 @@ const ACTION_COULEURS = {
 export default function AuditLogPage() {
   const { t, i18n } = useTranslation();
   const { dark } = useTheme();
-  const { actuelle } = useEntreprise();
   const C = getC(dark);
 
-  const role = actuelle?.role;
-  const peutVoir = role === 'proprietaire' || role === 'admin';
+  // Plus de check de rôle local : la matrice (audit_log.read = admin + EC +
+  // auditeur + propriétaire) est appliquée en amont via PermissionGate dans
+  // App.jsx. Tout rôle qui arrive ici peut lire.
 
   const labelAction = (a) => a ? (i18n.exists(`audit.actions.${a}`) ? t(`audit.actions.${a}`) : a) : t('audit.actions.all');
   const labelEntite = (e) => e ? (i18n.exists(`audit.entites.${e}`) ? t(`audit.entites.${e}`) : e) : t('audit.entites.all');
@@ -53,7 +52,6 @@ export default function AuditLogPage() {
   const [filtres, setFiltres] = useState({ entite: '', action: '', date_debut: '', date_fin: '' });
 
   const fetchLogs = useCallback(async () => {
-    if (!peutVoir) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), limit: '50' });
@@ -62,11 +60,11 @@ export default function AuditLogPage() {
       setLogs(res.data.data);
       setPagination(res.data.pagination);
     } catch (err) {
-      toast.error(err.response?.data?.message || t('audit.error_load'));
+      if (!err.handled) toast.error(err.response?.data?.message || t('audit.error_load'));
     } finally {
       setLoading(false);
     }
-  }, [page, filtres, peutVoir]);
+  }, [page, filtres, t]);
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
@@ -80,25 +78,6 @@ export default function AuditLogPage() {
     padding: '8px 12px', color: C.text, fontSize: 12, outline: 'none',
     fontFamily: 'inherit', cursor: 'pointer',
   };
-
-  if (!peutVoir) {
-    return (
-      <div style={{ padding: '32px 36px', minHeight: '100vh', background: C.bg }}>
-        <div style={{
-          maxWidth: 520, margin: '60px auto', padding: 32, borderRadius: 16,
-          background: C.card, border: `1px solid ${C.border}`, textAlign: 'center',
-        }}>
-          <AlertTriangle size={36} color={C.gold} style={{ margin: '0 auto 16px' }} />
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 8 }}>
-            {t('audit.restricted_title')}
-          </h2>
-          <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
-            {t('audit.restricted_help')}
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div style={{ padding: '32px 36px', minHeight: '100vh', background: C.bg, transition: 'background 0.2s' }}>
