@@ -347,8 +347,14 @@ function JournalGeneral({ C, journaux }) {
 function GrandLivre({ C }) {
   const { t } = useTranslation();
   const [compte, setCompte] = useState('');
-  const [dateDebut, setDateDebut] = useState('');
-  const [dateFin, setDateFin] = useState('');
+  // Bornage par défaut sur l'exercice courant. Sans ce filtre, le backend
+  // renvoie toutes les écritures (toutes années confondues) et le solde
+  // progressif additionne l'AN d'ouverture de N+1 par-dessus le solde de
+  // clôture de N — ce qui « double » le solde affiché en haut de tableau.
+  // Même pattern que BalanceGenerale plus bas.
+  const annee = new Date().getFullYear();
+  const [dateDebut, setDateDebut] = useState(`${annee}-01-01`);
+  const [dateFin, setDateFin] = useState(`${annee}-12-31`);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
 
