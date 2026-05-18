@@ -433,18 +433,18 @@ export default function LoginPage() {
             {t('login.partners_intro')}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap', justifyContent: 'center', opacity: 0.85 }}>
-            <LogoFournisseur fournisseur="wave"         size={36} radius={10} />
-            <LogoFournisseur fournisseur="orange_money" size={36} radius={10} />
-            <LogoFournisseur fournisseur="mtn_momo"     size={36} radius={10} />
+            <LogoFournisseur fournisseur="wave"         size={48} radius={12} />
+            <LogoFournisseur fournisseur="orange_money" size={48} radius={12} />
+            <LogoFournisseur fournisseur="mtn_momo"     size={48} radius={12} />
             {/* DGI Côte d'Ivoire : tente d'abord /logos/dgi.png (à poser
                 par toi dans frontend/public/logos/dgi.png pour avoir le
                 vrai logo officiel) ; à défaut, fallback sur un badge
                 officiel avec drapeau CI + sceau DGI. */}
-            <div style={{ height: 36, display: 'flex', alignItems: 'center' }}>
+            <div style={{ height: 48, display: 'flex', alignItems: 'center' }}>
               <img
                 src="/logos/dgi.png"
                 alt="DGI Côte d'Ivoire"
-                style={{ height: 36, width: 'auto', maxWidth: 100, objectFit: 'contain', display: 'block' }}
+                style={{ height: 48, width: 'auto', maxWidth: 120, objectFit: 'contain', display: 'block' }}
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                   if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
@@ -452,11 +452,11 @@ export default function LoginPage() {
               />
               <div style={{
                 display: 'none',
-                height: 36, borderRadius: 8,
+                height: 48, borderRadius: 10,
                 background: dark ? '#0F172A' : '#FFFFFF',
                 border: `1px solid ${dark ? '#1E2D40' : '#D1DBE8'}`,
-                padding: '4px 12px 4px 5px',
-                alignItems: 'center', gap: 9,
+                padding: '6px 14px 6px 7px',
+                alignItems: 'center', gap: 11,
                 boxShadow: dark ? 'none' : '0 1px 3px rgba(15,23,42,0.06)',
               }}>
                 {/* Drapeau CI : 3 bandes verticales (orange, blanc, vert) */}
@@ -473,11 +473,11 @@ export default function LoginPage() {
             </div>
             {/* WhatsApp : logo officiel SVG via simpleicons.org
                 (CDN dédié aux logos de marques, très fiable). */}
-            <div style={{ position: 'relative', height: 36, display: 'flex', alignItems: 'center' }}>
+            <div style={{ position: 'relative', height: 48, display: 'flex', alignItems: 'center' }}>
               <img
                 src="https://cdn.simpleicons.org/whatsapp/25D366"
                 alt="WhatsApp"
-                style={{ height: 32, width: 32, display: 'block' }}
+                style={{ height: 44, width: 44, display: 'block' }}
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                   if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
@@ -485,11 +485,11 @@ export default function LoginPage() {
               />
               <div style={{
                 display: 'none',
-                width: 36, height: 36, borderRadius: 10,
+                width: 44, height: 44, borderRadius: 12,
                 background: '#25D366', color: '#fff',
                 alignItems: 'center', justifyContent: 'center',
               }}>
-                <MessageCircle size={20} />
+                <MessageCircle size={24} />
               </div>
             </div>
           </div>
