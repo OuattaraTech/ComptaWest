@@ -486,6 +486,7 @@ const btnSec = (C) => ({
 function ImmobilisationFormModal({ onClose, onSaved, C, dark }) {
   const { t } = useTranslation();
   const [categories, setCategories] = useState([]);
+  const [comptesTreso, setComptesTreso] = useState([]);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     libelle: '', description: '', categorie_id: '',
@@ -495,10 +496,19 @@ function ImmobilisationFormModal({ onClose, onSaved, C, dark }) {
     duree_annees: '', methode: 'lineaire',
     fournisseur: '', reference_facture: '',
     emplacement: '', affecte_a: '', numero_serie: '',
+    // Comptabilisation de l'acquisition (consommé par le backend) :
+    //   comptabiliser=false ⇒ pas d'écriture (immo historique déjà passée
+    //     dans un autre logiciel)
+    //   mode_acquisition='credit'   ⇒ contrepartie 4011 (à payer plus tard)
+    //   mode_acquisition='comptant' ⇒ contrepartie = compte trésorerie choisi
+    comptabiliser: true,
+    mode_acquisition: 'credit',
+    compte_tresorerie_id: '',
   });
 
   useEffect(() => {
     api.get('/immobilisations/categories').then(r => setCategories(r.data.data)).catch(() => {});
+    api.get('/tresorerie/comptes').then(r => setComptesTreso(r.data.data || [])).catch(() => {});
   }, []);
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -601,6 +611,69 @@ function ImmobilisationFormModal({ onClose, onSaved, C, dark }) {
         </div>
 
         <Input label={t('immobilisations.field_description_opt')} value={form.description} onChange={set('description')} placeholder={t('immobilisations.placeholder_description')} />
+
+        {/* ─── Bloc Acquisition (génération de l'écriture comptable) ─── */}
+        <div style={{
+          marginTop: 4, padding: 14, borderRadius: 10,
+          background: dark ? '#0D1220' : '#F8FAFC', border: `1px solid ${C.border}`,
+          display: 'flex', flexDirection: 'column', gap: 12,
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            {t('immobilisations.acquisition_section')}
+          </div>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, color: C.text, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={form.comptabiliser}
+              onChange={e => setForm(f => ({ ...f, comptabiliser: e.target.checked }))}
+              style={{ width: 16, height: 16, accentColor: C.accent, cursor: 'pointer' }}
+            />
+            <span>{t('immobilisations.acquisition_comptabiliser')}</span>
+          </label>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: -6, marginLeft: 25, lineHeight: 1.5 }}>
+            {t('immobilisations.acquisition_help')}
+          </div>
+
+          {form.comptabiliser && (
+            <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                  {t('immobilisations.acquisition_mode')}
+                </label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {['credit', 'comptant'].map(m => (
+                    <button key={m} type="button"
+                      onClick={() => setForm(f => ({ ...f, mode_acquisition: m, compte_tresorerie_id: m === 'credit' ? '' : f.compte_tresorerie_id }))}
+                      style={{
+                        flex: 1, padding: '9px 12px', borderRadius: 9,
+                        border: `1.5px solid ${form.mode_acquisition === m ? C.accent : C.border}`,
+                        background: form.mode_acquisition === m ? `${C.accent}15` : 'transparent',
+                        color: form.mode_acquisition === m ? C.accent : C.text,
+                        fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      }}>
+                      {t(`immobilisations.acquisition_mode_${m}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {form.mode_acquisition === 'comptant' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                    {t('immobilisations.acquisition_account')} *
+                  </label>
+                  <select value={form.compte_tresorerie_id} onChange={set('compte_tresorerie_id')} style={selectStyle} required>
+                    <option value="">— {t('immobilisations.select')} —</option>
+                    {comptesTreso.map(c => (
+                      <option key={c.id} value={c.id}>{c.nom} ({c.compte_pc_numero || c.type})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
         <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
           <button type="button" onClick={onClose} style={{

@@ -148,8 +148,15 @@ export default function DepensesPage() {
 
   const handleDelete = async (id) => {
     if (!confirm(t('depenses.confirm_delete'))) return;
-    try { await api.delete(`/depenses/${id}`); toast.success(t('depenses.deleted')); fetchData(); }
-    catch { toast.error(t('depenses.error_delete')); }
+    try {
+      await api.delete(`/depenses/${id}`);
+      toast.success(t('depenses.deleted'));
+      fetchData();
+    } catch (err) {
+      // Le backend renvoie un message lisible pour DEPENSE_COMPTABILISEE
+      // (dépense déjà passée en compta — il faut annuler, pas supprimer).
+      toast.error(err.response?.data?.message || t('depenses.error_delete'));
+    }
   };
 
   const inputStyle = {

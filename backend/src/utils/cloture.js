@@ -246,15 +246,62 @@ const ecritureSoldeProduits = async (client, { entrepriseId, utilisateurId, exer
 };
 
 /**
+ * Génère l'écriture de virement des comptes HAO (classe 8) au compte de résultat.
+ *
+ * La classe 8 SYSCOHADA mélange charges (81, 83, 85, 87, 89) et produits
+ * (82, 84, 86, 88) — y compris 89 « Impôts sur le résultat », qui doit
+ * impérativement être viré sinon le résultat net 13 est faussé et l'IS reste
+ * sur N+1.
+ *
+ * _construireVirement est agnostique du sens : il accepte n'importe quel mix
+ * et produit la contrepartie 13 selon le solde algébrique global.
+ */
+const ecritureSoldeHAO = async (client, { entrepriseId, utilisateurId, exercice }) => {
+  const soldes = await calculerSoldes(client, entrepriseId, exercice.id, ['8']);
+  const aSolder = soldes.filter(s => Math.abs(s.solde) > 0.01);
+  const virement = _construireVirement(aSolder, 'des HAO');
+  if (!virement) return null;
+
+  return creerEcriture(client, {
+    entrepriseId, utilisateurId,
+    journalCode: 'OD',
+    date: exercice.date_fin,
+    libelle: `Clôture ${exercice.libelle} — solde des HAO (classe 8)`,
+    origine: 'AUTO_CLOTURE',
+    origineId: exercice.id,
+    lignes: virement.lignes,
+  });
+};
+
+/**
  * Crée l'exercice N+1 (s'il n'existe pas déjà) et renvoie son id + date de début.
  * Hypothèse SYSCOHADA : année civile (1er janvier → 31 décembre).
+ *
+ * Note : on parse la date de fin manuellement plutôt que via `new Date(...)`
+ * pour éviter les surprises de fuseau horaire si le serveur tourne en UTC+X.
+ * Le format attendu en BD est `YYYY-MM-DD` ; PostgreSQL renvoie soit cette
+ * chaîne, soit un objet Date selon le driver — on gère les deux.
  */
 const creerExerciceSuivant = async (client, { entrepriseId, exerciceCloture }) => {
-  const dateFin = new Date(exerciceCloture.date_fin);
-  const dateDebutN1 = new Date(dateFin);
-  dateDebutN1.setDate(dateDebutN1.getDate() + 1);
-  const annee = dateDebutN1.getFullYear();
-  const dateDebutStr = dateDebutN1.toISOString().split('T')[0];
+  const dateFinStrIso = exerciceCloture.date_fin instanceof Date
+    ? exerciceCloture.date_fin.toISOString().slice(0, 10)
+    : String(exerciceCloture.date_fin).slice(0, 10);
+  const [y, m, d] = dateFinStrIso.split('-').map(Number);
+
+  // Calcul du jour suivant en arithmétique simple (sans Date).
+  // Fonctionne pour tout 31/12 → 1/1 (cas standard SYSCOHADA), et tolère
+  // un exercice non-calendaire qui finirait en milieu d'année.
+  const joursDansMois = (yy, mm) => {
+    if (mm === 2) return ((yy % 4 === 0 && yy % 100 !== 0) || yy % 400 === 0) ? 29 : 28;
+    return [4, 6, 9, 11].includes(mm) ? 30 : 31;
+  };
+  let yy = y, mm = m, dd = d + 1;
+  if (dd > joursDansMois(yy, mm)) { dd = 1; mm += 1; }
+  if (mm > 12) { mm = 1; yy += 1; }
+  const annee = yy;
+  const dateDebutStr = `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+  // Fin par défaut : 31/12 de la même année (peut être ajusté manuellement
+  // pour un exercice non calendaire — l'utilisateur édite l'exercice après).
   const dateFinStr = `${annee}-12-31`;
 
   const existe = await client.query(
@@ -329,6 +376,7 @@ module.exports = {
   verifierPreCloture,
   ecritureSoldeCharges,
   ecritureSoldeProduits,
+  ecritureSoldeHAO,
   creerExerciceSuivant,
   ecritureAANouveau,
 };

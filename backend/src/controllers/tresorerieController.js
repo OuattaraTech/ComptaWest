@@ -1,7 +1,40 @@
 const pool = require('../../config/database');
 const { body } = require('express-validator');
 const { logAudit } = require('../utils/audit');
-const { trouverExerciceOuvert } = require('../utils/comptabilite');
+const { trouverExerciceOuvert, creerEcriture, ComptaError } = require('../utils/comptabilite');
+const logger = require('../utils/logger');
+
+// Mapping type compte trésorerie → code journal SYSCOHADA
+const journalPourType = (type) => type === 'caisse' ? 'CAI'
+                                : type === 'mobile_money' ? 'MM'
+                                : 'BNK';
+
+// Contrepartie par défaut quand l'utilisateur ne précise rien.
+// 758 = Produits divers de gestion courante (entrée non rattachée à une vente)
+// 658 = Charges diverses de gestion courante (sortie non rattachée à un achat)
+// Ce ne sont PAS des comptes finaux corrects : l'utilisateur devrait éditer la
+// pièce pour pointer le bon compte. Le défaut signale juste « à régulariser ».
+const CONTREPARTIE_DEFAUT_ENTREE = '758';
+const CONTREPARTIE_DEFAUT_SORTIE = '658';
+
+// Ignore les ComptaError non bloquantes (compte manquant, libellé trop long,
+// etc.). Les vraies erreurs (exercice clos, déséquilibre) sont relancées pour
+// faire ROLLBACK et empêcher la divergence entre mouvement et compta.
+const ERREURS_BLOQUANTES_COMPTA = new Set([
+  'EXERCICE_FERME', 'DESEQUILIBRE', 'JOURNAL_INCONNU', 'COMPTE_INCONNU',
+]);
+const safeCompta = async (label, fn) => {
+  try { return await fn(); }
+  catch (err) {
+    if (err instanceof ComptaError) {
+      if (ERREURS_BLOQUANTES_COMPTA.has(err.code)) throw err;
+      logger.warn('Écriture trésorerie ignorée', { label, code: err.code, message: err.message });
+      return null;
+    }
+    logger.error('Écriture trésorerie en échec', { label, message: err.message });
+    return null;
+  }
+};
 
 // ─── Catalogue des opérateurs supportés ────────────────────────────────────
 // Utilisé par le frontend pour pré-remplir la création de comptes.
@@ -421,27 +454,29 @@ const getMouvements = async (req, res) => {
 };
 
 // POST /api/tresorerie/comptes/:id/mouvements  (saisie manuelle)
+// Body optionnel : { compte_contrepartie } pour pointer un compte SYSCOHADA
+// précis (ex. 627 pour des frais bancaires). À défaut, on impute sur 658/758
+// pour signaler qu'une régularisation est nécessaire.
 const createMouvement = async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
     const eid = req.entrepriseId;
-    const { date_operation, sens, montant, libelle, reference } = req.body;
+    const { date_operation, sens, montant, libelle, reference, compte_contrepartie } = req.body;
 
     await client.query('BEGIN');
 
     const check = await client.query(
-      `SELECT id FROM comptes_tresorerie WHERE id = $1 AND entreprise_id = $2 AND archived_at IS NULL`,
+      `SELECT id, type, compte_pc_numero, nom FROM comptes_tresorerie
+       WHERE id = $1 AND entreprise_id = $2 AND archived_at IS NULL`,
       [id, eid]
     );
     if (!check.rows[0]) {
       await client.query('ROLLBACK');
       return res.status(404).json({ success: false, message: 'Compte introuvable ou archivé' });
     }
+    const compte = check.rows[0];
 
-    // Garde-fou clôture : pas de mouvement daté dans un exercice clos.
-    // (Le mouvement n'a pas d'écriture comptable automatique, donc le filet
-    // de sécurité de creerEcriture ne s'applique pas — on contrôle ici.)
     const dateOp = date_operation || new Date().toISOString().split('T')[0];
     const exId = await trouverExerciceOuvert(client, eid, dateOp);
     if (!exId) {
@@ -453,27 +488,63 @@ const createMouvement = async (req, res) => {
       });
     }
 
-    // Contrôle de solde pour les sorties
     if (sens === 'sortie') {
       await controlerSoldeAvantSortie(client, id, montant);
     }
 
+    const montantR = round2(montant);
     const result = await client.query(
       `INSERT INTO mouvements_tresorerie
         (entreprise_id, compte_id, date_operation, sens, montant, libelle, reference, source_type, cree_par)
        VALUES ($1,$2,$3,$4,$5,$6,$7,'manuel',$8)
        RETURNING *`,
-      [eid, id, date_operation || new Date(), sens, round2(montant), libelle, reference || null, req.user?.id]
+      [eid, id, dateOp, sens, montantR, libelle, reference || null, req.user?.id]
     );
+    const mouvement = result.rows[0];
+
+    // Écriture comptable : D compte SYSCOHADA / C contrepartie (entrée)
+    //                     D contrepartie / C compte SYSCOHADA (sortie)
+    let ecPiece = null;
+    if (compte.compte_pc_numero) {
+      const contrepartie = compte_contrepartie
+        || (sens === 'entree' ? CONTREPARTIE_DEFAUT_ENTREE : CONTREPARTIE_DEFAUT_SORTIE);
+      const lignes = sens === 'entree'
+        ? [
+            { compte: compte.compte_pc_numero, debit: montantR, libelle },
+            { compte: contrepartie,            credit: montantR, libelle },
+          ]
+        : [
+            { compte: contrepartie,            debit: montantR, libelle },
+            { compte: compte.compte_pc_numero, credit: montantR, libelle },
+          ];
+      const ecriture = await safeCompta(`mouvement ${compte.nom}`, () =>
+        creerEcriture(client, {
+          entrepriseId: eid,
+          utilisateurId: req.user?.id,
+          journalCode: journalPourType(compte.type),
+          date: dateOp,
+          libelle: libelle.slice(0, 250),
+          reference: reference || null,
+          origine: 'AUTO_TRESORERIE_MANUEL',
+          origineId: mouvement.id,
+          lignes,
+        })
+      );
+      ecPiece = ecriture?.numero_piece || null;
+    }
 
     await client.query('COMMIT');
-    logAudit(req, 'CREATE', 'mouvements_tresorerie', result.rows[0].id, { sens, montant, libelle });
+    logAudit(req, 'CREATE', 'mouvements_tresorerie', mouvement.id,
+      { sens, montant: montantR, libelle, ecriture: ecPiece });
 
-    res.status(201).json({ success: true, data: result.rows[0] });
+    res.status(201).json({ success: true, data: mouvement });
   } catch (err) {
     await client.query('ROLLBACK');
     if (err instanceof SoldeInsuffisantError) {
       return res.status(400).json({ success: false, message: err.message, code: err.code, details: err.details });
+    }
+    if (err instanceof ComptaError) {
+      return res.status(400).json({ success: false, message: err.message, code: err.code });
     }
     console.error('Erreur createMouvement:', err.message);
     res.status(500).json({ success: false, message: 'Erreur création mouvement' });
@@ -550,7 +621,37 @@ const transfererEntreComptes = async (req, res) => {
       [entree.rows[0].id, sortie.rows[0].id]
     );
 
+    // Écriture comptable du transfert : D 521 dest / C 521 source
+    // (journal OD ; on n'utilise pas BNK/CAI/MM car un transfert touche les
+    // deux côtés et la convention courante est de le passer en OD). Si l'un
+    // des comptes n'a pas de compte SYSCOHADA lié, on saute (l'utilisateur
+    // pourra régulariser en OD manuel).
+    let ecPiece = null;
+    const source = sourceRes.rows[0];
+    const dest = destRes.rows[0];
+    if (source.compte_pc_numero && dest.compte_pc_numero) {
+      const ecriture = await safeCompta(`transfert ${source.nom} → ${dest.nom}`, () =>
+        creerEcriture(client, {
+          entrepriseId: eid,
+          utilisateurId: req.user?.id,
+          journalCode: 'OD',
+          date: dateOp,
+          libelle: libelleFinal.slice(0, 250),
+          reference: reference || transfertGroupRef,
+          origine: 'AUTO_TRANSFERT',
+          origineId: sortie.rows[0].id,
+          lignes: [
+            { compte: dest.compte_pc_numero,   debit: m,  libelle: `Entrée ${dest.nom}` },
+            { compte: source.compte_pc_numero, credit: m, libelle: `Sortie ${source.nom}` },
+          ],
+        })
+      );
+      ecPiece = ecriture?.numero_piece || null;
+    }
+
     await client.query('COMMIT');
+    logAudit(req, 'TRANSFER', 'mouvements_tresorerie', sortie.rows[0].id,
+      { source: source.nom, dest: dest.nom, montant: m, ecriture: ecPiece });
 
     res.status(201).json({
       success: true,
@@ -560,6 +661,9 @@ const transfererEntreComptes = async (req, res) => {
     await client.query('ROLLBACK');
     if (err instanceof SoldeInsuffisantError) {
       return res.status(400).json({ success: false, message: err.message, code: err.code, details: err.details });
+    }
+    if (err instanceof ComptaError) {
+      return res.status(400).json({ success: false, message: err.message, code: err.code });
     }
     console.error('Erreur transfererEntreComptes:', err.message);
     res.status(500).json({ success: false, message: 'Erreur transfert' });

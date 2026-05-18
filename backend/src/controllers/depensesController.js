@@ -166,7 +166,7 @@ const createDepense = async (req, res) => {
     await client.query('BEGIN');
     const eid = req.entrepriseId;
     const {
-      categorie_id, description, fournisseur, montant_ht, taux_tva = 0,
+      categorie_id, description, fournisseur, fournisseur_id, montant_ht, taux_tva = 0,
       date_depense, date_echeance, statut = 'payee', mode_paiement = 'virement',
       reference, notes, est_recurrente, periodicite,
       compte_tresorerie_id,
@@ -218,16 +218,31 @@ const createDepense = async (req, res) => {
       compteId = null;
     }
 
+    // Si fournisseur_id fourni, vérifier qu'il appartient bien à l'entreprise
+    // (sinon contrainte FK rejetterait, mais on veut un message clair).
+    let fournisseurIdValide = null;
+    if (fournisseur_id) {
+      const fv = await client.query(
+        `SELECT 1 FROM fournisseurs WHERE id = $1 AND entreprise_id = $2 LIMIT 1`,
+        [fournisseur_id, eid]
+      );
+      if (fv.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, message: 'Fournisseur invalide' });
+      }
+      fournisseurIdValide = fournisseur_id;
+    }
+
     const result = await client.query(
       `INSERT INTO depenses
-         (entreprise_id, categorie_id, cree_par, numero, description, fournisseur,
+         (entreprise_id, categorie_id, cree_par, numero, description, fournisseur, fournisseur_id,
           montant_ht, taux_tva, montant_tva, montant_ttc, date_depense, date_echeance,
           statut, mode_paiement, reference, notes, est_recurrente, periodicite,
           compte_tresorerie_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
        RETURNING *`,
       [
-        eid, categorie_id || null, req.user.id, numero, description, fournisseur || null,
+        eid, categorie_id || null, req.user.id, numero, description, fournisseur || null, fournisseurIdValide,
         montantHT, tauxTVA, montantTVA, montantTTC,
         date_depense || new Date().toISOString().split('T')[0], date_echeance || null,
         statut, mode_paiement, reference || null, notes || null,
@@ -284,21 +299,44 @@ const createDepense = async (req, res) => {
 };
 
 // PUT /api/depenses/:id
+// Refus si une écriture comptable est déjà liée : la modification d'une
+// dépense comptabilisée désynchroniserait métier et compta. L'utilisateur
+// doit alors annuler la dépense (statut=annulee) puis en créer une nouvelle,
+// ou passer une OD manuelle de régularisation. Les champs purement
+// descriptifs (notes, reference) restent autorisés.
+const CHAMPS_DESCRIPTIFS = new Set(['notes', 'reference']);
 const updateDepense = async (req, res) => {
   try {
     const { id }  = req.params;
     const eid     = req.entrepriseId;
-    const {
-      categorie_id, description, fournisseur, montant_ht, taux_tva,
-      date_depense, statut, mode_paiement, reference, notes,
-    } = req.body;
+    const body = req.body;
 
-    if (!description || !montant_ht) {
+    if (!body.description || body.montant_ht === undefined) {
       return res.status(400).json({ success: false, message: 'Description et montant requis' });
     }
 
-    const montantHT  = parseFloat(montant_ht);
-    const tauxTVA    = Math.min(100, Math.max(0, parseFloat(taux_tva) || 0));
+    // Vérifie si une écriture comptable existe pour cette dépense
+    const ecRes = await pool.query(
+      `SELECT 1 FROM ecritures
+       WHERE entreprise_id = $1 AND origine = 'AUTO_DEPENSE' AND origine_id = $2 LIMIT 1`,
+      [eid, id]
+    );
+    const aEcriture = ecRes.rows.length > 0;
+
+    if (aEcriture) {
+      // Détecte si la requête modifie autre chose que les champs descriptifs
+      const champsModifies = Object.keys(body).filter(k => !CHAMPS_DESCRIPTIFS.has(k));
+      if (champsModifies.length > 0) {
+        return res.status(400).json({
+          success: false,
+          code: 'DEPENSE_COMPTABILISEE',
+          message: 'Cette dépense est déjà comptabilisée. Annulez-la et créez-en une nouvelle, ou passez une OD de régularisation.',
+        });
+      }
+    }
+
+    const montantHT  = parseFloat(body.montant_ht);
+    const tauxTVA    = Math.min(100, Math.max(0, parseFloat(body.taux_tva) || 0));
     const montantTVA = Math.round(montantHT * (tauxTVA / 100) * 100) / 100;
     const montantTTC = Math.round((montantHT + montantTVA) * 100) / 100;
 
@@ -310,17 +348,18 @@ const updateDepense = async (req, res) => {
          reference=$11, notes=$12, updated_at=NOW()
        WHERE id=$13 AND entreprise_id=$14 RETURNING *`,
       [
-        categorie_id || null, description, fournisseur || null,
+        body.categorie_id || null, body.description, body.fournisseur || null,
         montantHT, tauxTVA, montantTVA, montantTTC,
-        date_depense, statut, mode_paiement,
-        reference || null, notes || null, id, eid,
+        body.date_depense, body.statut, body.mode_paiement,
+        body.reference || null, body.notes || null, id, eid,
       ]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Dépense introuvable' });
     }
     logAudit(req, 'UPDATE', 'depenses', id, {
-      description, montant_ttc: montantTTC, statut, mode_paiement,
+      description: body.description, montant_ttc: montantTTC,
+      statut: body.statut, mode_paiement: body.mode_paiement,
     });
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
@@ -330,8 +369,23 @@ const updateDepense = async (req, res) => {
 };
 
 // DELETE /api/depenses/:id
+// Refus si une écriture comptable est liée : on ne supprime pas une dépense
+// déjà passée en compta, sous peine de laisser une écriture orpheline.
 const deleteDepense = async (req, res) => {
   try {
+    const ecRes = await pool.query(
+      `SELECT 1 FROM ecritures
+       WHERE entreprise_id = $1 AND origine = 'AUTO_DEPENSE' AND origine_id = $2 LIMIT 1`,
+      [req.entrepriseId, req.params.id]
+    );
+    if (ecRes.rows.length > 0) {
+      return res.status(400).json({
+        success: false,
+        code: 'DEPENSE_COMPTABILISEE',
+        message: 'Cette dépense est déjà comptabilisée. Annulez-la (statut=annulee) plutôt que la supprimer.',
+      });
+    }
+
     const result = await pool.query(
       'DELETE FROM depenses WHERE id=$1 AND entreprise_id=$2 RETURNING id',
       [req.params.id, req.entrepriseId]

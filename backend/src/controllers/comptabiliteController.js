@@ -1,7 +1,7 @@
 const pool = require('../../config/database');
 const { creerEcriture, ComptaError } = require('../utils/comptabilite');
 const {
-  verifierPreCloture, ecritureSoldeCharges, ecritureSoldeProduits,
+  verifierPreCloture, ecritureSoldeCharges, ecritureSoldeProduits, ecritureSoldeHAO,
   creerExerciceSuivant, ecritureAANouveau,
 } = require('../utils/cloture');
 const { logAudit } = require('../utils/audit');
@@ -81,7 +81,10 @@ const getEcritures = async (req, res) => {
     const limitNum = Math.min(200, Math.max(1, parseInt(limit)));
     const offset   = (pageNum - 1) * limitNum;
 
-    const conditions = ['e.entreprise_id = $1'];
+    // Cohérence avec getGrandLivre et getBalance : on n'expose que les écritures
+    // validées. Une écriture brouillon ne doit pas non plus apparaître dans le
+    // journal général tant qu'elle n'est pas confirmée.
+    const conditions = ['e.entreprise_id = $1', 'e.validee = true'];
     const params     = [eid];
 
     if (journal_code) {
@@ -493,9 +496,12 @@ const cloturerExercice = async (req, res) => {
       });
     }
 
-    // Écritures de clôture des comptes de gestion (classes 6 et 7) vers le 13
+    // Écritures de clôture des comptes de gestion (classes 6, 7 et 8) vers le 13.
+    // La classe 8 (HAO) contient notamment le 89 « Impôts sur le résultat » qui
+    // doit être viré sinon le résultat 13 reste faussé et l'IS bascule en N+1.
     const ecCharges  = await ecritureSoldeCharges(client,  { entrepriseId: eid, utilisateurId: userId, exercice });
     const ecProduits = await ecritureSoldeProduits(client, { entrepriseId: eid, utilisateurId: userId, exercice });
+    const ecHAO      = await ecritureSoldeHAO(client,      { entrepriseId: eid, utilisateurId: userId, exercice });
 
     // Marque l'exercice clôturé AVANT de créer l'exercice suivant et l'AN,
     // pour qu'aucune nouvelle écriture ne puisse se glisser dans N.
@@ -521,6 +527,7 @@ const cloturerExercice = async (req, res) => {
       ecritures: {
         charges: ecCharges?.numero_piece || null,
         produits: ecProduits?.numero_piece || null,
+        hao: ecHAO?.numero_piece || null,
         a_nouveau: ecAN?.numero_piece || null,
       },
       exercice_suivant: exerciceSuivant.libelle,
@@ -534,6 +541,7 @@ const cloturerExercice = async (req, res) => {
         ecritures_generees: {
           solde_charges: ecCharges?.numero_piece || null,
           solde_produits: ecProduits?.numero_piece || null,
+          solde_hao: ecHAO?.numero_piece || null,
           a_nouveau: ecAN?.numero_piece || null,
         },
       },

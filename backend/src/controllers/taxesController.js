@@ -1,7 +1,7 @@
 const pool = require('../../config/database');
 const { body } = require('express-validator');
 const { logAudit } = require('../utils/audit');
-const { ecriturePaiementTaxe } = require('../utils/comptabilite-auto');
+const { ecriturePaiementTaxe, ecritureLiquidationTVA } = require('../utils/comptabilite-auto');
 const { ComptaError } = require('../utils/comptabilite');
 
 // ── Règles de validation ──────────────────────────────────────────────────
@@ -188,8 +188,13 @@ const getTableauBordTaxes = async (req, res) => {
 };
 
 // POST /api/taxes — créer une déclaration
+// Pour la TVA : génère également l'écriture de liquidation (4431/4452 → 4441 ou
+// 4449) afin que les soldes des comptes 4431 et 4452 soient remis à zéro après
+// chaque déclaration. Sinon ils grossissent indéfiniment et la balance ment.
 const createTaxe = async (req, res) => {
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
     const eid = req.entrepriseId;
     const {
       type_taxe, organisme, periode_debut, periode_fin,
@@ -199,7 +204,7 @@ const createTaxe = async (req, res) => {
     const tauxLegal = TAUX_LEGAUX[type_taxe];
     const montantDu = montant_du || (parseFloat(montant_base) * (parseFloat(taux || tauxLegal?.taux || 0) / 100));
 
-    const result = await pool.query(
+    const result = await client.query(
       `INSERT INTO declarations_taxes
         (entreprise_id, cree_par, type_taxe, organisme, periode_debut, periode_fin,
          date_echeance, montant_base, taux, montant_du, notes)
@@ -209,13 +214,29 @@ const createTaxe = async (req, res) => {
        parseFloat(montant_base) || 0, parseFloat(taux || tauxLegal?.taux || 0),
        montantDu, notes]
     );
-    logAudit(req, 'CREATE', 'taxes', result.rows[0].id, {
-      type_taxe, periode_debut, periode_fin, montant_du: montantDu,
+    const taxe = result.rows[0];
+
+    const ecLiquid = await ecritureLiquidationTVA(client, {
+      entrepriseId: eid,
+      utilisateurId: req.user.id,
+      taxe,
     });
-    res.status(201).json({ success: true, data: result.rows[0] });
+
+    await client.query('COMMIT');
+    logAudit(req, 'CREATE', 'taxes', taxe.id, {
+      type_taxe, periode_debut, periode_fin, montant_du: montantDu,
+      ecriture_liquidation: ecLiquid?.numero_piece || null,
+    });
+    res.status(201).json({ success: true, data: taxe });
   } catch (err) {
+    await client.query('ROLLBACK');
+    if (err instanceof ComptaError) {
+      return res.status(400).json({ success: false, message: err.message, code: err.code });
+    }
     console.error('Erreur createTaxe:', err);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  } finally {
+    client.release();
   }
 };
 

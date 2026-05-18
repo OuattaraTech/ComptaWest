@@ -72,32 +72,53 @@ const safeAuto = async (label, fn) => {
 };
 
 /**
- * Écriture de facture émise (vente).
+ * Écriture de facture émise (vente) OU d'avoir (note de crédit).
+ *
+ * - Type "facture" : D 4111 / C 706 (ou 701) + C 4431 TVA collectée
+ * - Type "avoir"   : contre-passation symétrique
+ *                    D 706 (ou 701) + D 4431 / C 4111
+ *                    (le client n'est plus débiteur du montant remboursé,
+ *                     les produits et la TVA collectée sont annulés)
+ *
+ * Les devis/proformas ne génèrent pas d'écriture (engagement, pas vente).
  * Compte de produit utilisé : 706 (services) par défaut. Pour ventes de marchandises, passer compteProduit='701'.
  */
 const ecritureFacture = async (client, { entrepriseId, utilisateurId, facture, compteProduit = '706' }) => {
-  // Devis, proforma : pas d'écriture. Avoir : à traiter séparément.
-  if (facture.type !== 'facture') return null;
+  if (facture.type !== 'facture' && facture.type !== 'avoir') return null;
   if (facture.statut === 'brouillon' || facture.statut === 'annulee') return null;
 
-  return safeAuto(`facture ${facture.numero}`, () =>
+  const totalTtc    = round2(facture.total_ttc);
+  const sousTotal   = round2(facture.sous_total);
+  const montantTva  = round2(facture.montant_tva);
+  const estAvoir    = facture.type === 'avoir';
+
+  // Contre-passation : on inverse débit ↔ crédit. Le journal reste VTE
+  // (un avoir est une opération de vente négative) et l'origine est
+  // distincte pour permettre l'unicité côté (origine, origine_id) si on
+  // ajoute l'index plus tard.
+  const sensDebit  = (montant) => estAvoir ? { credit: montant } : { debit: montant };
+  const sensCredit = (montant) => estAvoir ? { debit: montant }  : { credit: montant };
+  const libelleEntete = estAvoir ? `Avoir ${facture.numero}` : `Facture ${facture.numero}`;
+  const libelleLignes = estAvoir ? 'Annulation' : 'Vente';
+
+  return safeAuto(libelleEntete, () =>
     creerEcriture(client, {
       entrepriseId,
       utilisateurId,
       journalCode: 'VTE',
       date: facture.date_emission,
-      libelle: `Facture ${facture.numero}`,
+      libelle: libelleEntete,
       reference: facture.numero,
-      origine: 'AUTO_FACTURE',
+      origine: estAvoir ? 'AUTO_AVOIR' : 'AUTO_FACTURE',
       origineId: facture.id,
       lignes: [
-        // Débit : créance client
-        { compte: '4111', debit: round2(facture.total_ttc), libelle: `Client ${facture.numero}` },
-        // Crédit : produit (HT)
-        { compte: compteProduit, credit: round2(facture.sous_total), libelle: `Vente ${facture.numero}` },
-        // Crédit : TVA collectée (si applicable)
-        ...(round2(facture.montant_tva) > 0
-          ? [{ compte: '4431', credit: round2(facture.montant_tva), libelle: `TVA collectée ${facture.numero}` }]
+        // Créance client (D facture, C avoir)
+        { compte: '4111', ...sensDebit(totalTtc), libelle: `Client ${facture.numero}` },
+        // Produit HT (C facture, D avoir)
+        { compte: compteProduit, ...sensCredit(sousTotal), libelle: `${libelleLignes} ${facture.numero}` },
+        // TVA collectée (C facture, D avoir) — si applicable
+        ...(montantTva > 0
+          ? [{ compte: '4431', ...sensCredit(montantTva), libelle: `TVA collectée ${facture.numero}` }]
           : []),
       ],
     })
@@ -169,23 +190,44 @@ const ecriturePaiementFacture = async (client, { entrepriseId, utilisateurId, fa
  * Écriture de dépense.
  * Si la dépense a un code de catégorie SYSCOHADA (ex : "60", "62T"), on l'utilise comme compte de charge.
  * Sinon fallback "658" (Charges diverses).
+ *
+ * Pour les dépenses à crédit (statut en_attente), tente d'utiliser le compte
+ * auxiliaire du fournisseur (4011XXX) si la dépense est liée à un fournisseur
+ * enregistré et que son code auxiliaire existe dans le plan comptable. À
+ * défaut, retombe sur le collectif 4011 — c'est ce fallback qui produit, lors
+ * du paiement via le module Fournisseurs (qui, lui, cible l'auxiliaire), une
+ * balance auxiliaire fantôme. Utiliser l'auxiliaire dès la création de la
+ * dépense rend la chaîne D 6xx / C 4011XXX → D 4011XXX / C 5xx cohérente.
  */
 const ecritureDepense = async (client, { entrepriseId, utilisateurId, depense, compteCharge }) => {
   if (depense.statut === 'annulee') return null;
 
-  // Si la catégorie a un code SYSCOHADA propre on l'utilise, sinon fallback
   const codeCategorie = compteCharge || depense.categorie_code || '658';
-  // Le code SYSCOHADA peut contenir des suffixes maison (ex: "62T", "62L") — on garde la racine
   const compteChargeFinal = /^[1-9]/.test(codeCategorie) ? codeCategorie.replace(/[^0-9]/g, '') || '658' : '658';
 
-  // Décide si paiement direct (BNK/CAI/MM) ou crédit fournisseur (ACH puis paiement séparé)
   const enCredit = depense.statut === 'en_attente';
   const journal = enCredit ? 'ACH'
     : depense.mode_paiement === 'cash' ? 'CAI'
     : depense.mode_paiement === 'mobile_money' ? 'MM'
     : 'BNK';
 
-  const compteContrepartie = enCredit ? '4011' : compteTresorerie(depense.mode_paiement);
+  // Résout la contrepartie. Pour une dépense en attente, cherche l'auxiliaire
+  // du fournisseur lié si disponible et présent dans le plan.
+  let compteContrepartie = enCredit ? '4011' : compteTresorerie(depense.mode_paiement);
+  if (enCredit && depense.fournisseur_id) {
+    const f = await client.query(
+      `SELECT code_auxiliaire FROM fournisseurs WHERE id = $1 AND entreprise_id = $2`,
+      [depense.fournisseur_id, entrepriseId]
+    );
+    const aux = f.rows[0]?.code_auxiliaire;
+    if (aux) {
+      const present = await client.query(
+        `SELECT 1 FROM plan_comptable WHERE entreprise_id = $1 AND numero = $2 AND actif = true LIMIT 1`,
+        [entrepriseId, aux]
+      );
+      if (present.rows.length > 0) compteContrepartie = aux;
+    }
+  }
 
   return safeAuto(`dépense ${depense.numero || depense.id}`, () =>
     creerEcriture(client, {
@@ -348,9 +390,98 @@ const ecriturePaiementBulletin = async (client, { entrepriseId, utilisateurId, b
   );
 };
 
+/**
+ * Écriture de liquidation mensuelle (ou trimestrielle) de la TVA.
+ *
+ * À chaque déclaration de TVA, on solde les comptes 4431 (collectée) et 4452
+ * (déductible) en virant la différence soit en 4441 (TVA due, dette envers
+ * l'État), soit en 4449 (crédit de TVA à reporter sur le mois suivant).
+ *
+ *   D 4431  (collectée du mois)
+ *       C 4452  (déductible du mois)
+ *       C 4441  (TVA due) — si collectée > déductible
+ *   ou
+ *   D 4449  (crédit à reporter) — si déductible > collectée
+ *
+ * Recalcule collectée/déductible depuis les factures et dépenses de la période
+ * pour rester aligné sur la source de vérité. Si la déclaration a un
+ * montant_du divergent de plus de 1 FCFA, on saute l'écriture (l'utilisateur
+ * passera une OD manuelle pour la régularisation).
+ */
+const ecritureLiquidationTVA = async (client, { entrepriseId, utilisateurId, taxe }) => {
+  if (taxe.type_taxe !== 'TVA') return null;
+
+  // Collectée nette : ventes - avoirs sur la période, hors brouillon/annulée
+  const collecteeRes = await client.query(
+    `SELECT COALESCE(SUM(
+              CASE WHEN type = 'avoir' THEN -montant_tva ELSE montant_tva END
+            ), 0) AS total
+       FROM factures
+      WHERE entreprise_id = $1
+        AND type IN ('facture','avoir')
+        AND date_emission BETWEEN $2 AND $3
+        AND statut NOT IN ('brouillon','annulee')`,
+    [entrepriseId, taxe.periode_debut, taxe.periode_fin]
+  );
+  // Déductible : seulement les dépenses effectivement payées sur la période
+  const deductibleRes = await client.query(
+    `SELECT COALESCE(SUM(montant_tva), 0) AS total
+       FROM depenses
+      WHERE entreprise_id = $1
+        AND date_depense BETWEEN $2 AND $3
+        AND statut = 'payee'`,
+    [entrepriseId, taxe.periode_debut, taxe.periode_fin]
+  );
+
+  const collectee  = round2(collecteeRes.rows[0].total);
+  const deductible = round2(deductibleRes.rows[0].total);
+  const dueAttendue = round2(collectee - deductible);
+
+  if (collectee === 0 && deductible === 0) return null;
+
+  // Coupe-circuit : si la déclaration a été saisie manuellement avec un
+  // montant divergent, on n'écrit pas — la liquidation comptable ne refléterait
+  // pas la déclaration officielle. Tolérance 1 FCFA pour les arrondis.
+  if (Math.abs(round2(taxe.montant_du) - Math.max(0, dueAttendue)) > 1) {
+    return null;
+  }
+
+  const periodeLib = `${String(taxe.periode_debut).slice(0, 10)} → ${String(taxe.periode_fin).slice(0, 10)}`;
+  const lignes = [];
+  if (collectee > 0) {
+    lignes.push({ compte: '4431', debit: collectee, libelle: `TVA collectée ${periodeLib}` });
+  }
+  if (deductible > 0) {
+    lignes.push({ compte: '4452', credit: deductible, libelle: `TVA déductible ${periodeLib}` });
+  }
+  if (dueAttendue > 0) {
+    lignes.push({ compte: '4441', credit: dueAttendue, libelle: `TVA due à reverser ${periodeLib}` });
+  } else if (dueAttendue < 0) {
+    lignes.push({ compte: '4449', debit: -dueAttendue, libelle: `Crédit TVA à reporter ${periodeLib}` });
+  }
+
+  // creerEcriture exige >= 2 lignes. Cas pathologique (collectée = déductible
+  // et tous deux nuls) déjà filtré plus haut.
+  if (lignes.length < 2) return null;
+
+  return safeAuto(`liquidation TVA ${periodeLib}`, () =>
+    creerEcriture(client, {
+      entrepriseId,
+      utilisateurId,
+      journalCode: 'OD',
+      date: taxe.periode_fin,
+      libelle: `Liquidation TVA ${periodeLib}`,
+      reference: taxe.id,
+      origine: 'AUTO_TVA_LIQUIDATION',
+      origineId: taxe.id,
+      lignes,
+    })
+  );
+};
+
 module.exports = {
   ecritureFacture, ecriturePaiementFacture, ecriturePaiementFournisseur,
-  ecritureDepense, ecriturePaiementTaxe,
+  ecritureDepense, ecriturePaiementTaxe, ecritureLiquidationTVA,
   ecritureBulletinValidation, ecriturePaiementBulletin,
   COMPTES_TRESORERIE, COMPTE_TAXE,
 };

@@ -145,15 +145,29 @@ const getImmobilisationById = async (req, res) => {
 };
 
 // POST /api/immobilisations
+// Body optionnel pour la comptabilisation de l'acquisition :
+//   - comptabiliser  : boolean, défaut true (false = immo historique déjà
+//                      comptabilisée dans un autre logiciel)
+//   - mode_acquisition : 'credit' (défaut) | 'comptant'
+//                      crédit  → contrepartie 4011 (fournisseur à payer)
+//                      comptant → contrepartie compte_tresorerie_id (5xx)
+//   - compte_tresorerie_id : si mode_acquisition='comptant'
+//
+// L'écriture d'acquisition n'est PAS générée si :
+//   - comptabiliser=false
+//   - source_type='depense' (la dépense a déjà passé l'écriture d'achat)
+//   - source_type='facture' (idem)
 const createImmobilisation = async (req, res) => {
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
     const eid = req.entrepriseId;
     const b = req.body;
 
     // Charge la catégorie si fournie (héritage des comptes)
     let cat = null;
     if (b.categorie_id) {
-      const r = await pool.query(
+      const r = await client.query(
         `SELECT * FROM categories_immobilisation WHERE id = $1 AND entreprise_id = $2`,
         [b.categorie_id, eid]
       );
@@ -163,6 +177,7 @@ const createImmobilisation = async (req, res) => {
     const numero = b.numero_inventaire || await generateNumeroInventaire(eid, cat?.code);
     const compteActif = b.compte_actif || cat?.compte_actif;
     if (!compteActif) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ success: false, message: 'Compte SYSCOHADA d\'actif requis (via catégorie ou explicite)' });
     }
     const compteAmort = b.compte_amortissement || cat?.compte_amortissement;
@@ -173,8 +188,9 @@ const createImmobilisation = async (req, res) => {
       : (cat?.amortissable !== undefined ? cat.amortissable : true);
     const coeffDeg = parseFloat(b.coefficient_degressif)
       || (methode === 'degressif' && dureeAns ? coefficientDegressifStandard(dureeAns) : null);
+    const sourceType = b.source_type || 'manuel';
 
-    const result = await pool.query(
+    const result = await client.query(
       `INSERT INTO immobilisations (
         entreprise_id, numero_inventaire, libelle, description, categorie_id,
         compte_actif, compte_amortissement, compte_dotation,
@@ -191,22 +207,82 @@ const createImmobilisation = async (req, res) => {
         round2(b.valeur_acquisition), round2(b.valeur_residuelle || 0),
         amortissable, amortissable ? dureeAns : null,
         methode, coeffDeg,
-        b.source_type || 'manuel', b.source_id || null,
+        sourceType, b.source_id || null,
         b.fournisseur || null, b.reference_facture || null,
         b.emplacement || null, b.affecte_a || null, b.numero_serie || null,
         req.user?.id,
       ]
     );
+    const immo = result.rows[0];
 
-    logAudit(req, 'CREATE', 'immobilisations', result.rows[0].id,
-      { numero, libelle: b.libelle, valeur: b.valeur_acquisition });
-    res.status(201).json({ success: true, data: result.rows[0] });
+    // Écriture d'acquisition (si non héritée d'une dépense/facture déjà comptabilisée)
+    const valAcq = round2(b.valeur_acquisition);
+    const skipCompta = b.comptabiliser === false
+                    || sourceType === 'depense'
+                    || sourceType === 'facture'
+                    || valAcq <= 0;
+    let ecPiece = null;
+    if (!skipCompta) {
+      const modeAcq = b.mode_acquisition || 'credit';
+      let contrepartie = '4011';
+      let journal = 'ACH';
+      if (modeAcq === 'comptant' && b.compte_tresorerie_id) {
+        const ct = await client.query(
+          `SELECT type, compte_pc_numero FROM comptes_tresorerie
+           WHERE id = $1 AND entreprise_id = $2 AND archived_at IS NULL`,
+          [b.compte_tresorerie_id, eid]
+        );
+        if (ct.rows[0]?.compte_pc_numero) {
+          contrepartie = ct.rows[0].compte_pc_numero;
+          journal = ct.rows[0].type === 'caisse' ? 'CAI'
+                  : ct.rows[0].type === 'mobile_money' ? 'MM'
+                  : 'BNK';
+        }
+      }
+      try {
+        const ec = await creerEcriture(client, {
+          entrepriseId: eid,
+          utilisateurId: req.user?.id,
+          journalCode: journal,
+          date: b.date_acquisition,
+          libelle: `Acquisition ${immo.libelle} (${numero})`.slice(0, 250),
+          reference: b.reference_facture || numero,
+          origine: 'AUTO_IMMO_ACQUISITION',
+          origineId: immo.id,
+          lignes: [
+            { compte: compteActif, debit: valAcq, libelle: `Entrée actif ${numero}` },
+            { compte: contrepartie, credit: valAcq, libelle: b.fournisseur || `Acquisition ${numero}` },
+          ],
+        });
+        ecPiece = ec.numero_piece;
+      } catch (err) {
+        // Exercice clos / journal manquant / compte inexistant : on annule la
+        // création (incohérence inacceptable entre actif et compta). Pour les
+        // autres erreurs (libellé trop long, etc.), on aurait pu tolérer, mais
+        // ici on préfère échouer bruyamment côté création.
+        await client.query('ROLLBACK');
+        if (err instanceof ComptaError) {
+          return res.status(400).json({
+            success: false, message: `Acquisition non comptabilisable : ${err.message}`, code: err.code,
+          });
+        }
+        throw err;
+      }
+    }
+
+    await client.query('COMMIT');
+    logAudit(req, 'CREATE', 'immobilisations', immo.id,
+      { numero, libelle: b.libelle, valeur: b.valeur_acquisition, ecriture: ecPiece });
+    res.status(201).json({ success: true, data: immo });
   } catch (err) {
+    await client.query('ROLLBACK');
     if (err.code === '23505') {
       return res.status(400).json({ success: false, message: 'Numéro d\'inventaire déjà utilisé' });
     }
     console.error('Erreur createImmobilisation:', err.message);
     res.status(500).json({ success: false, message: 'Erreur création immobilisation' });
+  } finally {
+    client.release();
   }
 };
 
@@ -450,7 +526,14 @@ const genererDotationsAnnee = async (req, res) => {
   }
 };
 
-// DELETE /api/immobilisations/dotations/:id  (supprime une dotation et l'écriture liée)
+// DELETE /api/immobilisations/dotations/:id
+// Refus si l'écriture comptable liée est partagée avec d'autres dotations
+// (cas standard : genererDotationsAnnee regroupe toutes les dotations de
+// l'année dans une seule écriture OD). Supprimer une dotation isolée
+// laisserait l'écriture comptable en surévaluation.
+//
+// Pour les dotations sans écriture (calculées mais non encore comptabilisées),
+// la suppression unitaire reste possible.
 const supprimerDotation = async (req, res) => {
   try {
     const { id } = req.params;
@@ -461,7 +544,25 @@ const supprimerDotation = async (req, res) => {
     );
     if (!r.rows[0]) return res.status(404).json({ success: false, message: 'Dotation introuvable' });
 
+    if (r.rows[0].ecriture_id) {
+      // Compte combien de dotations partagent la même écriture
+      const partage = await pool.query(
+        `SELECT COUNT(*)::int AS n FROM dotations_amortissement
+          WHERE ecriture_id = $1`,
+        [r.rows[0].ecriture_id]
+      );
+      const nbPartagees = partage.rows[0].n;
+      return res.status(400).json({
+        success: false,
+        code: 'DOTATION_COMPTABILISEE',
+        message: nbPartagees > 1
+          ? `Cette dotation est regroupée en compta avec ${nbPartagees - 1} autre(s). Passez une OD de régularisation.`
+          : `Cette dotation est déjà comptabilisée (pièce liée). Passez une OD de régularisation ou contre-passez l'écriture d'abord.`,
+      });
+    }
+
     await pool.query(`DELETE FROM dotations_amortissement WHERE id = $1`, [id]);
+    logAudit(req, 'DELETE', 'dotations_amortissement', id);
     res.json({ success: true });
   } catch (err) {
     console.error('Erreur supprimerDotation:', err.message);
@@ -550,6 +651,11 @@ const cederImmobilisation = async (req, res) => {
       lignes.push({ compte: '822', credit: valCession, libelle: `Produit cession ${immo.numero_inventaire}` });
     }
 
+    // Les erreurs bloquantes (exercice clos, balance déséquilibrée, journal/compte
+    // inexistants) doivent annuler la cession : sans écriture comptable correcte,
+    // la sortie de l'actif et la reprise des amortissements ne sont pas reflétées
+    // en compta et le bilan diverge. Les erreurs non bloquantes (libellé trop
+    // long, etc.) sont tolérées et la cession passe avec un log.
     try {
       await creerEcriture(client, {
         entrepriseId: eid,
@@ -563,8 +669,11 @@ const cederImmobilisation = async (req, res) => {
         lignes,
       });
     } catch (err) {
-      // Si écriture échoue (exercice clos ou autre), on n'annule pas la cession
-      console.warn('Écriture de cession échouée:', err.message);
+      if (err instanceof ComptaError &&
+          ['EXERCICE_FERME', 'DESEQUILIBRE', 'JOURNAL_INCONNU', 'COMPTE_INCONNU'].includes(err.code)) {
+        throw err;
+      }
+      console.warn('Écriture de cession non bloquante échouée:', err.message);
     }
 
     await client.query('COMMIT');
@@ -577,6 +686,13 @@ const cederImmobilisation = async (req, res) => {
     });
   } catch (err) {
     await client.query('ROLLBACK');
+    if (err instanceof ComptaError) {
+      return res.status(400).json({
+        success: false,
+        message: `Cession non comptabilisable : ${err.message}`,
+        code: err.code,
+      });
+    }
     console.error('Erreur cederImmobilisation:', err.message);
     res.status(500).json({ success: false, message: 'Erreur cession' });
   } finally {
