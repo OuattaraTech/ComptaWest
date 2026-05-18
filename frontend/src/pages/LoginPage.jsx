@@ -274,80 +274,172 @@ export default function LoginPage() {
               filter: 'blur(40px)', pointerEvents: 'none', zIndex: 0,
             }} />
 
-            {/* Mockup facture */}
+            {/* Mockup facture — reproduction fidèle du PDF généré par
+                le module Rapports (cf. backend/rapportsController.js,
+                buildFactureDoc). Mêmes couleurs (#00D4AA pour le vert
+                signature, header de tableau vert, total TTC vert), même
+                structure : en-tête émetteur OHADA → ligne verte →
+                bloc Facture/Client → tableau → totaux → mention en
+                lettres → footer. La badge « Certifiée DGI » et le
+                bandeau Mobile Money sont les vrais différenciateurs
+                FNE et Wave/Orange/MTN intégrés dans ComptaWest. */}
             <div className="cw-float" style={{
               position: 'relative', zIndex: 1,
-              background: '#FFFFFF', borderRadius: 20,
+              background: '#FFFFFF', borderRadius: 14,
               boxShadow: '0 30px 90px rgba(0,0,0,0.4)',
-              padding: 28, color: '#0F172A',
+              padding: '22px 24px 18px', color: '#0B0F1A',
+              fontFamily: '"Helvetica Neue", Roboto, Arial, sans-serif',
             }}>
-              {/* En-tête facture */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
-                <div>
-                  <div style={{ fontSize: 9, fontWeight: 800, color: '#64748B', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{t('login.mockup_invoice')}</div>
-                  <div style={{ fontSize: 19, fontWeight: 900, color: '#0F172A', fontFamily: 'monospace', letterSpacing: '-0.01em', marginTop: 2 }}>F-2026-0042</div>
+              {/* ── En-tête émetteur (raison sociale + identifiants OHADA) */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 6 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#0B0F1A', letterSpacing: '-0.005em', lineHeight: 1.15 }}>
+                    {t('login.mockup_emetteur')}
+                  </div>
+                  <div style={{ fontSize: 8.5, color: '#6B7A99', marginTop: 3, lineHeight: 1.35 }}>
+                    {t('login.mockup_emetteur_adresse')}
+                  </div>
+                  <div style={{ fontSize: 8.5, color: '#0B0F1A', fontWeight: 700, marginTop: 2, lineHeight: 1.35 }}>
+                    {t('login.mockup_emetteur_legal')}
+                  </div>
                 </div>
                 <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  padding: '5px 11px', borderRadius: 20,
-                  background: 'linear-gradient(135deg, #00A88220, #00D4AA20)',
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  padding: '4px 9px', borderRadius: 20,
+                  background: 'linear-gradient(135deg, #00A88218, #00D4AA22)',
                   border: '1px solid #00A88240', color: '#00805F',
-                  fontSize: 10, fontWeight: 800,
+                  fontSize: 9.5, fontWeight: 800, flexShrink: 0, whiteSpace: 'nowrap',
                 }}>
-                  <ShieldCheck size={11} /> {t('login.mockup_certified')}
+                  <ShieldCheck size={10} /> {t('login.mockup_certified')}
                 </div>
               </div>
 
-              {/* Lignes facture */}
-              <div style={{ borderTop: '1px dashed #CBD5E1', borderBottom: '1px dashed #CBD5E1', padding: '12px 0', marginBottom: 14 }}>
+              {/* Ligne verte (signature ComptaWest, cf. PDF) */}
+              <div style={{ height: 2, background: '#00D4AA', borderRadius: 1, margin: '8px 0 12px' }} />
+
+              {/* ── Bloc Facture (gauche) + Facturé à (droite) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 900, color: '#00A882', letterSpacing: '-0.005em', marginBottom: 4 }}>
+                    {t('login.mockup_invoice').toUpperCase()} N°F-2026-0042
+                  </div>
+                  <div style={{ fontSize: 9, color: '#0B0F1A', lineHeight: 1.55 }}>
+                    {t('login.mockup_emission')} : 18/05/2026
+                  </div>
+                  <div style={{ fontSize: 9, color: '#0B0F1A', lineHeight: 1.55 }}>
+                    {t('login.mockup_echeance')} : 17/06/2026
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 7.5, fontWeight: 800, color: '#6B7A99', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>
+                    {t('login.mockup_billed_to')}
+                  </div>
+                  <div style={{ fontSize: 10.5, fontWeight: 800, color: '#0B0F1A', lineHeight: 1.25 }}>
+                    {t('login.mockup_client_nom')}
+                  </div>
+                  <div style={{ fontSize: 8.5, color: '#6B7A99', marginTop: 2 }}>
+                    {t('login.mockup_client_adresse')}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Tableau des lignes (header vert comme dans le PDF) */}
+              <div style={{ border: '0.5px solid #E2E8F0', borderRadius: 4, overflow: 'hidden', marginBottom: 10 }}>
+                <div style={{
+                  display: 'grid', gridTemplateColumns: '1fr 28px 56px 64px',
+                  background: '#00D4AA', color: '#fff', fontSize: 8.5, fontWeight: 800,
+                  padding: '5px 8px', gap: 4,
+                }}>
+                  <span>{t('login.mockup_col_desc')}</span>
+                  <span style={{ textAlign: 'center' }}>{t('login.mockup_col_qte')}</span>
+                  <span style={{ textAlign: 'right' }}>{t('login.mockup_col_pu')}</span>
+                  <span style={{ textAlign: 'right' }}>{t('login.mockup_col_total')}</span>
+                </div>
                 {[
-                  { d: 'Prestation conseil SYSCOHADA', m: '750 000' },
-                  { d: 'Formation équipe (2 jours)',    m: '480 000' },
+                  { d: 'Audit SI SYSCOHADA',     q: 1, pu: '750 000', t: '750 000', alt: false },
+                  { d: 'Formation équipe (2 j.)', q: 2, pu: '240 000', t: '480 000', alt: true  },
                 ].map((l, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0', fontSize: 11.5 }}>
-                    <span style={{ color: '#475569' }}>{l.d}</span>
-                    <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0F172A' }}>{l.m}</span>
+                  <div key={i} style={{
+                    display: 'grid', gridTemplateColumns: '1fr 28px 56px 64px',
+                    background: l.alt ? '#F5F7FA' : '#FFFFFF',
+                    fontSize: 9, color: '#0B0F1A', padding: '6px 8px', gap: 4,
+                    borderTop: i === 0 ? 'none' : '0.5px solid #E2E8F0',
+                  }}>
+                    <span>{l.d}</span>
+                    <span style={{ textAlign: 'center' }}>{l.q}</span>
+                    <span style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{l.pu}</span>
+                    <span style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{l.t}</span>
                   </div>
                 ))}
               </div>
 
-              {/* Totaux */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <span style={{ fontSize: 11, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>{t('login.mockup_total')}</span>
-                <span style={{ fontSize: 22, fontWeight: 900, color: '#00A882', fontFamily: 'monospace', letterSpacing: '-0.01em' }}>1 451 400 FCFA</span>
+              {/* ── Totaux à droite */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                <div style={{ minWidth: 200 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0', fontSize: 9.5, color: '#6B7A99' }}>
+                    <span>{t('login.mockup_subtotal')}</span>
+                    <span style={{ color: '#0B0F1A', fontVariantNumeric: 'tabular-nums' }}>1 230 000 FCFA</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0', fontSize: 9.5, color: '#6B7A99' }}>
+                    <span>{t('login.mockup_vat')}</span>
+                    <span style={{ color: '#0B0F1A', fontVariantNumeric: 'tabular-nums' }}>221 400 FCFA</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0 2px', fontSize: 11.5, fontWeight: 900, color: '#00A882', borderTop: '0.5px solid #E2E8F0', marginTop: 3 }}>
+                    <span>{t('login.mockup_total').toUpperCase()}</span>
+                    <span style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }}>1 451 400 FCFA</span>
+                  </div>
+                </div>
               </div>
 
-              {/* QR + Mobile Money */}
-              <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr', gap: 14, alignItems: 'center', padding: 12, background: 'linear-gradient(135deg, #F0F7FF, #E8FFFA)', borderRadius: 12, border: '1px solid #D1DBE8' }}>
+              {/* ── Mention en lettres (obligation SYSCOHADA) */}
+              <div style={{ fontSize: 8, color: '#6B7A99', fontStyle: 'italic', marginBottom: 10, lineHeight: 1.4 }}>
+                {t('login.mockup_amount_in_words')}{' '}
+                <span style={{ color: '#0B0F1A', fontWeight: 700, fontStyle: 'normal' }}>
+                  {t('login.mockup_amount_in_words_value')}
+                </span>
+              </div>
+
+              {/* ── Bandeau QR + Mobile Money (différenciateur ComptaWest) */}
+              <div style={{
+                display: 'grid', gridTemplateColumns: '52px 1fr auto', gap: 11,
+                alignItems: 'center', padding: '9px 11px',
+                background: 'linear-gradient(135deg, #F0F7FF, #E8FFFA)',
+                borderRadius: 9, border: '1px solid #D1DBE8',
+              }}>
                 {/* QR placeholder en CSS pur */}
                 <div style={{
-                  width: 64, height: 64, background: '#0F172A', borderRadius: 6,
-                  padding: 4, display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gridTemplateRows: 'repeat(8, 1fr)',
+                  width: 48, height: 48, background: '#0B0F1A', borderRadius: 4,
+                  padding: 3, display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gridTemplateRows: 'repeat(8, 1fr)',
                   gap: 1,
                 }}>
                   {[...Array(64)].map((_, i) => (
                     <div key={i} style={{
-                      background: (i * 31 + 7) % 3 === 0 ? '#fff' : '#0F172A',
-                      borderRadius: 1,
+                      background: (i * 31 + 7) % 3 === 0 ? '#fff' : '#0B0F1A',
+                      borderRadius: 0.5,
                     }} />
                   ))}
                 </div>
-                <div>
-                  <div style={{ fontSize: 10.5, fontWeight: 800, color: '#0F172A', marginBottom: 3 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 9.5, fontWeight: 800, color: '#0B0F1A', marginBottom: 2 }}>
                     {t('login.mockup_qr_label')}
                   </div>
-                  <div style={{ fontSize: 10, color: '#64748B', lineHeight: 1.4, marginBottom: 8 }}>
+                  <div style={{ fontSize: 8.5, color: '#6B7A99', lineHeight: 1.3 }}>
                     {t('login.mockup_qr_help')}
                   </div>
-                  <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                    padding: '5px 10px', borderRadius: 8,
-                    background: 'linear-gradient(135deg, #1AA1F1, #0066FF)',
-                    color: '#fff', fontSize: 10.5, fontWeight: 800,
-                  }}>
-                    <Smartphone size={11} /> {t('login.mockup_pay_button')}
-                  </div>
                 </div>
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  padding: '6px 10px', borderRadius: 7,
+                  background: 'linear-gradient(135deg, #1AA1F1, #0066FF)',
+                  color: '#fff', fontSize: 9.5, fontWeight: 800, whiteSpace: 'nowrap',
+                }}>
+                  <Smartphone size={10} /> {t('login.mockup_pay_button')}
+                </div>
+              </div>
+
+              {/* ── Footer du PDF */}
+              <div style={{ fontSize: 7.5, color: '#6B7A99', fontStyle: 'italic', textAlign: 'center', marginTop: 10, paddingTop: 8, borderTop: '0.5px solid #00D4AA' }}>
+                {t('login.mockup_footer')}   ·   Page 1/1
               </div>
             </div>
 
@@ -604,6 +696,126 @@ export default function LoginPage() {
                 </p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════ APERÇU TABLEAU DE BORD ═══════════════
+          Capture d'écran de l'app dans un faux cadre navigateur,
+          côté à côté avec un argumentaire en bullets. La capture
+          doit être déposée dans frontend/public/screenshots/dashboard.png.
+          Tant qu'elle n'existe pas, on affiche un placeholder texte
+          (mêmes patterns onError que le logo DGI plus haut). */}
+      <section style={{
+        padding: '80px 56px',
+        background: dark
+          ? 'linear-gradient(180deg, transparent 0%, rgba(78,139,245,0.05) 50%, transparent 100%)'
+          : 'linear-gradient(180deg, transparent 0%, rgba(78,139,245,0.05) 50%, transparent 100%)',
+      }} className="cw-section">
+        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'minmax(0, 0.85fr) minmax(0, 1.15fr)',
+            gap: 56, alignItems: 'center',
+          }} className="cw-dashboard-grid">
+
+            {/* COLONNE GAUCHE — argumentaire */}
+            <div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 11, fontWeight: 800, color: C.accent, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>
+                <BarChart3 size={13} />
+                {t('login.dashboard_label')}
+              </div>
+              <h2 style={{ fontSize: 32, fontWeight: 900, letterSpacing: '-0.02em', color: C.text, margin: '0 0 14px 0', lineHeight: 1.15 }}>
+                {t('login.dashboard_title')}
+              </h2>
+              <p style={{ fontSize: 15, color: C.muted, lineHeight: 1.6, margin: '0 0 24px 0' }}>
+                {t('login.dashboard_subtitle')}
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+                {[1, 2, 3, 4].map(n => (
+                  <div key={n} style={{ display: 'flex', alignItems: 'flex-start', gap: 11 }}>
+                    <CheckCircle2 size={17} color={C.accent} style={{ flexShrink: 0, marginTop: 2 }} />
+                    <span style={{ fontSize: 13.5, color: C.sub, lineHeight: 1.55 }}>
+                      {t(`login.dashboard_bullet_${n}`)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* COLONNE DROITE — capture dans un cadre navigateur */}
+            <div style={{ position: 'relative' }} className="cw-dashboard-frame-wrapper">
+              {/* Halo décoratif derrière le cadre */}
+              <div style={{
+                position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                width: '95%', height: '85%', borderRadius: 24,
+                background: `radial-gradient(circle, ${C.accent}28, transparent 65%)`,
+                filter: 'blur(50px)', pointerEvents: 'none', zIndex: 0,
+              }} />
+
+              <div style={{
+                position: 'relative', zIndex: 1,
+                background: dark ? '#0F172A' : '#FFFFFF',
+                borderRadius: 14, overflow: 'hidden',
+                border: `1px solid ${C.border}`,
+                boxShadow: dark
+                  ? '0 30px 80px rgba(0,0,0,0.55)'
+                  : '0 20px 60px rgba(15,23,42,0.18)',
+              }}>
+                {/* Barre du navigateur */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '10px 14px',
+                  background: dark ? '#0B1220' : '#F1F5F9',
+                  borderBottom: `1px solid ${C.border}`,
+                }}>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#FF5F57' }} />
+                    <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#FEBC2E' }} />
+                    <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#28C840' }} />
+                  </div>
+                  <div style={{
+                    flex: 1, padding: '5px 12px', borderRadius: 6,
+                    background: dark ? '#0F172A' : '#FFFFFF',
+                    border: `1px solid ${C.border}`,
+                    fontSize: 11, color: C.muted,
+                    display: 'flex', alignItems: 'center', gap: 7,
+                  }}>
+                    <Lock size={10} color={C.accent} />
+                    <span style={{ fontFamily: 'monospace' }}>{t('login.dashboard_url')}</span>
+                  </div>
+                </div>
+
+                {/* Capture d'écran (avec fallback texte si absente) */}
+                <div style={{ position: 'relative', background: dark ? '#0B1220' : '#F8FAFC' }}>
+                  <img
+                    src="/screenshots/dashboard.png"
+                    alt={t('login.dashboard_image_alt')}
+                    style={{ display: 'block', width: '100%', height: 'auto' }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                  {/* Placeholder affiché si l'image n'existe pas encore */}
+                  <div style={{
+                    display: 'none',
+                    aspectRatio: '16 / 10',
+                    alignItems: 'center', justifyContent: 'center',
+                    flexDirection: 'column', gap: 10,
+                    color: C.muted, fontSize: 13,
+                    background: dark
+                      ? 'repeating-linear-gradient(45deg, #0B1220, #0B1220 12px, #0F172A 12px, #0F172A 24px)'
+                      : 'repeating-linear-gradient(45deg, #F8FAFC, #F8FAFC 12px, #F1F5F9 12px, #F1F5F9 24px)',
+                  }}>
+                    <BarChart3 size={36} color={C.accent} />
+                    <div style={{ fontWeight: 700 }}>{t('login.dashboard_image_placeholder')}</div>
+                    <div style={{ fontSize: 11, fontFamily: 'monospace', color: C.muted }}>
+                      frontend/public/screenshots/dashboard.png
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -897,6 +1109,8 @@ export default function LoginPage() {
           .cw-how-grid { grid-template-columns: 1fr !important; }
           .cw-pricing-grid { grid-template-columns: 1fr !important; }
           .cw-pricing-grid > div { transform: none !important; }
+          .cw-dashboard-grid { grid-template-columns: 1fr !important; gap: 40px !important; }
+          .cw-dashboard-frame-wrapper { max-width: 560px; margin: 0 auto; }
         }
         @media (max-width: 480px) {
           .cw-headline { font-size: 32px !important; }
