@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useEntreprise } from '../hooks/useEntreprise.jsx';
@@ -10,7 +10,7 @@ import {
   Truck, Box, UserCheck, Package, BookMarked,
   Smartphone, Camera, ShieldCheck, Sparkles,
   CheckCircle2, Zap, MessageCircle, Lock,
-  UserPlus, Send, Check,
+  UserPlus, Send, Check, X,
 } from 'lucide-react';
 import LogoFournisseur from '../components/LogoFournisseur.jsx';
 import toast from 'react-hot-toast';
@@ -72,12 +72,36 @@ export default function LoginPage() {
   const { dark, toggle } = useTheme();
   const C = getC(dark);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [mode, setMode] = useState('login');
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     nom: '', email: '', mot_de_passe: '',
     entreprise: '', pays: "Côte d'Ivoire"
   });
+  // Palier choisi par le visiteur sur /tarifs avant d'arriver ici. On
+  // accepte uniquement les valeurs connues pour ne pas se laisser
+  // injecter un palier inventé via l'URL ; le backend re-valide de
+  // toute façon via la matrice de quotas.
+  const PALIERS_VALIDES = ['decouverte', 'starter', 'pro', 'cabinet'];
+  const planParametre = searchParams.get('plan');
+  const [planChoisi, setPlanChoisi] = useState(
+    PALIERS_VALIDES.includes(planParametre) ? planParametre : null
+  );
+
+  // Si l'utilisateur arrive avec ?plan=xxx, on bascule directement sur le
+  // formulaire d'inscription et on scrolle vers lui — pas la peine de le
+  // forcer à recliquer sur l'onglet « Créer un compte ».
+  useEffect(() => {
+    if (planChoisi) {
+      setMode('register');
+      // Scroll différé pour laisser le DOM se peindre.
+      const id = setTimeout(() => {
+        document.getElementById('cw-auth-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+      return () => clearTimeout(id);
+    }
+  }, [planChoisi]);
 
   const set = key => e => setForm(f => ({ ...f, [key]: e.target.value }));
 
@@ -111,6 +135,20 @@ export default function LoginPage() {
         await register(form);
       }
       await chargerEntreprises();
+
+      // Si l'utilisateur a choisi un palier payant sur /tarifs avant
+      // l'inscription, on l'applique tout de suite à son entreprise.
+      // « decouverte » est déjà le palier par défaut, inutile de payer
+      // un round-trip pour rien. On laisse passer l'erreur silencieuse
+      // pour ne pas bloquer l'arrivée sur le dashboard si l'API 422.
+      if (mode === 'register' && planChoisi && planChoisi !== 'decouverte') {
+        try {
+          await api.put('/abonnement', { palier: planChoisi, periodicite: 'mensuel' });
+        } catch (errPlan) {
+          console.warn('[login] application palier échouée:', errPlan.message);
+        }
+      }
+
       toast.success(mode === 'login' ? t('login.success_login') : t('login.success_register'));
       navigate('/dashboard');
     } catch (err) {
@@ -242,7 +280,7 @@ export default function LoginPage() {
                 {loading ? t('login.demo_connecting') : t('login.cta_primary')}
                 <ArrowRight size={16} />
               </button>
-              <button onClick={() => { setMode('register'); document.getElementById('cw-auth-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
+              <button onClick={() => navigate('/tarifs')}
                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.10)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
                 style={{
@@ -252,7 +290,7 @@ export default function LoginPage() {
                   color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
                   transition: 'background 0.2s',
                 }}>
-                {t('login.cta_secondary')}
+                {t('login.cta_secondary')} <ArrowRight size={14} />
               </button>
             </div>
 
@@ -1018,6 +1056,31 @@ export default function LoginPage() {
             </div>
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Bandeau de confirmation du palier choisi sur /tarifs.
+                  Reste visible et désactive son palier seulement si le
+                  visiteur change d'avis (croix). */}
+              {mode === 'register' && planChoisi && (
+                <div style={{
+                  background: `${C.accent}12`, border: `1px solid ${C.accent}40`, borderRadius: 11,
+                  padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <CheckCircle2 size={16} color={C.accent} style={{ flexShrink: 0 }} />
+                  <div style={{ flex: 1, fontSize: 12.5, color: C.text, lineHeight: 1.5 }}>
+                    <span style={{ fontWeight: 800 }}>{t(`tarifs.palier_${planChoisi}`)}</span>
+                    {' — '}
+                    <span style={{ color: C.muted }}>{t(`tarifs.palier_${planChoisi}_tagline`)}</span>
+                  </div>
+                  <button type="button" onClick={() => setPlanChoisi(null)}
+                    title={t('common.cancel')}
+                    style={{
+                      background: 'transparent', border: 'none', cursor: 'pointer',
+                      color: C.muted, padding: 4, display: 'flex',
+                    }}>
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
               {mode === 'register' && (
                 <>
                   <Input label={t('login.name')} value={form.nom} onChange={set('nom')} placeholder="Ouattara Koffi" required C={C} />
