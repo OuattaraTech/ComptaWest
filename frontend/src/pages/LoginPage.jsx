@@ -882,89 +882,99 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 22, alignItems: 'stretch' }} className="cw-pricing-grid">
+          {/* Grille 4 paliers, alignée sur la matrice de quotas backend
+              (utils/quotas.js) et sur la page /tarifs. Les libellés et
+              limites détaillées vivent dans la section i18n `tarifs.*`. */}
+          <div style={{
+            display: 'grid', gap: 18, alignItems: 'stretch',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+          }} className="cw-pricing-grid">
             {[
-              { key: 'demo', price: t('login.plan_demo_price'),  unit: '',                          highlight: false },
-              { key: 'pme',  price: '15 000', unit: t('login.plan_unit'),  highlight: true  },
-              { key: 'pro',  price: '35 000', unit: t('login.plan_unit'),  highlight: false },
-            ].map(({ key, price, unit, highlight }) => (
-              <div key={key} style={{
+              { code: 'decouverte', prix: 0,     highlight: false, accent: '#9BAACC' },
+              { code: 'starter',    prix: 9000,  highlight: false, accent: '#4E8BF5' },
+              { code: 'pro',        prix: 25000, highlight: true,  accent: C.accent },
+              { code: 'cabinet',    prix: 60000, highlight: false, accent: '#F5A623' },
+            ].map(({ code, prix, highlight, accent }) => (
+              <div key={code} style={{
                 background: highlight
-                  ? `linear-gradient(135deg, ${C.accent}10, rgba(78,139,245,0.08))`
+                  ? `linear-gradient(135deg, ${accent}12, ${accent}05)`
                   : C.card,
-                border: highlight ? `2px solid ${C.accent}` : `1px solid ${C.border}`,
-                borderRadius: 20, padding: '32px 28px',
+                border: highlight ? `2px solid ${accent}` : `1px solid ${C.border}`,
+                borderRadius: 18, padding: '28px 22px',
                 position: 'relative',
                 boxShadow: highlight
-                  ? (dark ? '0 16px 48px rgba(0,212,170,0.20)' : '0 16px 48px rgba(0,168,130,0.15)')
-                  : (dark ? '0 6px 24px rgba(0,0,0,0.30)' : '0 4px 16px rgba(15,23,42,0.06)'),
-                transform: highlight ? 'translateY(-8px)' : 'none',
+                  ? (dark ? `0 14px 40px ${accent}30` : `0 12px 32px ${accent}20`)
+                  : (dark ? '0 6px 20px rgba(0,0,0,0.25)' : '0 4px 14px rgba(15,23,42,0.05)'),
+                transform: highlight ? 'translateY(-6px)' : 'none',
                 display: 'flex', flexDirection: 'column',
               }}>
                 {highlight && (
                   <div style={{
                     position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)',
-                    padding: '4px 14px', borderRadius: 100,
-                    background: C.accent, color: '#000',
-                    fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase',
+                    padding: '4px 12px', borderRadius: 100,
+                    background: accent, color: dark ? '#000' : '#fff',
+                    fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase',
+                    whiteSpace: 'nowrap',
                   }}>
-                    {t('login.plan_popular_badge')}
+                    {t('tarifs.palier_pro_badge')}
                   </div>
                 )}
 
-                <div style={{ fontSize: 13, fontWeight: 800, color: C.accent, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
-                  {t(`login.plan_${key}_name`)}
+                <div style={{
+                  fontSize: 12, fontWeight: 800, color: accent,
+                  letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6,
+                }}>
+                  {t(`tarifs.palier_${code}`)}
                 </div>
-                <div style={{ fontSize: 13, color: C.muted, marginBottom: 18, lineHeight: 1.5 }}>
-                  {t(`login.plan_${key}_tagline`)}
+                <div style={{ fontSize: 12, color: C.muted, marginBottom: 16, lineHeight: 1.5, minHeight: 36 }}>
+                  {t(`tarifs.palier_${code}_tagline`)}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 20 }}>
-                  <span style={{ fontSize: 40, fontWeight: 900, color: C.text, letterSpacing: '-0.03em', lineHeight: 1 }}>
-                    {price}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginBottom: 18 }}>
+                  <span style={{ fontSize: 32, fontWeight: 900, color: C.text, letterSpacing: '-0.02em', lineHeight: 1 }}>
+                    {prix === 0 ? '0' : prix.toLocaleString('fr-FR')}
                   </span>
-                  {unit && (
-                    <span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>{unit}</span>
+                  <span style={{ fontSize: 12, color: C.muted, fontWeight: 700 }}>
+                    {t('tarifs.currency_suffix')}
+                  </span>
+                  {prix > 0 && (
+                    <span style={{ fontSize: 11, color: C.muted, marginLeft: 2 }}>
+                      {t('tarifs.per_month')}
+                    </span>
                   )}
                 </div>
 
-                {/* Features list */}
-                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
-                  {[1, 2, 3, 4, 5].map(n => {
-                    const text = t(`login.plan_${key}_feat${n}`, { defaultValue: '' });
-                    if (!text) return null;
-                    return (
-                      <li key={n} style={{ display: 'flex', alignItems: 'flex-start', gap: 9, fontSize: 13, color: C.sub, lineHeight: 1.5 }}>
-                        <Check size={15} color={C.accent} style={{ flexShrink: 0, marginTop: 2 }} />
-                        <span>{text}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-
-                <button onClick={key === 'demo' ? handleDemoLogin : () => { setMode('register'); document.getElementById('cw-auth-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
-                  disabled={loading}
+                <button
+                  onClick={() => navigate('/tarifs')}
                   style={{
-                    padding: '13px 0', borderRadius: 11, border: 'none',
-                    background: highlight ? `linear-gradient(135deg, #00D4AA, #00A882)` : 'transparent',
-                    color: highlight ? '#000' : C.text,
+                    marginTop: 'auto', padding: '11px 0', borderRadius: 10,
                     border: highlight ? 'none' : `1.5px solid ${C.border}`,
-                    fontSize: 14, fontWeight: 700,
-                    cursor: loading ? 'wait' : 'pointer', transition: 'all 0.15s',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                    background: highlight ? accent : 'transparent',
+                    color: highlight ? (dark ? '#000' : '#fff') : C.text,
+                    fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                   }}>
-                  {t(`login.plan_${key}_cta`)} <ArrowRight size={14} />
+                  {t('tarifs.cta_choose')} <ArrowRight size={14} />
                 </button>
               </div>
             ))}
           </div>
 
-          {/* Note humaine en bas */}
-          <div style={{
-            textAlign: 'center', marginTop: 32,
-            fontSize: 12.5, color: C.muted, lineHeight: 1.6,
-          }}>
-            {t('login.pricing_note')}
+          {/* CTA central vers la page Tarifs complète */}
+          <div style={{ textAlign: 'center', marginTop: 36 }}>
+            <button onClick={() => navigate('/tarifs')} style={{
+              padding: '12px 26px', borderRadius: 11,
+              border: `1.5px solid ${C.accent}`, background: 'transparent',
+              color: C.accent, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+            }}>
+              {t('tarifs.faq_title')} & {t('tarifs.page_subtitle').split('.')[0]} <ArrowRight size={14} />
+            </button>
+            <div style={{
+              marginTop: 18, fontSize: 12.5, color: C.muted, lineHeight: 1.6,
+            }}>
+              {t('login.pricing_note')}
+            </div>
           </div>
         </div>
       </section>

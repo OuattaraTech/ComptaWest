@@ -5,7 +5,8 @@ import { usePermissions } from '../hooks/usePermissions.jsx';
 import api from '../utils/api.jsx';
 import { formatDate, initiales } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
-import { Users, Building2, Plus, X, Edit2, Trash2, Shield, Save, Copy, Link2, Globe, Smartphone, CheckCircle, AlertCircle, Eye, EyeOff, RefreshCw, Activity } from 'lucide-react';
+import { Users, Building2, Plus, X, Edit2, Trash2, Shield, Save, Copy, Link2, Globe, Smartphone, CheckCircle, AlertCircle, Eye, EyeOff, RefreshCw, Activity, CreditCard } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../hooks/useTheme.jsx';
 import { getC, Input } from '../components/UI.jsx';
 import LogoFournisseur from '../components/LogoFournisseur.jsx';
@@ -714,6 +715,135 @@ function FiscalTab({ C, dark }) {
   );
 }
 
+// ─── Onglet Abonnement ──────────────────────────────────────────────────
+// Affiche le palier actif, les compteurs d'usage du mois en cours, et
+// un CTA vers la page /tarifs pour changer de palier. Tous les chiffres
+// (quotas + usage) viennent du backend pour rester en cohérence avec la
+// matrice de quotas — pas de duplication côté front.
+function AbonnementTab({ C, dark }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get('/abonnement')
+      .then(r => setData(r.data.data))
+      .catch(err => { if (!err.handled) toast.error(t('common.loading_error')); })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading || !data) {
+    return <div style={{ padding: 40, color: C.muted, fontSize: 14 }}>{t('common.loading')}</div>;
+  }
+
+  const { abonnement, quotas, usage } = data;
+  const prixMensuel = abonnement.prix_mensuel_fcfa || quotas.prix_mensuel || 0;
+
+  const Barre = ({ label, used, max, pct }) => {
+    const isUnlimited = max === null;
+    const color = pct >= 90 ? '#EF4444' : pct >= 70 ? '#F59E0B' : C.accent;
+    return (
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
+          <span style={{ color: C.sub, fontWeight: 600 }}>{label}</span>
+          <span style={{ color: isUnlimited ? C.accent : C.text, fontWeight: 700, fontFamily: 'monospace' }}>
+            {isUnlimited ? `${used} · ${t('abonnement.usage_unlimited')}` : `${used} / ${max}`}
+          </span>
+        </div>
+        {!isUnlimited && (
+          <div style={{ height: 6, background: C.hover, borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ width: `${pct}%`, height: '100%', background: color, transition: 'width 0.3s' }} />
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const palierLabel = t(`tarifs.palier_${abonnement.palier}`);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{
+        background: `${C.blue}10`, border: `1px solid ${C.blue}30`, borderRadius: 12,
+        padding: '14px 16px', fontSize: 12, color: C.sub, lineHeight: 1.6,
+      }}>
+        {t('abonnement.intro')}
+      </div>
+
+      {/* Carte palier actuel */}
+      <div style={{
+        background: C.card, border: `2px solid ${C.accent}40`, borderRadius: 16,
+        padding: 24, display: 'flex', alignItems: 'flex-start', gap: 18, flexWrap: 'wrap',
+      }}>
+        <div style={{
+          width: 50, height: 50, borderRadius: 14, flexShrink: 0,
+          background: `linear-gradient(135deg, ${C.accent}, ${C.blue})`,
+          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <CreditCard size={22} />
+        </div>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>
+            {t('abonnement.current_plan')}
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: C.text }}>{palierLabel}</div>
+          <div style={{ fontSize: 12, color: C.sub, marginTop: 4 }}>
+            {prixMensuel > 0
+              ? t('abonnement.price_label', { prix: prixMensuel.toLocaleString('fr-FR') })
+              : t('abonnement.free_label')}
+            {' · '}
+            {abonnement.date_fin
+              ? t('abonnement.current_plan_until', { date: new Date(abonnement.date_fin).toLocaleDateString('fr-FR') })
+              : t('abonnement.no_end')}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => navigate('/tarifs')} style={{
+            padding: '10px 18px', borderRadius: 10, border: 'none',
+            background: C.accent, color: dark ? '#000' : '#fff',
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          }}>{t('abonnement.btn_change')}</button>
+        </div>
+      </div>
+
+      {/* Compteurs d'usage */}
+      <div style={{
+        background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: 24,
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 18 }}>
+          {t('abonnement.usage_title')}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <Barre label={t('abonnement.usage_users')}      used={usage.utilisateurs}    max={quotas.utilisateurs}    pct={usage.pourcentages.utilisateurs} />
+          <Barre label={t('abonnement.usage_factures')}   used={usage.factures_mois}   max={quotas.factures_mois}   pct={usage.pourcentages.factures_mois} />
+          <Barre label={t('abonnement.usage_ocr')}        used={usage.ocr_scans_mois}  max={quotas.ocr_scans_mois}  pct={usage.pourcentages.ocr_scans_mois} />
+          <Barre label={t('abonnement.usage_entreprises')} used={usage.entreprises}    max={quotas.entreprises}     pct={0} />
+        </div>
+
+        {/* Bandeau d'alerte si une jauge dépasse 80 % */}
+        {Object.values(usage.pourcentages).some(p => p >= 80) && (
+          <div style={{
+            marginTop: 18, padding: '12px 14px', borderRadius: 10,
+            background: `${C.gold}15`, border: `1px solid ${C.gold}40`,
+            display: 'flex', gap: 10, alignItems: 'center',
+          }}>
+            <AlertCircle size={16} color={C.gold} style={{ flexShrink: 0 }} />
+            <div style={{ fontSize: 12, color: C.sub, lineHeight: 1.5 }}>
+              {t('abonnement.usage_over')}
+            </div>
+            <button onClick={() => navigate('/tarifs')} style={{
+              marginLeft: 'auto', padding: '7px 14px', borderRadius: 8, border: 'none',
+              background: C.gold, color: '#000', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}>{t('abonnement.upgrade_cta')}</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ParametresPage() {
   const { t } = useTranslation();
   const { dark } = useTheme();
@@ -854,6 +984,7 @@ export default function ParametresPage() {
           { id: 'membres',      icon: Users,      label: `${t('parametres.members')} (${membres.length})`, visible: canReadMembres },
           { id: 'integrations', icon: Smartphone, label: t('parametres.integrations'),  visible: canEditEntreprise },
           { id: 'fiscal',       icon: Shield,     label: t('parametres.fiscal'),        visible: canEditEntreprise },
+          { id: 'abonnement',   icon: CreditCard, label: t('abonnement.tab_label'),     visible: canEditEntreprise },
           { id: 'preferences',  icon: Globe,      label: t('parametres.preferences'),   visible: true },
         ].filter(item => item.visible).map(({ id, icon: Icon, label }) => (
           <button key={id} onClick={() => setTab(id)} style={{
@@ -956,6 +1087,7 @@ export default function ParametresPage() {
       {tab === 'preferences' && <PreferencesTab C={C} />}
       {tab === 'integrations' && canEditEntreprise && <IntegrationsTab C={C} dark={dark} />}
       {tab === 'fiscal' && canEditEntreprise && <FiscalTab C={C} dark={dark} />}
+      {tab === 'abonnement' && canEditEntreprise && <AbonnementTab C={C} dark={dark} />}
 
       {/* Tab Membres */}
       {tab === 'membres' && (

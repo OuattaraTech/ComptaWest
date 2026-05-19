@@ -6,6 +6,8 @@ const auth = require('../middleware/auth');
 const { requirePermission } = require('../middleware/entreprise');
 const { MODULES, ACTIONS } = require('../utils/permissions');
 const validate = require('../middleware/validate');
+const checkQuota = require('../middleware/checkQuota');
+const { getAbonnement, putAbonnement } = require('../controllers/abonnementController');
 
 // Raccourci : can('factures', 'create') === requirePermission('factures', 'create')
 // La matrice complète vit dans utils/permissions.js.
@@ -218,7 +220,17 @@ router.delete('/depenses/:id', auth, can(MODULES.DEPENSES, ACTIONS.DELETE), dele
 // ─── OCR (scan de factures et reçus) ───────────────────────────────────────
 // Réservé à ceux qui peuvent au moins créer une dépense, car le résultat
 // sert à pré-remplir un formulaire de dépense ou de facture fournisseur.
-router.post('/ocr/scanner', auth, can(MODULES.DEPENSES, ACTIONS.CREATE), scannerRules, validate, scannerPiece);
+router.post('/ocr/scanner',
+  auth, can(MODULES.DEPENSES, ACTIONS.CREATE),
+  checkQuota('ocr'),
+  scannerRules, validate, scannerPiece);
+
+// ─── ABONNEMENT ────────────────────────────────────────────────────────────
+// Lecture : tout rôle ayant accès à l'entreprise (utile pour afficher la
+// bannière « X scans restants » dans le module dépenses, par ex.).
+// Écriture : réservée aux propriétaires/admins via entreprise.update.
+router.get('/abonnement', auth, can(MODULES.ENTREPRISE, ACTIONS.READ),   getAbonnement);
+router.put('/abonnement', auth, can(MODULES.ENTREPRISE, ACTIONS.UPDATE), putAbonnement);
 
 // ─── TAXES ─────────────────────────────────────────────────────────────────
 router.get('/taxes/tableau-de-bord', auth, can(MODULES.TAXES, ACTIONS.READ), getTableauBordTaxes);

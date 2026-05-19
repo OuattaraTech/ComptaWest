@@ -11,6 +11,7 @@
 const { extraireFacture } = require('../utils/ocr');
 const { body, validationResult } = require('express-validator');
 const { logAudit } = require('../utils/audit');
+const { incrementerOcr } = require('./abonnementController');
 
 // Validation : on accepte uniquement les types courants pour les factures
 // (photo téléphone ou export scanner). PDF non géré par pixtral, sera
@@ -46,6 +47,15 @@ async function scannerPiece(req, res, next) {
       imageBase64: image_base64.replace(/^data:[^;]+;base64,/, ''),
       mimeType: mime_type,
     });
+
+    // On ne consomme un crédit de quota que si l'extraction est réelle
+    // (mode mistral) ; le mock et le mock_fallback restent gratuits pour
+    // ne pas pénaliser l'utilisateur quand notre API est indisponible.
+    if (resultat.mode === 'mistral') {
+      await incrementerOcr(req.entrepriseId).catch(e =>
+        console.warn('[ocr] incrément compteur échoué:', e.message)
+      );
+    }
 
     // On journalise l'action (utile pour facturation API et debug),
     // mais sans stocker l'image elle-même pour limiter la rétention.

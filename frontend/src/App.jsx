@@ -9,6 +9,7 @@ import PermissionGate from './components/PermissionGate.jsx';
 import Layout from './components/Layout/Layout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import InvitationPage from './pages/InvitationPage.jsx';
+import TarifsPage from './pages/TarifsPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import DashboardRH from './pages/DashboardRH.jsx';
 import ClientsPage from './pages/ClientsPage.jsx';
@@ -73,6 +74,10 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Public><LoginPage /></Public>} />
       <Route path="/invitation/:token" element={<InvitationPage />} />
+      {/* /tarifs accessible publiquement (acquisition) ET en mode connecté
+          (consultation/upgrade depuis l'app). Pas de wrapper Public car on
+          ne veut pas rediriger un utilisateur connecté vers /dashboard. */}
+      <Route path="/tarifs" element={<TarifsPage />} />
       <Route path="/" element={<Protected><Layout /></Protected>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         {/* Chaque route est protégée par PermissionGate qui interroge
