@@ -4,6 +4,8 @@ const { logAudit } = require('../utils/audit');
 const { ecritureFacture, ecriturePaiementFacture } = require('../utils/comptabilite-auto');
 const { ComptaError } = require('../utils/comptabilite');
 const { appliquerMouvement } = require('./produitsController');
+const { executerCertification, poussierEnQueue } = require('./fneController');
+const { FneNetworkError } = require('../utils/fne');
 
 const factureRules = [
   body('client_id').notEmpty().withMessage('Client requis').isUUID().withMessage('Client invalide'),
@@ -448,7 +450,8 @@ const updateStatut = async (req, res) => {
     const facture = result.rows[0];
 
     // Génération auto de l'écriture comptable à la première sortie de "brouillon"
-    if (ancienStatut === 'brouillon' && statut !== 'brouillon' && statut !== 'annulee') {
+    const sortBrouillon = ancienStatut === 'brouillon' && statut !== 'brouillon' && statut !== 'annulee';
+    if (sortBrouillon) {
       await ecritureFacture(client, {
         entrepriseId: req.entrepriseId,
         utilisateurId: req.user.id,
@@ -484,6 +487,49 @@ const updateStatut = async (req, res) => {
 
     await client.query('COMMIT');
     logAudit(req, 'UPDATE', 'factures', id, { champ: 'statut', ancien: ancienStatut, nouveau: statut, numero: facture.numero });
+
+    // Certification DGI automatique : déclenchée hors transaction principale
+    // pour ne pas faire dépendre l'émission de facture d'une éventuelle
+    // panne réseau DGI. En cas d'échec, la facture est mise en queue et
+    // resynchronisée toutes les 15 min — l'utilisateur garde sa facture.
+    if (sortBrouillon) {
+      try {
+        const conf = await pool.query(
+          'SELECT fne_actif, fne_auto_certif FROM entreprises WHERE id = $1',
+          [req.entrepriseId]
+        );
+        const e = conf.rows[0] || {};
+        if (e.fne_actif && e.fne_auto_certif) {
+          const c2 = await pool.connect();
+          try {
+            await c2.query('BEGIN');
+            await executerCertification(c2, {
+              factureId: id,
+              entrepriseId: req.entrepriseId,
+              userId: req.user.id,
+            });
+            await c2.query('COMMIT');
+          } catch (errCert) {
+            await c2.query('ROLLBACK');
+            if (errCert instanceof FneNetworkError) {
+              const c3 = await pool.connect();
+              try {
+                await poussierEnQueue(c3, {
+                  factureId: id,
+                  entrepriseId: req.entrepriseId,
+                  erreur: errCert.message,
+                });
+              } finally { c3.release(); }
+            } else {
+              console.warn('[fne-auto] certif auto refusée:', errCert.message);
+            }
+          } finally { c2.release(); }
+        }
+      } catch (err) {
+        console.warn('[fne-auto] lecture config échouée:', err.message);
+      }
+    }
+
     res.json({ success: true, data: facture });
   } catch (err) {
     await client.query('ROLLBACK');

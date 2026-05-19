@@ -29,7 +29,10 @@ const { getStats, getTransactionsRecentes, getAnneesDisponibles } = require('../
 const { getBilan, getBilanPDF, getFacturePDF } = require('../controllers/rapportsController');
 const { getDepenses, getStatsDepenses, createDepense, updateDepense, deleteDepense, getCategories, createCategorie, depenseRules, categorieDepenseRules } = require('../controllers/depensesController');
 const { scannerPiece, scannerRules } = require('../controllers/ocrController');
-const { certifierFactureRoute, getCertification, getFneConfig, putFneConfig } = require('../controllers/fneController');
+const {
+  certifierFactureRoute, getCertification, getFneConfig, putFneConfig,
+  fnePing, getQueue, rejouerQueueRoute,
+} = require('../controllers/fneController');
 const { getTaxes, getTableauBordTaxes, createTaxe, payerTaxe, calculerTVA, taxeRules, paiementTaxeRules } = require('../controllers/taxesController');
 const { getAuditLog } = require('../controllers/auditController');
 const {
@@ -174,6 +177,13 @@ router.get('/factures/:id/certification',
 // avec entreprise.update car ce sont des identifiants fiscaux sensibles.
 router.get('/fne/config', auth, can(MODULES.ENTREPRISE, ACTIONS.READ),   getFneConfig);
 router.put('/fne/config', auth, can(MODULES.ENTREPRISE, ACTIONS.UPDATE), putFneConfig);
+// Diagnostic temps réel de l'API DGI (utilisé par la pastille verte/rouge
+// de l'onglet Paramètres → Fiscal). Le ping HTTP est mis en cache 30 s
+// pour limiter la charge côté DGI.
+router.get('/fne/ping',           auth, can(MODULES.ENTREPRISE, ACTIONS.READ),   fnePing);
+// File d'attente des certifications non confirmées (panne réseau / DGI down).
+router.get('/fne/queue',          auth, can(MODULES.ENTREPRISE, ACTIONS.READ),   getQueue);
+router.post('/fne/queue/rejouer', auth, can(MODULES.ENTREPRISE, ACTIONS.UPDATE), rejouerQueueRoute);
 
 // Webhooks PUBLICS (Wave / Orange / MTN nous appellent directement).
 // La sécurité est assurée par la signature configurée côté fournisseur.

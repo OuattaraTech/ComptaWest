@@ -5,7 +5,7 @@ import { usePermissions } from '../hooks/usePermissions.jsx';
 import api from '../utils/api.jsx';
 import { formatDate, initiales } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
-import { Users, Building2, Plus, X, Edit2, Trash2, Shield, Save, Copy, Link2, Globe, Smartphone, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Users, Building2, Plus, X, Edit2, Trash2, Shield, Save, Copy, Link2, Globe, Smartphone, CheckCircle, AlertCircle, Eye, EyeOff, RefreshCw, Activity } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme.jsx';
 import { getC, Input } from '../components/UI.jsx';
 import LogoFournisseur from '../components/LogoFournisseur.jsx';
@@ -380,10 +380,16 @@ function FiscalTab({ C, dark }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    ncc: '', centre_fiscal: '', fne_actif: false, fne_mode: 'mock',
-    fne_api_key: '', fne_certificat: '',
+    ncc: '', centre_fiscal: '', fne_actif: false, fne_auto_certif: false,
+    fne_mode: 'mock', fne_api_key: '', fne_certificat: '',
   });
   const [showKey, setShowKey] = useState(false);
+  // État du diagnostic DGI (pastille verte/rouge) — rafraîchi toutes les
+  // 60 s côté UI, mais le backend met en cache 30 s pour ne pas spammer
+  // l'API DGI réelle.
+  const [ping, setPing] = useState(null);
+  const [pingLoading, setPingLoading] = useState(false);
+  const [replayLoading, setReplayLoading] = useState(false);
 
   const fetchConfig = async () => {
     setLoading(true);
@@ -395,6 +401,7 @@ function FiscalTab({ C, dark }) {
         ncc: c.ncc || '',
         centre_fiscal: c.centre_fiscal || '',
         fne_actif: !!c.fne_actif,
+        fne_auto_certif: !!c.fne_auto_certif,
         fne_mode: c.fne_mode || 'mock',
         fne_api_key: '',     // jamais rempli (on n'expose pas la clé)
         fne_certificat: '',  // idem
@@ -405,7 +412,42 @@ function FiscalTab({ C, dark }) {
       setLoading(false);
     }
   };
-  useEffect(() => { fetchConfig(); }, []);
+
+  const fetchPing = async () => {
+    setPingLoading(true);
+    try {
+      const r = await api.get('/fne/ping');
+      setPing(r.data.data);
+    } catch (err) {
+      if (!err.handled) {
+        // Erreur silencieuse — la pastille passera en "down" via le statut.
+        setPing({ statut: 'down', message: err.response?.data?.message || 'Erreur' });
+      }
+    } finally {
+      setPingLoading(false);
+    }
+  };
+
+  const replayQueue = async () => {
+    setReplayLoading(true);
+    try {
+      const r = await api.post('/fne/queue/rejouer');
+      const succes = r.data?.data?.succes || 0;
+      toast.success(t('parametres.fne_queue_replayed', { count: succes }));
+      await fetchPing();
+    } catch (err) {
+      if (!err.handled) toast.error(err.response?.data?.message || t('common.error'));
+    } finally {
+      setReplayLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchConfig(); fetchPing(); }, []);
+  // Rafraîchissement périodique de la pastille (60 s).
+  useEffect(() => {
+    const id = setInterval(fetchPing, 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -431,6 +473,22 @@ function FiscalTab({ C, dark }) {
     fontFamily: 'inherit', width: '100%', boxSizing: 'border-box',
   };
 
+  // Pastille de statut DGI : couleur + libellé i18n calculés depuis le
+  // dernier ping connu (mode mock = pastille neutre, pas un faux "ok").
+  const STATUT_COULEURS = {
+    ok:           { fond: '#10B98120', point: '#10B981', texte: '#10B981', label: 'fne_ping_ok' },
+    down:         { fond: '#EF444420', point: '#EF4444', texte: '#EF4444', label: 'fne_ping_down' },
+    unconfigured: { fond: '#F59E0B20', point: '#F59E0B', texte: '#F59E0B', label: 'fne_ping_unconfigured' },
+    mock:         { fond: `${C.muted}20`, point: C.muted, texte: C.muted, label: 'fne_ping_mock' },
+  };
+  const statutPing = ping?.statut || 'unconfigured';
+  const couleurs = STATUT_COULEURS[statutPing] || STATUT_COULEURS.unconfigured;
+  const heurePing = ping?.verifie_a
+    ? new Date(ping.verifie_a).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+    : '—';
+  const enAttente = ping?.queue?.en_attente || 0;
+  const echecDef = ping?.queue?.echec_definitif || 0;
+
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Intro */}
@@ -443,7 +501,7 @@ function FiscalTab({ C, dark }) {
 
       {/* Carte principale */}
       <div style={{ background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 18, flexWrap: 'wrap' }}>
           <div style={{
             width: 44, height: 44, borderRadius: 12, flexShrink: 0,
             background: 'linear-gradient(135deg, #007A33, #003C71)',
@@ -452,8 +510,42 @@ function FiscalTab({ C, dark }) {
           }}>
             <Shield size={20} />
           </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{t('parametres.fne_title')}</div>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{t('parametres.fne_title')}</div>
+              {/* ── Pastille de statut DGI ── */}
+              <span
+                title={`${t('parametres.fne_ping_title')} — ${ping?.message || ''}`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '3px 9px', borderRadius: 999,
+                  background: couleurs.fond, color: couleurs.texte,
+                  fontSize: 11, fontWeight: 700,
+                }}
+              >
+                <span style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: couleurs.point,
+                  boxShadow: statutPing === 'ok' ? `0 0 0 3px ${couleurs.fond}` : 'none',
+                  animation: statutPing === 'ok' ? 'pulseDot 1.8s infinite' : 'none',
+                }} />
+                {t(`parametres.${couleurs.label}`)}
+              </span>
+              <button
+                type="button" onClick={fetchPing} disabled={pingLoading}
+                title={t('parametres.fne_ping_check_now')}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  padding: '3px 8px', borderRadius: 999,
+                  background: 'transparent', border: `1px solid ${C.border}`,
+                  color: C.muted, fontSize: 10, fontWeight: 600,
+                  cursor: pingLoading ? 'wait' : 'pointer',
+                }}
+              >
+                <RefreshCw size={11} style={{ animation: pingLoading ? 'spin 0.8s linear infinite' : 'none' }} />
+                {t('parametres.fne_ping_checked_at', { heure: heurePing })}
+              </button>
+            </div>
             <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{t('parametres.fne_subtitle')}</div>
           </div>
           {form.fne_actif && (
@@ -537,7 +629,65 @@ function FiscalTab({ C, dark }) {
             {t('parametres.fne_actif_label')}
           </span>
         </label>
+
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 10, cursor: form.fne_actif ? 'pointer' : 'not-allowed', opacity: form.fne_actif ? 1 : 0.5 }}>
+          <input type="checkbox" checked={form.fne_auto_certif}
+            disabled={!form.fne_actif}
+            onChange={e => setForm(f => ({ ...f, fne_auto_certif: e.target.checked }))}
+            style={{ width: 16, height: 16, marginTop: 2, cursor: 'inherit' }} />
+          <span style={{ fontSize: 13, color: C.text, fontWeight: 600, lineHeight: 1.4 }}>
+            {t('parametres.fne_auto_certif_label')}
+          </span>
+        </label>
       </div>
+
+      {/* ── Bandeau file d'attente DGI ── */}
+      {(enAttente > 0 || echecDef > 0) && (
+        <div style={{
+          background: enAttente > 0 ? `${C.blue}10` : '#EF444410',
+          border: `1px solid ${enAttente > 0 ? C.blue : '#EF4444'}30`,
+          borderRadius: 14, padding: '16px 18px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <Activity size={16} color={enAttente > 0 ? C.blue : '#EF4444'} />
+            <div style={{ fontSize: 13, fontWeight: 800, color: C.text }}>
+              {t('parametres.fne_queue_title')}
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: C.sub, lineHeight: 1.6, marginBottom: 10 }}>
+            {t('parametres.fne_queue_intro')}
+          </div>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{
+              fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 10,
+              background: `${C.blue}20`, color: C.blue,
+            }}>
+              {t('parametres.fne_queue_count', { count: enAttente })}
+            </span>
+            {echecDef > 0 && (
+              <span style={{
+                fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 10,
+                background: '#EF444420', color: '#EF4444',
+              }}>
+                {t('parametres.fne_queue_failed', { count: echecDef })}
+              </span>
+            )}
+            <button type="button" onClick={replayQueue} disabled={replayLoading || enAttente === 0}
+              style={{
+                marginLeft: 'auto',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '7px 14px', borderRadius: 9, border: 'none',
+                background: C.accent, color: dark ? '#000' : '#fff',
+                fontSize: 12, fontWeight: 700,
+                cursor: (replayLoading || enAttente === 0) ? 'not-allowed' : 'pointer',
+                opacity: enAttente === 0 ? 0.5 : 1,
+              }}>
+              <RefreshCw size={12} style={{ animation: replayLoading ? 'spin 0.8s linear infinite' : 'none' }} />
+              {t('parametres.fne_queue_replay')}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button type="submit" disabled={saving} style={{
@@ -548,6 +698,18 @@ function FiscalTab({ C, dark }) {
           <Save size={14} /> {saving ? t('common.saving') : t('common.save')}
         </button>
       </div>
+
+      {/* Animations CSS pour la pastille et l'icône de rafraîchissement */}
+      <style>{`
+        @keyframes pulseDot {
+          0%, 100% { box-shadow: 0 0 0 0 ${couleurs.fond}; }
+          50%      { box-shadow: 0 0 0 6px transparent; }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+      `}</style>
     </form>
   );
 }
