@@ -75,6 +75,12 @@ export default function Layout() {
       <main style={{
         marginLeft: isMobile ? 0 : SIDEBAR_WIDTH,
         paddingTop: isMobile ? 60 : 0,
+        // Le FAB d'onboarding (bouton flottant « ? ») est positionné en
+        // bottom:24 avec une taille de 48px. Sans réserve d'espace en
+        // bas, il masque la pagination et les boutons d'action de toutes
+        // les pages quand on scrolle jusqu'en bas. 88px = 24 + 48 + 16
+        // (marge de confort pour le focus-ring du FAB).
+        paddingBottom: 88,
         flex: 1, minHeight: '100vh', overflow: 'auto', minWidth: 0,
       }}>
         <Outlet />
