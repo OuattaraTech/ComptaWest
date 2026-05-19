@@ -620,9 +620,9 @@
     "field_tva": "VAT",
     "field_ttc": "Gross total",
     "confidence": "OCR confidence: {{value}}%",
-    "notice_mock": "Demo mode: no OCR key configured, dummy data.",
+    "notice_mock": "OCR service is not yet active on your subscription — the values shown are samples. Contact your ComptaWest administrator to enable automatic invoice reading.",
     "toast_success": "Document analysed successfully",
-    "toast_mock_mode": "Demo mode: OCR is simulated (configure a Mistral key for production).",
+    "toast_mock_mode": "Demo preview — OCR will soon be enabled on your subscription.",
     "error_type": "Unsupported format — please use a JPG, PNG or WEBP image.",
     "error_generic": "Could not analyse the document. Try again with a sharper image."
   },

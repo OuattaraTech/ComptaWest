@@ -134,6 +134,23 @@ export default function ScannerFacture({ open, onClose, onExtraction }) {
           </div>
         )}
 
+        {/* Bandeau « mode démo » — affiché de manière visible avant le
+            résultat pour que l'utilisateur sache tout de suite que les
+            valeurs lues ne sortent pas de sa pièce. Le service OCR est
+            activé au niveau de l'abonnement (clé MISTRAL_API_KEY côté
+            serveur) ; quand il sera configuré, ce bandeau disparaît. */}
+        {resultat && !analyzing && (resultat.mode === 'mock' || resultat.mode === 'mock_fallback') && (
+          <div style={{
+            background: `${C.gold}12`, border: `1px solid ${C.gold}40`, borderRadius: 11,
+            padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'flex-start',
+          }}>
+            <AlertTriangle size={16} color={C.gold} style={{ flexShrink: 0, marginTop: 1 }} />
+            <div style={{ fontSize: 12, color: C.sub, lineHeight: 1.55 }}>
+              {t('ocr.notice_mock')}
+            </div>
+          </div>
+        )}
+
         {/* Aperçu + résultat */}
         {resultat && !analyzing && (
           <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 16 }}>
@@ -150,11 +167,11 @@ export default function ScannerFacture({ open, onClose, onExtraction }) {
               <Champ label={t('ocr.field_ht')}          value={`${(resultat.montant_ht || 0).toLocaleString('fr-FR')} ${resultat.devise || 'XOF'}`} C={C} />
               <Champ label={t('ocr.field_tva')}         value={`${(resultat.montant_tva || 0).toLocaleString('fr-FR')} (${resultat.taux_tva}%)`} C={C} />
               <Champ label={t('ocr.field_ttc')}         value={`${(resultat.montant_ttc || 0).toLocaleString('fr-FR')} ${resultat.devise || 'XOF'}`} C={C} highlight />
-              <div style={{ fontSize: 10, color: C.muted, marginTop: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
-                {resultat.mode === 'mock' || resultat.mode === 'mock_fallback'
-                  ? <><AlertTriangle size={12} color={C.gold} /> {t('ocr.notice_mock')}</>
-                  : <><CheckCircle size={12} color={C.accent} /> {t('ocr.confidence', { value: Math.round((resultat.confiance || 0) * 100) })}</>}
-              </div>
+              {resultat.mode !== 'mock' && resultat.mode !== 'mock_fallback' && (
+                <div style={{ fontSize: 10, color: C.muted, marginTop: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <CheckCircle size={12} color={C.accent} /> {t('ocr.confidence', { value: Math.round((resultat.confiance || 0) * 100) })}
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -620,9 +620,9 @@
     "field_tva": "TVA",
     "field_ttc": "Total TTC",
     "confidence": "Confiance OCR : {{value}}%",
-    "notice_mock": "Mode démo : aucune clé OCR configurée, données fictives.",
+    "notice_mock": "Service OCR pas encore activé sur votre abonnement — les valeurs affichées sont des exemples. Contactez votre administrateur ComptaWest pour activer la lecture automatique de vos factures.",
     "toast_success": "Pièce analysée avec succès",
-    "toast_mock_mode": "Mode démo : OCR simulé (configurez une clé Mistral pour la production).",
+    "toast_mock_mode": "Aperçu en mode démo — l'OCR sera bientôt activé sur votre abonnement.",
     "error_type": "Format non supporté — utilisez une image JPG, PNG ou WEBP.",
     "error_generic": "Impossible d'analyser la pièce. Réessayez avec une image plus nette."
   },
