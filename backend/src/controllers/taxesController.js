@@ -5,11 +5,37 @@ const { ecriturePaiementTaxe, ecritureLiquidationTVA } = require('../utils/compt
 const { ComptaError } = require('../utils/comptabilite');
 
 // ── Règles de validation ──────────────────────────────────────────────────
+// Convention de rattachement : une déclaration est rangée dans l'année
+// civile de sa `periode_fin` (le filtre des dashboards utilise
+// EXTRACT(YEAR FROM periode_fin)). Une saisie incohérente sur ces dates
+// fait basculer la ligne sur la mauvaise année — on durcit donc ici les
+// trois invariants : ordre chronologique, échéance postérieure à la
+// période, et période d'amplitude raisonnable (≤ 3 ans).
 const taxeRules = [
   body('type_taxe').isIn(['TVA', 'IS', 'BIC', 'CNSS', 'CMU', 'IRVM', 'Patente', 'Autre']).withMessage('Type de taxe invalide'),
   body('periode_debut').isISO8601().withMessage('Période de début invalide'),
   body('periode_fin').isISO8601().withMessage('Période de fin invalide'),
   body('date_echeance').isISO8601().withMessage("Date d'échéance invalide"),
+  body('periode_fin').custom((value, { req }) => {
+    const debut = new Date(req.body.periode_debut);
+    const fin = new Date(value);
+    if (isNaN(debut) || isNaN(fin)) return true; // les validateurs isISO8601 amont gèrent ça
+    if (fin < debut) throw new Error('La fin de période ne peut pas précéder le début');
+    // Une période fiscale dépasse rarement 12 mois. On laisse 3 ans de marge
+    // pour les régularisations / exercices exceptionnels, au-delà on refuse.
+    const troisAnsMs = 3 * 366 * 24 * 3600 * 1000;
+    if ((fin - debut) > troisAnsMs) {
+      throw new Error('La période ne peut excéder 3 ans — vérifiez que `periode_fin` est bien la fin de période fiscale et non la date d\'échéance');
+    }
+    return true;
+  }),
+  body('date_echeance').custom((value, { req }) => {
+    const fin = new Date(req.body.periode_fin);
+    const ech = new Date(value);
+    if (isNaN(fin) || isNaN(ech)) return true;
+    if (ech < fin) throw new Error("La date d'échéance doit être postérieure à la fin de la période fiscale");
+    return true;
+  }),
   body('montant_base').isFloat({ min: 0 }).withMessage('Montant de base invalide'),
   body('taux').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0, max: 100 }).withMessage('Taux invalide'),
   body('montant_du').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }).withMessage('Montant dû invalide'),
