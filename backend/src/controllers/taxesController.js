@@ -118,11 +118,15 @@ const getTableauBordTaxes = async (req, res) => {
       ORDER BY total_du DESC
     `, [eid, annee]);
 
-    // Prochaines échéances (30 jours)
+    // Prochaines échéances (30 jours) — strictement à venir.
+    // Les déclarations dont l'échéance est passée sont des arriérés et
+    // remontent déjà dans la carte « EN RETARD » du dashboard ; les
+    // afficher ici sous le libellé « À venir » prêterait à confusion.
     const echeancesRes = await pool.query(`
       SELECT * FROM declarations_taxes
       WHERE entreprise_id=$1
         AND statut IN ('a_payer','en_retard')
+        AND date_echeance >= CURRENT_DATE
         AND date_echeance <= CURRENT_DATE + INTERVAL '30 days'
       ORDER BY date_echeance ASC
       LIMIT 10

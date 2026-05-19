@@ -210,8 +210,11 @@ export default function TaxesPage() {
         </div>
       )}
 
-      {/* Prochaines échéances */}
-      {tdb?.prochaines_echeances?.length > 0 && (
+      {/* Prochaines échéances — n'a de sens qu'en consultation de
+          l'année courante : si l'utilisateur navigue sur un exercice
+          antérieur ou postérieur, la bannière « À venir 30 j » serait
+          trompeuse (l'info reste toujours datée d'aujourd'hui). */}
+      {String(annee) === String(new Date().getFullYear()) && tdb?.prochaines_echeances?.length > 0 && (
         <div style={{
           background: `${C.gold}12`, border: `1px solid ${C.gold}40`, borderRadius: 12,
           padding: '14px 18px', marginBottom: 22, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
