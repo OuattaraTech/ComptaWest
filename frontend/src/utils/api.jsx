@@ -62,7 +62,7 @@ api.interceptors.response.use(
       // toast (évite le double « 403 » + « Erreur chargement X »).
       err.handled = true;
     } else if ((!err.response || status >= 500) && !silent) {
-      showOnce('5xx', t('common.server_error', 'Erreur serveur — réessayez dans quelques instants.'));
+      showOnce('5xx', t('common.server_error', 'Connexion temporairement interrompue avec nos serveurs. Vos données sont bien en sécurité, l\'opération n\'a simplement pas pu être enregistrée. Patientez quelques secondes puis réessayez, ou rechargez la page si le problème persiste.'));
       err.handled = true;
     }
     return Promise.reject(err);

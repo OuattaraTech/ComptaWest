@@ -100,7 +100,7 @@
     "select_placeholder": "Select...",
     "session_expired": "Session expired. Please sign in again.",
     "permission_denied": "This action is not allowed for your role.",
-    "server_error": "Server error — please try again in a moment.",
+    "server_error": "Connection to our servers is temporarily interrupted. Your data is safe — the action simply could not be saved. Wait a few seconds and try again, or reload the page if the problem persists.",
     "access_denied_title": "Access denied",
     "access_denied_body": "This section is not available with your current role ({{role}}). Contact the administrator if you think you need this access.",
     "read_only_mode": "Read-only mode — your role ({{role}}) cannot modify data in this section."

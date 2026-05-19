@@ -100,7 +100,7 @@
     "select_placeholder": "Sélectionner...",
     "session_expired": "Session expirée. Reconnectez-vous.",
     "permission_denied": "Action non autorisée pour votre rôle.",
-    "server_error": "Erreur serveur — réessayez dans quelques instants.",
+    "server_error": "Connexion temporairement interrompue avec nos serveurs. Vos données sont bien en sécurité, l'opération n'a simplement pas pu être enregistrée. Patientez quelques secondes puis réessayez, ou rechargez la page si le problème persiste.",
     "access_denied_title": "Accès refusé",
     "access_denied_body": "Cette section n'est pas accessible avec votre rôle actuel ({{role}}). Contactez l'administrateur si vous pensez avoir besoin de ce droit.",
     "read_only_mode": "Mode lecture seule — votre rôle ({{role}}) ne permet pas de modifier les données de cette section."
