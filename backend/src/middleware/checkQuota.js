@@ -36,6 +36,17 @@ function checkQuota(typeQuota) {
       if (typeQuota === 'api' && !quotas.api_publique) {
         return refus(res, abo.palier, 'api');
       }
+      // Le module paie est traité comme un booléen "disponible / non" :
+      // si le palier autorise 0 bulletin/mois, on bloque toute écriture.
+      // Le quota chiffré reste utile à l'affichage (compteur d'usage).
+      if (typeQuota === 'paie' && (!quotas.paie_bulletins || quotas.paie_bulletins === 0)) {
+        return refus(res, abo.palier, 'paie');
+      }
+      // Idem Mobile Money : si le palier n'autorise aucun fournisseur
+      // simultané, on bloque la création d'intégration de paiement.
+      if (typeQuota === 'paiement_fournisseurs' && (!quotas.paiement_fournisseurs || quotas.paiement_fournisseurs === 0)) {
+        return refus(res, abo.palier, 'paiement_fournisseurs');
+      }
 
       // Quotas chiffrés : on calcule l'usage actuel et on compare.
       const usage = await calculerUsage(req.entrepriseId);

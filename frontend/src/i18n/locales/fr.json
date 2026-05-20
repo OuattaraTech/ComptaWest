@@ -2025,6 +2025,21 @@
     "quota_error_entreprises": "Votre formule {{palier}} autorise {{plafond}} entreprises sous un même propriétaire.",
     "quota_error_immobilisations": "Le module immobilisations n'est pas inclus dans votre formule {{palier}}.",
     "quota_error_api": "L'API publique n'est pas incluse dans votre formule {{palier}}.",
-    "upgrade_cta": "Passer à une formule supérieure"
+    "quota_error_paie": "Le module paie n'est pas inclus dans votre formule {{palier}}.",
+    "quota_error_paiement_fournisseurs": "Les intégrations Mobile Money ne sont pas incluses dans votre formule {{palier}}.",
+    "quota_error_default": "Cette fonctionnalité n'est pas incluse dans votre formule {{palier}}.",
+    "upgrade_cta": "Passer à une formule supérieure",
+    "upgrade_benefit": "En passant à un palier supérieur, vous débloquez immédiatement cette fonctionnalité ainsi que tous les modules associés. Aucun engagement, modifiable à tout moment.",
+    "gate_title": "{{feature}} non disponible dans votre formule",
+    "gate_body": "Vous consultez cette section en lecture seule. Votre formule actuelle est « {{current}} » ; il faut au moins « {{required}} » pour utiliser cette fonctionnalité.",
+    "gate_required_label": "Disponible à partir de {{palier}}",
+    "feature_immobilisations": "Le module Immobilisations",
+    "feature_paie": "Le module Paie & RH",
+    "feature_api": "L'API publique",
+    "feature_paiement_fournisseurs": "Les paiements Mobile Money",
+    "feature_factures": "La création de factures",
+    "feature_ocr": "Le scan automatique OCR",
+    "feature_utilisateurs": "L'ajout d'utilisateurs",
+    "feature_entreprises": "La gestion multi-entreprises"
   }
 }

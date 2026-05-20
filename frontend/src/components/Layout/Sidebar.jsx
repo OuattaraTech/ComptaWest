@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { useEntreprise } from '../../hooks/useEntreprise.jsx';
 import { usePermissions } from '../../hooks/usePermissions.jsx';
+import { useQuotas } from '../../hooks/useQuotas.jsx';
 import { useTheme } from '../../hooks/useTheme.jsx';
 import { initiales } from '../../utils/helpers.jsx';
 import LanguageSwitcher from '../LanguageSwitcher.jsx';
@@ -62,7 +63,19 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
   const { user, logout } = useAuth();
   const { entreprises, actuelle, switchEntreprise, ajouterEntreprise } = useEntreprise();
   const { can } = usePermissions();
+  const { canAccess, paliierMinimalPour } = useQuotas();
   const { dark, toggle } = useTheme();
+
+  // Mapping des items de menu → feature de quota correspondante (pour le
+  // badge « Pro » / « Cabinet » indiquant qu'il faut passer à un palier
+  // supérieur pour vraiment utiliser le module). Modules absents = pas
+  // de quota associé = pas de badge.
+  const featurePourModule = (module) => {
+    if (module === 'immobilisations') return 'immobilisations';
+    if (module === 'paie')            return 'paie';
+    if (module === 'audit_log')       return 'api'; // proxy cabinet-only
+    return null;
+  };
   const navigate = useNavigate();
   const [showSwitcher, setShowSwitcher] = useState(false);
   const [showNewEnt, setShowNewEnt] = useState(false);
@@ -218,25 +231,44 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
         <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: '0.1em', padding: '6px 8px 3px', textTransform: 'uppercase' }}>
           {t('common.menu')}
         </div>
-        {navVisibles.map(({ to, icon: Icon, label, i18nKey }) => (
-          <NavLink key={to} to={to} style={({ isActive }) => ({
-            display: 'flex', alignItems: 'center', gap: 9,
-            padding: '9px 10px', borderRadius: 9, textDecoration: 'none',
-            fontSize: 13, fontWeight: isActive ? 700 : 500,
-            color: isActive ? C.accent : C.sub,
-            background: isActive ? `${C.accent}15` : 'transparent',
-            transition: 'all 0.15s',
-            border: isActive ? `1px solid ${C.accent}30` : '1px solid transparent',
-          })}>
-            {({ isActive }) => (
-              <>
-                <Icon size={16} />
-                <span style={{ flex: 1 }}>{i18nKey ? t(i18nKey) : label}</span>
-                {isActive && <ChevronRight size={13} />}
-              </>
-            )}
-          </NavLink>
-        ))}
+        {navVisibles.map(({ to, icon: Icon, label, i18nKey, module }) => {
+          // Détermine si ce module est verrouillé pour le palier actuel
+          // (rôle OK car déjà filtré par navVisibles, mais formule non).
+          const feature = featurePourModule(module);
+          const verrou = feature && !canAccess(feature);
+          const palierRequis = verrou ? paliierMinimalPour(feature) : null;
+          return (
+            <NavLink key={to} to={to} style={({ isActive }) => ({
+              display: 'flex', alignItems: 'center', gap: 9,
+              padding: '9px 10px', borderRadius: 9, textDecoration: 'none',
+              fontSize: 13, fontWeight: isActive ? 700 : 500,
+              color: isActive ? C.accent : C.sub,
+              background: isActive ? `${C.accent}15` : 'transparent',
+              transition: 'all 0.15s',
+              border: isActive ? `1px solid ${C.accent}30` : '1px solid transparent',
+            })}>
+              {({ isActive }) => (
+                <>
+                  <Icon size={16} style={{ opacity: verrou ? 0.55 : 1 }} />
+                  <span style={{ flex: 1, opacity: verrou ? 0.7 : 1 }}>{i18nKey ? t(i18nKey) : label}</span>
+                  {verrou && (
+                    <span
+                      title={t('abonnement.gate_required_label', { palier: t(`tarifs.palier_${palierRequis}`) })}
+                      style={{
+                        fontSize: 9, fontWeight: 800, letterSpacing: '0.04em',
+                        padding: '2px 6px', borderRadius: 6,
+                        background: `${C.gold}25`, color: C.gold,
+                        textTransform: 'uppercase',
+                      }}>
+                      {t(`tarifs.palier_${palierRequis}`)}
+                    </span>
+                  )}
+                  {isActive && !verrou && <ChevronRight size={13} />}
+                </>
+              )}
+            </NavLink>
+          );
+        })}
 
         {showAdminSection && (
           <>

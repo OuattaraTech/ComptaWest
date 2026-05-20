@@ -1,6 +1,7 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import i18next from 'i18next';
+import { ouvrirUpgradeModal } from '../components/UpgradeModal.jsx';
 
 // En dev : '/api' est proxifié vers localhost:5000 par vite.config.js.
 // En prod : VITE_API_URL doit pointer vers le backend (ex. https://comptawest-api.onrender.com/api).
@@ -60,6 +61,20 @@ api.interceptors.response.use(
       showOnce('403', t('common.permission_denied', 'Action non autorisée pour votre rôle.'));
       // Marqueur pour que les .catch locaux puissent skipper leur propre
       // toast (évite le double « 403 » + « Erreur chargement X »).
+      err.handled = true;
+    } else if (status === 402 && !silent) {
+      // Payment Required = quota d'abonnement atteint. On ouvre le modal
+      // d'upgrade plutôt qu'un simple toast, avec les détails du backend
+      // (type_quota, palier_actuel, usage, plafond) pour un message
+      // contextuel précis. Le .catch local peut skipper sa propre alerte.
+      const data = err.response?.data || {};
+      ouvrirUpgradeModal({
+        type_quota: data.type_quota,
+        palier_actuel: data.palier_actuel,
+        usage: data.usage,
+        plafond: data.plafond,
+        message: data.message,
+      });
       err.handled = true;
     } else if ((!err.response || status >= 500) && !silent) {
       showOnce('5xx', t('common.server_error', 'Connexion temporairement interrompue avec nos serveurs. Vos données sont bien en sécurité, l\'opération n\'a simplement pas pu être enregistrée. Patientez quelques secondes puis réessayez, ou rechargez la page si le problème persiste.'));

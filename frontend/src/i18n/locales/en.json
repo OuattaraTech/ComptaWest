@@ -2025,6 +2025,21 @@
     "quota_error_entreprises": "Your {{palier}} plan allows {{plafond}} companies under one owner.",
     "quota_error_immobilisations": "The fixed assets module is not included in your {{palier}} plan.",
     "quota_error_api": "Public API is not included in your {{palier}} plan.",
-    "upgrade_cta": "Upgrade now"
+    "quota_error_paie": "The payroll module is not included in your {{palier}} plan.",
+    "quota_error_paiement_fournisseurs": "Mobile Money integrations are not included in your {{palier}} plan.",
+    "quota_error_default": "This feature is not included in your {{palier}} plan.",
+    "upgrade_cta": "Upgrade now",
+    "upgrade_benefit": "Upgrading instantly unlocks this feature along with every module it includes. No commitment, switch any time.",
+    "gate_title": "{{feature}} not available on your plan",
+    "gate_body": "You are viewing this section read-only. Your current plan is \"{{current}}\"; you need at least \"{{required}}\" to use this feature.",
+    "gate_required_label": "Available from {{palier}}",
+    "feature_immobilisations": "The Fixed Assets module",
+    "feature_paie": "The Payroll & HR module",
+    "feature_api": "The public API",
+    "feature_paiement_fournisseurs": "Mobile Money payments",
+    "feature_factures": "Invoice creation",
+    "feature_ocr": "Automatic OCR scanning",
+    "feature_utilisateurs": "Adding users",
+    "feature_entreprises": "Multi-company management"
   }
 }

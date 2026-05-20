@@ -3,9 +3,12 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
 import { EntrepriseProvider } from './hooks/useEntreprise.jsx';
 import { PermissionsProvider } from './hooks/usePermissions.jsx';
+import { QuotasProvider } from './hooks/useQuotas.jsx';
 import { ThemeProvider, useTheme } from './hooks/useTheme.jsx';
 import { usePermissions } from './hooks/usePermissions.jsx';
 import PermissionGate from './components/PermissionGate.jsx';
+import QuotaGate from './components/QuotaGate.jsx';
+import UpgradeModal from './components/UpgradeModal.jsx';
 import Layout from './components/Layout/Layout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import InvitationPage from './pages/InvitationPage.jsx';
@@ -90,8 +93,19 @@ function AppRoutes() {
         <Route path="factures" element={<PermissionGate module="factures"><FacturesPage /></PermissionGate>} />
         <Route path="depenses" element={<PermissionGate module="depenses"><DepensesPage /></PermissionGate>} />
         <Route path="tresorerie" element={<PermissionGate module="tresorerie"><TresoreriePage /></PermissionGate>} />
-        <Route path="paie" element={<PermissionGate module="paie"><RHPage /></PermissionGate>} />
-        <Route path="immobilisations" element={<PermissionGate module="immobilisations"><ImmobilisationsPage /></PermissionGate>} />
+        {/* QuotaGate après PermissionGate : on autorise d'abord par rôle,
+            puis on bascule en lecture seule si la formule ne l'inclut pas.
+            La page reste visible (découvrable) avec un bandeau d'upgrade. */}
+        <Route path="paie" element={
+          <PermissionGate module="paie">
+            <QuotaGate feature="paie"><RHPage /></QuotaGate>
+          </PermissionGate>
+        } />
+        <Route path="immobilisations" element={
+          <PermissionGate module="immobilisations">
+            <QuotaGate feature="immobilisations"><ImmobilisationsPage /></QuotaGate>
+          </PermissionGate>
+        } />
         <Route path="produits" element={<PermissionGate module="produits"><ProduitsPage /></PermissionGate>} />
         <Route path="fournisseurs" element={<PermissionGate module="fournisseurs"><FournisseursPage /></PermissionGate>} />
         <Route path="taxes" element={<PermissionGate module="taxes"><TaxesPage /></PermissionGate>} />
@@ -131,10 +145,15 @@ export default function App() {
       <AuthProvider>
         <EntrepriseProvider>
           <PermissionsProvider>
-            <BrowserRouter>
-              <AppRoutes />
-              <ToasterThemed />
-            </BrowserRouter>
+            <QuotasProvider>
+              <BrowserRouter>
+                <AppRoutes />
+                <ToasterThemed />
+                {/* Monté globalement pour pouvoir être ouvert depuis
+                    l'intercepteur Axios sur une réponse 402. */}
+                <UpgradeModal />
+              </BrowserRouter>
+            </QuotasProvider>
           </PermissionsProvider>
         </EntrepriseProvider>
       </AuthProvider>

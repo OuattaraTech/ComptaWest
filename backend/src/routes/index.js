@@ -123,10 +123,10 @@ router.post('/auth/invitation/:token', authLimiter, accepterInvitation);
 
 // ─── ENTREPRISES ───────────────────────────────────────────────────────────
 router.get('/entreprises', auth, getMesEntreprises);
-router.post('/entreprises', auth, entrepriseRules, validate, createEntreprise);
+router.post('/entreprises', auth, checkQuota('entreprises'), entrepriseRules, validate, createEntreprise);
 router.put('/entreprises/:id', auth, can(MODULES.ENTREPRISE, ACTIONS.UPDATE), updateEntreprise);
 router.get('/entreprises/:id/membres', auth, can(MODULES.USERS, ACTIONS.READ), getMembres);
-router.post('/entreprises/:id/membres', auth, can(MODULES.USERS, ACTIONS.CREATE), inviterMembre);
+router.post('/entreprises/:id/membres', auth, can(MODULES.USERS, ACTIONS.CREATE), checkQuota('utilisateurs'), inviterMembre);
 router.put('/entreprises/:id/membres/:userId/role', auth, can(MODULES.USERS, ACTIONS.UPDATE), updateRoleMembre);
 router.delete('/entreprises/:id/membres/:userId', auth, can(MODULES.USERS, ACTIONS.DELETE), retirerMembre);
 
@@ -145,7 +145,7 @@ router.delete('/clients/:id', auth, can(MODULES.CLIENTS, ACTIONS.DELETE), delete
 // ─── FACTURES ──────────────────────────────────────────────────────────────
 router.get('/factures', auth, can(MODULES.FACTURES, ACTIONS.READ), getFactures);
 router.get('/factures/:id', auth, can(MODULES.FACTURES, ACTIONS.READ), getFactureById);
-router.post('/factures', auth, can(MODULES.FACTURES, ACTIONS.CREATE), factureRules, validate, createFacture);
+router.post('/factures', auth, can(MODULES.FACTURES, ACTIONS.CREATE), checkQuota('factures'), factureRules, validate, createFacture);
 router.put('/factures/:id', auth, can(MODULES.FACTURES, ACTIONS.UPDATE), factureRules, validate, updateFacture);
 router.put('/factures/:id/statut', auth, can(MODULES.FACTURES, ACTIONS.UPDATE), updateStatut);
 // Encaissement = mouvement de trésorerie ; on requiert plutôt tresorerie.update
@@ -197,7 +197,7 @@ router.post('/webhooks/wave/:entreprise_id', webhookWave);
 // Lecture : tout rôle ayant entreprise.read (paramètres généraux)
 router.get('/integrations-paiement', auth, can(MODULES.ENTREPRISE, ACTIONS.READ), listerIntegrations);
 // Écriture : seul admin/propriétaire (entreprise.update)
-router.put('/integrations-paiement/:fournisseur', auth, can(MODULES.ENTREPRISE, ACTIONS.UPDATE), upsertIntegration);
+router.put('/integrations-paiement/:fournisseur', auth, can(MODULES.ENTREPRISE, ACTIONS.UPDATE), checkQuota('paiement_fournisseurs'), upsertIntegration);
 router.delete('/integrations-paiement/:fournisseur', auth, can(MODULES.ENTREPRISE, ACTIONS.UPDATE), desactiverIntegration);
 
 // ─── DEVIS ─────────────────────────────────────────────────────────────────
@@ -292,42 +292,50 @@ router.post('/tresorerie/lignes-releve/:id/creer-mouvement',  auth, can(MODULES.
 router.get('/paie/parametres',          auth, can(MODULES.PAIE, ACTIONS.READ),   getParametres);
 router.get('/paie/stats',               auth, can(MODULES.PAIE, ACTIONS.READ),   getStatsPaie);
 
+// Module paie : la lecture (GET) reste ouverte pour permettre l'aperçu
+// en lecture seule sur les paliers qui ne l'incluent pas. Toutes les
+// écritures passent par checkQuota('paie') qui refuse 402 si le palier
+// autorise 0 bulletin/mois (Découverte, Starter).
 // Employés
 router.get('/paie/employes',            auth, can(MODULES.PAIE, ACTIONS.READ),   getEmployes);
-router.post('/paie/employes',           auth, can(MODULES.PAIE, ACTIONS.CREATE), employeRules, validate, createEmploye);
+router.post('/paie/employes',           auth, can(MODULES.PAIE, ACTIONS.CREATE), checkQuota('paie'), employeRules, validate, createEmploye);
 router.get('/paie/employes/:id',        auth, can(MODULES.PAIE, ACTIONS.READ),   getEmployeById);
-router.put('/paie/employes/:id',        auth, can(MODULES.PAIE, ACTIONS.UPDATE), updateEmploye);
-router.delete('/paie/employes/:id',     auth, can(MODULES.PAIE, ACTIONS.DELETE), archiveEmploye);
+router.put('/paie/employes/:id',        auth, can(MODULES.PAIE, ACTIONS.UPDATE), checkQuota('paie'), updateEmploye);
+router.delete('/paie/employes/:id',     auth, can(MODULES.PAIE, ACTIONS.DELETE), checkQuota('paie'), archiveEmploye);
 
 // Rubriques
 router.get('/paie/rubriques',           auth, can(MODULES.PAIE, ACTIONS.READ),   getRubriques);
-router.post('/paie/rubriques',          auth, can(MODULES.PAIE, ACTIONS.CREATE), rubriqueRules, validate, createRubrique);
-router.put('/paie/rubriques/:id',       auth, can(MODULES.PAIE, ACTIONS.UPDATE), updateRubrique);
-router.delete('/paie/rubriques/:id',    auth, can(MODULES.PAIE, ACTIONS.DELETE), deleteRubrique);
+router.post('/paie/rubriques',          auth, can(MODULES.PAIE, ACTIONS.CREATE), checkQuota('paie'), rubriqueRules, validate, createRubrique);
+router.put('/paie/rubriques/:id',       auth, can(MODULES.PAIE, ACTIONS.UPDATE), checkQuota('paie'), updateRubrique);
+router.delete('/paie/rubriques/:id',    auth, can(MODULES.PAIE, ACTIONS.DELETE), checkQuota('paie'), deleteRubrique);
 
 // Bulletins
 router.get('/paie/bulletins',           auth, can(MODULES.PAIE, ACTIONS.READ),   getBulletins);
-router.post('/paie/bulletins',          auth, can(MODULES.PAIE, ACTIONS.CREATE), bulletinRules, validate, creerOuMajBulletin);
-router.post('/paie/bulletins/generer-mois', auth, can(MODULES.PAIE, ACTIONS.CREATE), genererMois);
+router.post('/paie/bulletins',          auth, can(MODULES.PAIE, ACTIONS.CREATE), checkQuota('paie'), bulletinRules, validate, creerOuMajBulletin);
+router.post('/paie/bulletins/generer-mois', auth, can(MODULES.PAIE, ACTIONS.CREATE), checkQuota('paie'), genererMois);
 router.get('/paie/bulletins/:id',       auth, can(MODULES.PAIE, ACTIONS.READ),   getBulletinById);
 router.get('/paie/bulletins/:id/pdf',   auth, can(MODULES.PAIE, ACTIONS.READ),   getBulletinPDF);
-router.post('/paie/bulletins/:id/valider', auth, can(MODULES.PAIE, ACTIONS.UPDATE), validerBulletin);
+router.post('/paie/bulletins/:id/valider', auth, can(MODULES.PAIE, ACTIONS.UPDATE), checkQuota('paie'), validerBulletin);
 // Paiement bulletin = sortie de trésorerie : on requiert tresorerie.update
 router.post('/paie/bulletins/:id/payer',   auth, can(MODULES.TRESORERIE, ACTIONS.UPDATE), payerBulletin);
-router.delete('/paie/bulletins/:id',    auth, can(MODULES.PAIE, ACTIONS.DELETE), supprimerBulletin);
+router.delete('/paie/bulletins/:id',    auth, can(MODULES.PAIE, ACTIONS.DELETE), checkQuota('paie'), supprimerBulletin);
 
 // ─── IMMOBILISATIONS ───────────────────────────────────────────────────────
 router.get('/immobilisations/categories',         auth, can(MODULES.IMMOBILISATIONS, ACTIONS.READ),   getCategoriesImmo);
 router.get('/immobilisations/stats',              auth, can(MODULES.IMMOBILISATIONS, ACTIONS.READ),   getStatsImmo);
 router.get('/immobilisations',                    auth, can(MODULES.IMMOBILISATIONS, ACTIONS.READ),   getImmobilisations);
-router.post('/immobilisations',                   auth, can(MODULES.IMMOBILISATIONS, ACTIONS.CREATE), immobilisationRules, validate, createImmobilisation);
-router.post('/immobilisations/depuis-depense/:depenseId', auth, can(MODULES.IMMOBILISATIONS, ACTIONS.CREATE), creerDepuisDepense);
-router.post('/immobilisations/dotations/generer', auth, can(MODULES.IMMOBILISATIONS, ACTIONS.UPDATE), genererDotationsAnnee);
-router.delete('/immobilisations/dotations/:id',   auth, can(MODULES.IMMOBILISATIONS, ACTIONS.DELETE), supprimerDotation);
+// Toutes les actions d'écriture sur immobilisations sont protégées par
+// le quota du module (booléen disponible/indisponible selon le palier).
+// La lecture (GET) reste ouverte pour permettre l'aperçu en mode "lecture
+// seule" côté front quand le module n'est pas inclus dans la formule.
+router.post('/immobilisations',                   auth, can(MODULES.IMMOBILISATIONS, ACTIONS.CREATE), checkQuota('immobilisations'), immobilisationRules, validate, createImmobilisation);
+router.post('/immobilisations/depuis-depense/:depenseId', auth, can(MODULES.IMMOBILISATIONS, ACTIONS.CREATE), checkQuota('immobilisations'), creerDepuisDepense);
+router.post('/immobilisations/dotations/generer', auth, can(MODULES.IMMOBILISATIONS, ACTIONS.UPDATE), checkQuota('immobilisations'), genererDotationsAnnee);
+router.delete('/immobilisations/dotations/:id',   auth, can(MODULES.IMMOBILISATIONS, ACTIONS.DELETE), checkQuota('immobilisations'), supprimerDotation);
 router.get('/immobilisations/:id',                auth, can(MODULES.IMMOBILISATIONS, ACTIONS.READ),   getImmobilisationById);
-router.put('/immobilisations/:id',                auth, can(MODULES.IMMOBILISATIONS, ACTIONS.UPDATE), updateImmobilisation);
-router.delete('/immobilisations/:id',             auth, can(MODULES.IMMOBILISATIONS, ACTIONS.DELETE), deleteImmobilisation);
-router.post('/immobilisations/:id/cession',       auth, can(MODULES.IMMOBILISATIONS, ACTIONS.UPDATE), cederImmobilisation);
+router.put('/immobilisations/:id',                auth, can(MODULES.IMMOBILISATIONS, ACTIONS.UPDATE), checkQuota('immobilisations'), updateImmobilisation);
+router.delete('/immobilisations/:id',             auth, can(MODULES.IMMOBILISATIONS, ACTIONS.DELETE), checkQuota('immobilisations'), deleteImmobilisation);
+router.post('/immobilisations/:id/cession',       auth, can(MODULES.IMMOBILISATIONS, ACTIONS.UPDATE), checkQuota('immobilisations'), cederImmobilisation);
 router.get('/immobilisations/:id/pdf',            auth, can(MODULES.IMMOBILISATIONS, ACTIONS.READ),   getTableauAmortissementPDF);
 
 // ─── PRODUITS / STOCKS ─────────────────────────────────────────────────────
