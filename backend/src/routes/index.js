@@ -158,10 +158,12 @@ router.delete('/factures/:id', auth, can(MODULES.FACTURES, ACTIONS.DELETE), dele
 // Génération de lien de paiement — endpoint générique multi-fournisseurs.
 // Body : { fournisseur: 'wave' | 'orange_money' | 'mtn_momo', payer_mobile? }
 router.post('/factures/:id/lien-paiement',
-  auth, can(MODULES.FACTURES, ACTIONS.UPDATE), creerLienPaiementFacture);
+  auth, can(MODULES.FACTURES, ACTIONS.UPDATE),
+  checkQuota('paiement_fournisseurs'), creerLienPaiementFacture);
 // Alias rétrocompatible (lot A.1).
 router.post('/factures/:id/lien-paiement-wave',
-  auth, can(MODULES.FACTURES, ACTIONS.UPDATE), creerLienWaveFacture);
+  auth, can(MODULES.FACTURES, ACTIONS.UPDATE),
+  checkQuota('paiement_fournisseurs'), creerLienWaveFacture);
 
 // Simulation paiement (mode démo / mock uniquement, multi-fournisseur).
 router.post('/factures/:id/lien-paiement-wave/simuler-paiement',

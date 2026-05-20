@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useEntreprise } from '../hooks/useEntreprise.jsx';
 import { usePermissions } from '../hooks/usePermissions.jsx';
+import { useQuotas } from '../hooks/useQuotas.jsx';
 import { useTheme } from '../hooks/useTheme.jsx';
 import api from '../utils/api.jsx';
 import { formatFCFA, formatDate } from '../utils/helpers.jsx';
@@ -33,6 +34,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { actuelle } = useEntreprise();
   const { can } = usePermissions();
+  const { requestAccess } = useQuotas();
   const { dark } = useTheme();
   const C = getC(dark);
   const navigate = useNavigate();
@@ -167,7 +169,7 @@ export default function DashboardPage() {
               titre={t('dashboard.shortcut_scan_title')}
               sousTitre={t('dashboard.shortcut_scan_sub')}
               couleur={C.accent} dark={dark} C={C}
-              onClick={() => setShowScanner(true)}
+              onClick={() => { if (requestAccess('ocr')) setShowScanner(true); }}
             />
           )}
           {can('factures', 'update') && (

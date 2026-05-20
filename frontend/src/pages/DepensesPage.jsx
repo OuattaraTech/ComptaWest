@@ -13,6 +13,7 @@ import { Plus, Search, Trash2, Edit2, Package, Camera } from 'lucide-react';
 import ScannerFacture from '../components/ScannerFacture.jsx';
 import { useNavigate } from 'react-router-dom';
 import { FournisseurFormModal } from './FournisseursPage.jsx';
+import { useQuotas } from '../hooks/useQuotas.jsx';
 
 const STATUT_CFG = {
   payee:      { labelKey: 'depenses.status_paid',      bg: '#00D4AA20', color: '#00A882', border: '#00D4AA40' },
@@ -34,6 +35,7 @@ export default function DepensesPage() {
   const { dark } = useTheme();
   const C = getC(dark);
   const navigate = useNavigate();
+  const { canAccess, requestAccess, paliierMinimalPour } = useQuotas();
 
   // Bouton "convertir en immobilisation" pour les dépenses notables (>500 000 FCFA)
   const [showImmoModal, setShowImmoModal] = useState(null);  // dépense en cours de conversion
@@ -179,12 +181,29 @@ export default function DepensesPage() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <SelecteurAnnee annee={annee} setAnnee={setAnnee} couleurActif={C.red} />
           <Can module="depenses" action="create">
-            <button onClick={() => setShowScanner(true)} style={{
-              display: 'flex', alignItems: 'center', gap: 8, padding: '9px 16px', borderRadius: 10,
-              border: `1.5px solid ${C.accent}`, background: 'transparent', color: C.accent,
-              fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            }}>
+            {/* OCR : bouton actif si l'abonnement le permet, sinon
+                requestAccess ouvre le modal d'upgrade au clic et
+                affiche un badge palier minimal. */}
+            <button
+              onClick={() => { if (requestAccess('ocr')) setShowScanner(true); }}
+              title={!canAccess('ocr') ? t('abonnement.gate_required_label', { palier: t(`tarifs.palier_${paliierMinimalPour('ocr')}`) }) : undefined}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '9px 16px', borderRadius: 10,
+                border: `1.5px solid ${canAccess('ocr') ? C.accent : C.border}`,
+                background: 'transparent',
+                color: canAccess('ocr') ? C.accent : C.muted,
+                fontSize: 13, fontWeight: 700, cursor: 'pointer', position: 'relative',
+              }}>
               <Camera size={15} /> {t('ocr.btn_scan')}
+              {!canAccess('ocr') && (
+                <span style={{
+                  fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 6,
+                  background: `${C.gold}25`, color: C.gold,
+                  textTransform: 'uppercase', letterSpacing: '0.04em', marginLeft: 4,
+                }}>
+                  {t(`tarifs.palier_${paliierMinimalPour('ocr')}`)}
+                </span>
+              )}
             </button>
             <button data-onboarding="btn-nouveau" onClick={openCreate} style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', borderRadius: 10,

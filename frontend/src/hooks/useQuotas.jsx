@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import api from '../utils/api.jsx';
 import { useAuth } from './useAuth.jsx';
 import { useEntreprise } from './useEntreprise.jsx';
+import { ouvrirUpgradeModal } from '../components/UpgradeModal.jsx';
 
 /**
  * Hook + Provider : récupère l'abonnement actif et expose des helpers
@@ -87,12 +88,33 @@ export function QuotasProvider({ children }) {
     return matrice[feature] || 'pro';
   }, []);
 
+  /**
+   * Combine canAccess + ouverture automatique du modal d'upgrade.
+   * À utiliser sur le clic des boutons qui déclenchent une action
+   * payante (scan OCR, lien Mobile Money, etc.) :
+   *
+   *   if (!requestAccess('ocr')) return;
+   *   setShowScanner(true);
+   *
+   * Retourne true si l'action peut continuer, false sinon (et le modal
+   * s'est déjà ouvert).
+   */
+  const requestAccess = useCallback((feature) => {
+    if (canAccess(feature)) return true;
+    ouvrirUpgradeModal({
+      type_quota: feature,
+      palier_actuel: data?.abonnement?.palier,
+    });
+    return false;
+  }, [canAccess, data]);
+
   const value = {
     data, loading,
     palier: data?.abonnement?.palier || 'decouverte',
     quotas: data?.quotas || null,
     usage:  data?.usage  || null,
     canAccess,
+    requestAccess,
     paliierMinimalPour,
     recharger,
   };

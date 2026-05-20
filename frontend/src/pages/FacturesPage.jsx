@@ -5,6 +5,7 @@ import { formatFCFA, formatDate, truncate } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
 import { Plus, Search, X, Download, CreditCard, Filter, Edit2, Trash2, Smartphone, Copy, MessageCircle, ShieldCheck, Shield } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme.jsx';
+import { useQuotas } from '../hooks/useQuotas.jsx';
 import { usePermissions } from '../hooks/usePermissions.jsx';
 import { getC, Input, Modal, StatutBadge } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
@@ -35,6 +36,7 @@ export default function FacturesPage() {
   const { t } = useTranslation();
   const { dark } = useTheme();
   const { can } = usePermissions();
+  const { canAccess, requestAccess, paliierMinimalPour } = useQuotas();
   const C = getC(dark);
   const [factures, setFactures] = useState([]);
   const [clients, setClients] = useState([]);
@@ -491,13 +493,25 @@ export default function FacturesPage() {
                       )}
                       {/* Lien de paiement Wave / Mobile Money — pour les
                           factures à encaisser. Génère un lien que le commercial
-                          partage au client (WhatsApp, SMS). */}
+                          partage au client (WhatsApp, SMS). Verrouillé si le
+                          palier n'inclut pas paiement_fournisseurs. */}
                       {['en_attente', 'retard', 'envoyee'].includes(f.statut) && reste > 0 && (
                         <Can module="factures" action="update">
-                          <button onClick={() => handleLienWave(f)}
+                          <button
+                            onClick={() => { if (requestAccess('paiement_fournisseurs')) handleLienWave(f); }}
                             disabled={generatingLien === f.id}
-                            title={t('factures.btn_lien_wave')}
-                            style={{ padding: '5px 8px', background: `${C.blue}20`, border: `1px solid ${C.blue}40`, borderRadius: 7, cursor: generatingLien === f.id ? 'wait' : 'pointer', color: C.blue, fontSize: 11, fontWeight: 600 }}>
+                            title={canAccess('paiement_fournisseurs')
+                              ? t('factures.btn_lien_wave')
+                              : t('abonnement.gate_required_label', { palier: t(`tarifs.palier_${paliierMinimalPour('paiement_fournisseurs')}`) })}
+                            style={{
+                              padding: '5px 8px',
+                              background: canAccess('paiement_fournisseurs') ? `${C.blue}20` : `${C.gold}15`,
+                              border: `1px solid ${canAccess('paiement_fournisseurs') ? `${C.blue}40` : `${C.gold}40`}`,
+                              borderRadius: 7,
+                              cursor: generatingLien === f.id ? 'wait' : 'pointer',
+                              color: canAccess('paiement_fournisseurs') ? C.blue : C.gold,
+                              fontSize: 11, fontWeight: 600,
+                            }}>
                             <Smartphone size={13} />
                           </button>
                         </Can>

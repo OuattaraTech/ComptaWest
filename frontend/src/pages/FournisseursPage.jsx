@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../hooks/useTheme.jsx';
+import { useQuotas } from '../hooks/useQuotas.jsx';
 import api from '../utils/api.jsx';
 import { formatFCFA, formatDate, initiales, truncate } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
@@ -37,6 +38,7 @@ const URGENCE_COLORS = {
 export default function FournisseursPage() {
   const { t } = useTranslation();
   const { dark } = useTheme();
+  const { canAccess, requestAccess, paliierMinimalPour } = useQuotas();
   const C = getC(dark);
   const [tab, setTab] = useState('liste');
   const [selected, setSelected] = useState(null);
@@ -758,12 +760,26 @@ function CommandesTab({ onSelect, C, dark }) {
           }}>{l}</button>
         ))}
         <div style={{ flex: 1 }} />
-        <button onClick={() => setShowScanner(true)} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderRadius: 10,
-          border: `1.5px solid ${C.accent}`, background: 'transparent', color: C.accent,
-          fontSize: 13, fontWeight: 700, cursor: 'pointer',
-        }}>
+        <button
+          onClick={() => { if (requestAccess('ocr')) setShowScanner(true); }}
+          title={!canAccess('ocr') ? t('abonnement.gate_required_label', { palier: t(`tarifs.palier_${paliierMinimalPour('ocr')}`) }) : undefined}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderRadius: 10,
+            border: `1.5px solid ${canAccess('ocr') ? C.accent : C.border}`,
+            background: 'transparent',
+            color: canAccess('ocr') ? C.accent : C.muted,
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          }}>
           <Camera size={15} /> {t('ocr.btn_scan')}
+          {!canAccess('ocr') && (
+            <span style={{
+              fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 6,
+              background: `${C.gold}25`, color: C.gold,
+              textTransform: 'uppercase', letterSpacing: '0.04em', marginLeft: 4,
+            }}>
+              {t(`tarifs.palier_${paliierMinimalPour('ocr')}`)}
+            </span>
+          )}
         </button>
         <button onClick={() => { setOcrData(null); setShowForm(true); }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
