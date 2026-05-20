@@ -1,5 +1,5 @@
 // Logos officiels des fournisseurs de paiement mobile pris en charge par
-// ComptaWest. SVG inline : pas de requête réseau, pas de dépendance, net
+// ApeX. SVG inline : pas de requête réseau, pas de dépendance, net
 // à toute taille. Pour remplacer un logo par la version officielle exacte
 // (ex. kit presse à jour), il suffit de remplacer le <svg> correspondant.
 //

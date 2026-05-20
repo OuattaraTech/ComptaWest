@@ -1,7 +1,7 @@
 SET client_encoding = 'UTF8';
 
 -- ============================================================
--- ComptaWest - Seed donnees demo
+-- ApeX - Seed donnees demo
 -- Entreprise : Ouattara & Associes SARL (BTP / Genie Civil)
 -- Pays : Cote d'Ivoire - FCFA
 -- ============================================================

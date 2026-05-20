@@ -13,7 +13,7 @@ export default function SelecteurAnnee({ annee, setAnnee, couleurActif = '#00D4A
   const { dark } = useTheme();
 
   // Mode dropdown — préserve la place dans le header pour les PME qui
-  // utilisent ComptaWest depuis plusieurs années.
+  // utilisent ApeX depuis plusieurs années.
   if (annees.length > SEUIL_DROPDOWN) {
     return (
       <select

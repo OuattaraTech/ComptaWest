@@ -13,6 +13,7 @@ import {
   UserPlus, Send, Check, X,
 } from 'lucide-react';
 import LogoFournisseur from '../components/LogoFournisseur.jsx';
+import LogoApex from '../components/LogoApex.jsx';
 import { ouvrirCelebrationModal } from '../components/CelebrationModal.jsx';
 import toast from 'react-hot-toast';
 import LanguageSwitcher from '../components/LanguageSwitcher.jsx';
@@ -40,7 +41,7 @@ const FEATURES = [
   { icon: BarChart3,  key: 'reports'   },
 ];
 
-// Les différenciateurs sont les fonctionnalités qui distinguent ComptaWest
+// Les différenciateurs sont les fonctionnalités qui distinguent ApeX
 // des suites comptables classiques. Affichés au-dessus de la grille avec
 // un style plus accentué (gradient, animation au survol).
 const DIFFERENCIATEURS = [
@@ -207,17 +208,26 @@ export default function LoginPage() {
 
         {/* Top bar : logo + actions */}
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 56 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 42, height: 42, borderRadius: 12,
-              background: 'linear-gradient(135deg, #00D4AA, #00A882)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 20, fontWeight: 900, color: '#000',
-            }}>₣</div>
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', color: '#fff' }}>ComptaWest</div>
-              <div style={{ fontSize: 10, color: '#9BAACC', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 1 }}>{t('common.tagline')}</div>
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <LogoApex
+              height={84}
+              subtitle={t('common.tagline')}
+              subtitleColor="#9BAACC"
+              subtitleSize={10}
+              subtitleLetterSpacing="0.1em"
+              subtitleUppercase
+              textColor="#fff"
+              textSize={18}
+              gap={14}
+              fallback={(
+                <div style={{
+                  width: 84, height: 84, borderRadius: 18,
+                  background: 'linear-gradient(135deg, #00D4AA, #00A882)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 38, fontWeight: 900, color: '#000',
+                }}>₣</div>
+              )}
+            />
           </div>
         </div>
 
@@ -333,7 +343,7 @@ export default function LoginPage() {
                 bloc Facture/Client → tableau → totaux → mention en
                 lettres → footer. La badge « Certifiée DGI » et le
                 bandeau Mobile Money sont les vrais différenciateurs
-                FNE et Wave/Orange/MTN intégrés dans ComptaWest. */}
+                FNE et Wave/Orange/MTN intégrés dans ApeX. */}
             <div className="cw-float" style={{
               position: 'relative', zIndex: 1,
               background: '#FFFFFF', borderRadius: 14,
@@ -365,7 +375,7 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Ligne verte (signature ComptaWest, cf. PDF) */}
+              {/* Ligne verte (signature ApeX, cf. PDF) */}
               <div style={{ height: 2, background: '#00D4AA', borderRadius: 1, margin: '8px 0 12px' }} />
 
               {/* ── Bloc Facture (gauche) + Facturé à (droite) */}
@@ -450,7 +460,7 @@ export default function LoginPage() {
                 </span>
               </div>
 
-              {/* ── Bandeau QR + Mobile Money (différenciateur ComptaWest) */}
+              {/* ── Bandeau QR + Mobile Money (différenciateur ApeX) */}
               <div style={{
                 display: 'grid', gridTemplateColumns: '52px 1fr auto', gap: 11,
                 alignItems: 'center', padding: '9px 11px',
@@ -564,7 +574,7 @@ export default function LoginPage() {
 
       {/* ═══════════════ LOGOS PARTENAIRES ═══════════════
           Bandeau fin de réassurance : montre l'écosystème auquel
-          ComptaWest se connecte. Volontairement minimaliste pour
+          ApeX se connecte. Volontairement minimaliste pour
           ne pas voler la vedette aux différenciateurs en dessous. */}
       <section style={{
         padding: '32px 56px',

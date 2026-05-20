@@ -257,7 +257,7 @@ const inviterMembre = async (req, res) => {
     res.json({
       success: true,
       message: compteExistant
-        ? `${email} a déjà un compte ComptaWest : il/elle verra l'entreprise dès sa prochaine connexion.`
+        ? `${email} a déjà un compte ApeX : il/elle verra l'entreprise dès sa prochaine connexion.`
         : `Invitation créée pour ${email}. Transmettez-lui le lien ci-dessous.`,
       data: {
         email, role,

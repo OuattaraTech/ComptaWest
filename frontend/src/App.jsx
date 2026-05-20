@@ -48,7 +48,7 @@ const Protected = ({ children }) => {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 22, fontWeight: 900, color: '#000',
       }}>₣</div>
-      <div style={{ color, fontSize: 13 }}>Chargement ComptaWest...</div>
+      <div style={{ color, fontSize: 13 }}>Chargement ApeX...</div>
     </div>
   );
   if (!user) return <Navigate to="/login" replace />;

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Runner de migrations ComptaWest
+ * Runner de migrations ApeX
  * ----------------------------------------------------------------------------
  * Applique les fichiers SQL de config/migrations/ dans l'ordre, en gardant
  * la trace de ce qui a déjà été appliqué dans la table schema_migrations.

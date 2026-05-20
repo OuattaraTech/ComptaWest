@@ -1,5 +1,5 @@
 /**
- * Contenu d'onboarding pour chaque page de ComptaWest.
+ * Contenu d'onboarding pour chaque page de ApeX.
  *
  * Structure :
  *   - intro     : slides du modal d'introduction (vue d'ensemble de la page)
@@ -40,7 +40,7 @@ export const ONBOARDING = {
       {
         icon: LayoutDashboard,
         titre: 'Bienvenue sur votre tableau de bord',
-        description: 'Le tableau de bord est le point de départ de ComptaWest. Il rassemble en un coup d\'œil toutes les informations essentielles de votre entreprise.',
+        description: 'Le tableau de bord est le point de départ de ApeX. Il rassemble en un coup d\'œil toutes les informations essentielles de votre entreprise.',
         points: [
           'Indicateurs clés : chiffre d\'affaires, charges, bénéfice',
           'Alertes sur les factures en retard et taxes dues',
@@ -61,7 +61,7 @@ export const ONBOARDING = {
       {
         icon: AlertCircle,
         titre: 'Alertes intelligentes',
-        description: 'ComptaWest vous prévient automatiquement des échéances importantes : factures impayées, taxes à régler, déclarations à venir.',
+        description: 'ApeX vous prévient automatiquement des échéances importantes : factures impayées, taxes à régler, déclarations à venir.',
         points: [
           'Notifications visuelles en haut du tableau de bord',
           'Lien direct vers l\'élément concerné',
@@ -81,10 +81,10 @@ export const ONBOARDING = {
       {
         icon: Sparkles,
         titre: 'Les outils qui font la différence',
-        description: 'ComptaWest va au-delà de la comptabilité classique : trois leviers concrets pour réduire votre charge administrative quotidienne et accélérer vos encaissements.',
+        description: 'ApeX va au-delà de la comptabilité classique : trois leviers concrets pour réduire votre charge administrative quotidienne et accélérer vos encaissements.',
         points: [
           '**Lien de paiement Mobile Money** (Factures) — Wave, Orange Money, MTN MoMo : le client paie en deux clics depuis WhatsApp ou un QR code, l\'encaissement est automatique.',
-          '**Scanner OCR** (Dépenses & Commandes d\'achat) — photographiez une facture, ComptaWest extrait fournisseur, date, montants et TVA pour pré-remplir la saisie.',
+          '**Scanner OCR** (Dépenses & Commandes d\'achat) — photographiez une facture, ApeX extrait fournisseur, date, montants et TVA pour pré-remplir la saisie.',
           '**Certification fiscale DGI / FNE** (Factures) — chaque facture émise reçoit un numéro fiscal officiel et un QR code de vérification opposable.',
           'Tout est configurable depuis Paramètres → Intégrations (Mobile Money) et Paramètres → Fiscal (DGI).',
         ],
@@ -160,7 +160,7 @@ export const ONBOARDING = {
       {
         icon: FileText,
         titre: 'Le cœur de votre activité commerciale',
-        description: 'Émettez vos factures (F-AAAA-NNN) et avoirs (AV-AAAA-NNN). ComptaWest calcule la TVA, génère le PDF, met à jour la comptabilité et les stocks. Les devis et proformas ont leur page dédiée.',
+        description: 'Émettez vos factures (F-AAAA-NNN) et avoirs (AV-AAAA-NNN). ApeX calcule la TVA, génère le PDF, met à jour la comptabilité et les stocks. Les devis et proformas ont leur page dédiée.',
         points: [
           'Numérotation automatique séquentielle par année',
           'Calcul TVA et totaux automatiques (0 %, 9 %, 18 %)',
@@ -204,7 +204,7 @@ export const ONBOARDING = {
       {
         icon: Smartphone,
         titre: 'Lien de paiement Mobile Money (Wave · Orange Money · MTN MoMo)',
-        description: 'Pour les factures en attente, un bouton « Smartphone » génère un lien de paiement sécurisé. Le client paie depuis son téléphone en quelques secondes, et le webhook du fournisseur encaisse automatiquement la facture côté ComptaWest.',
+        description: 'Pour les factures en attente, un bouton « Smartphone » génère un lien de paiement sécurisé. Le client paie depuis son téléphone en quelques secondes, et le webhook du fournisseur encaisse automatiquement la facture côté ApeX.',
         points: [
           '3 fournisseurs supportés : Wave, Orange Money, MTN MoMo',
           'Quand plusieurs intégrations sont actives, un sélecteur de fournisseur apparaît',
@@ -230,7 +230,7 @@ export const ONBOARDING = {
       {
         icon: AlertTriangle,
         titre: 'Avoirs : règles SYSCOHADA',
-        description: 'Un avoir annule partiellement ou totalement une facture. La référence à la facture d\'origine est obligatoire — ComptaWest le rend impossible sans. L\'avoir validé contre-passe l\'écriture initiale et remet le stock à jour.',
+        description: 'Un avoir annule partiellement ou totalement une facture. La référence à la facture d\'origine est obligatoire — ApeX le rend impossible sans. L\'avoir validé contre-passe l\'écriture initiale et remet le stock à jour.',
         points: [
           'Sélection obligatoire de la facture d\'origine',
           'Contre-passation comptable automatique',
@@ -254,7 +254,7 @@ export const ONBOARDING = {
       {
         icon: FileText,
         titre: 'Le point de départ de la vente',
-        description: 'Un devis est une offre commerciale envoyée au client avant tout engagement. ComptaWest lui donne un cycle de vie propre, séparé de la comptabilité : tant qu\'un devis n\'est pas converti, aucune écriture n\'est générée.',
+        description: 'Un devis est une offre commerciale envoyée au client avant tout engagement. ApeX lui donne un cycle de vie propre, séparé de la comptabilité : tant qu\'un devis n\'est pas converti, aucune écriture n\'est générée.',
         points: [
           'Devis et proformas réunis sur une page dédiée',
           'Numérotation automatique (D-AAAA-NNN)',
@@ -342,7 +342,7 @@ export const ONBOARDING = {
       {
         icon: Camera,
         titre: 'Scanner OCR : zéro saisie',
-        description: 'Photographiez votre reçu ou facture fournisseur, ComptaWest extrait automatiquement les champs comptables : fournisseur, date, numéro, HT, TVA, TTC. Le formulaire de dépense s\'ouvre déjà pré-rempli — vous validez et c\'est en compta.',
+        description: 'Photographiez votre reçu ou facture fournisseur, ApeX extrait automatiquement les champs comptables : fournisseur, date, numéro, HT, TVA, TTC. Le formulaire de dépense s\'ouvre déjà pré-rempli — vous validez et c\'est en compta.',
         points: [
           'Bouton **« Scanner »** à côté de « Nouvelle dépense »',
           'Capture caméra directe sur mobile (ouvre l\'appareil photo)',
@@ -410,7 +410,7 @@ export const ONBOARDING = {
       {
         icon: Upload,
         titre: 'Import de relevés bancaires',
-        description: 'Importez le relevé de votre banque ou de votre opérateur mobile money au format CSV. ComptaWest le parse automatiquement et propose un rapprochement.',
+        description: 'Importez le relevé de votre banque ou de votre opérateur mobile money au format CSV. ApeX le parse automatiquement et propose un rapprochement.',
         points: [
           'Détection automatique des colonnes (date, libellé, débit/crédit…)',
           'Formats CSV courants supportés (point-virgule, virgule, tabulation)',
@@ -497,7 +497,7 @@ export const ONBOARDING = {
       {
         icon: ShoppingCart,
         titre: 'Bons de commande (avec scanner OCR)',
-        description: 'Formalisez vos engagements avant que la facture n\'arrive. Workflow : Brouillon → Envoyée → Réceptionnée → Facturée. La réception déclenche l\'entrée en stock automatique des produits liés. Pour gagner du temps à la saisie, un bouton **« Scanner »** à côté de « Nouvelle commande » permet de photographier une facture fournisseur : ComptaWest pré-remplit le formulaire (fournisseur reconnu par nom, date, référence, lignes, TVA).',
+        description: 'Formalisez vos engagements avant que la facture n\'arrive. Workflow : Brouillon → Envoyée → Réceptionnée → Facturée. La réception déclenche l\'entrée en stock automatique des produits liés. Pour gagner du temps à la saisie, un bouton **« Scanner »** à côté de « Nouvelle commande » permet de photographier une facture fournisseur : ApeX pré-remplit le formulaire (fournisseur reconnu par nom, date, référence, lignes, TVA).',
         points: [
           'Devis fournisseurs traçables',
           'Lignes avec produits du catalogue ou description libre',
@@ -612,7 +612,7 @@ export const ONBOARDING = {
       {
         icon: TrendingDown,
         titre: 'Amortissements automatiques',
-        description: 'À chaque clôture annuelle, un bouton génère les dotations de toutes les immobilisations en service. ComptaWest calcule le prorata temporis et passe l\'écriture comptable globale (681 Dotations / 28x Amortissements cumulés).',
+        description: 'À chaque clôture annuelle, un bouton génère les dotations de toutes les immobilisations en service. ApeX calcule le prorata temporis et passe l\'écriture comptable globale (681 Dotations / 28x Amortissements cumulés).',
         points: [
           'Plan d\'amortissement année par année visible avant la clôture',
           'Prorata temporis pour la 1re année (jours après mise en service)',
@@ -658,7 +658,7 @@ export const ONBOARDING = {
       {
         icon: UserCheck,
         titre: 'La paie automatisée pour les PME',
-        description: 'ComptaWest applique automatiquement les barèmes CNPS, ITS, CN, FDFP et taxe d\'apprentissage selon le Code Général des Impôts et le Code de prévoyance sociale ivoiriens. Plus besoin de calculer à la main.',
+        description: 'ApeX applique automatiquement les barèmes CNPS, ITS, CN, FDFP et taxe d\'apprentissage selon le Code Général des Impôts et le Code de prévoyance sociale ivoiriens. Plus besoin de calculer à la main.',
         points: [
           'Fiche employé complète : état civil, contrat, paie, sécurité sociale',
           'Génération automatique des bulletins en un clic',
@@ -718,7 +718,7 @@ export const ONBOARDING = {
       {
         icon: Receipt,
         titre: 'Tous les impôts et cotisations au même endroit',
-        description: 'Centralisez vos déclarations fiscales et sociales avec leurs échéances. ComptaWest gère 8 types pré-paramétrés selon les barèmes ivoiriens.',
+        description: 'Centralisez vos déclarations fiscales et sociales avec leurs échéances. ApeX gère 8 types pré-paramétrés selon les barèmes ivoiriens.',
         points: [
           '**TVA** (DGI) — trimestrielle, taux 18 %',
           '**IS / BIC** (DGI) — impôt sur le bénéfice annuel',
@@ -856,7 +856,7 @@ export const ONBOARDING = {
       {
         icon: Plus,
         titre: 'Écriture manuelle (OD)',
-        description: 'Pour les opérations diverses non couvertes par les modules (régularisation, provision, à-nouveaux…), saisissez une écriture manuelle. ComptaWest contrôle l\'équilibre débit = crédit avant validation.',
+        description: 'Pour les opérations diverses non couvertes par les modules (régularisation, provision, à-nouveaux…), saisissez une écriture manuelle. ApeX contrôle l\'équilibre débit = crédit avant validation.',
         points: [
           'Choix du journal (par défaut OD)',
           'Au moins 2 lignes, somme débit = somme crédit',
@@ -867,7 +867,7 @@ export const ONBOARDING = {
       {
         icon: Download,
         titre: 'Export FEC pour la DGI',
-        description: 'Le Fichier des Écritures Comptables est exigé par l\'administration fiscale en cas de contrôle. ComptaWest produit un FEC conforme (18 colonnes, séparateur « | », encodage UTF-8) directement depuis l\'app.',
+        description: 'Le Fichier des Écritures Comptables est exigé par l\'administration fiscale en cas de contrôle. ApeX produit un FEC conforme (18 colonnes, séparateur « | », encodage UTF-8) directement depuis l\'app.',
         points: [
           'Export pipe-delimited conforme à la norme DGI',
           'Une ligne par ligne d\'écriture sur l\'exercice',

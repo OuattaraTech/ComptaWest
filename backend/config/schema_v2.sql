@@ -1,5 +1,5 @@
 -- ============================================
--- ComptaWest V2 — Schéma complet
+-- ApeX — Schéma complet
 -- Nouveautés : Multi-entreprise, Dépenses, Taxes
 -- ============================================
 

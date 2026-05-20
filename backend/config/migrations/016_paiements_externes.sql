@@ -8,7 +8,7 @@
 -- Architecture :
 --   1. integrations_paiement : configuration par entreprise (clé API, secret
 --      webhook, mode sandbox/live). Chaque PME a son propre compte marchand
---      Wave/Orange/MTN ; ComptaWest ne fait que router.
+--      Wave/Orange/MTN ; ApeX ne fait que router.
 --   2. sessions_paiement : trace de chaque lien généré pour une facture.
 --      Lifecycle : initiee -> en_attente -> payee | echouee | expiree.
 --      L'arrivée du webhook (lot A.2) bascule au statut payee et déclenche

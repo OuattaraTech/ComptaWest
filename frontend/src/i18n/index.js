@@ -1,5 +1,5 @@
 /**
- * Configuration i18next pour ComptaWest.
+ * Configuration i18next pour ApeX.
  *
  * - Langue par défaut : français (cible Côte d'Ivoire).
  * - Détection : ordre localStorage → navigator → fallback.

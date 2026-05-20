@@ -297,7 +297,7 @@ const buildFactureDoc = (facture, lignes) => {
           ? { text: footerLine3Parts.join(' · '), alignment: 'center', fontSize: 7, color: GRIS, margin: [0, 0, 0, 2] }
           : { text: '' },
         {
-          text: `Document généré par ComptaWest   ·   Page ${currentPage}/${pageCount}`,
+          text: `Document généré par ApeX   ·   Page ${currentPage}/${pageCount}`,
           alignment: 'center',
           fontSize: 7,
           color: GRIS,

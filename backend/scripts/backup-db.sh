@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Sauvegarde de la base ComptaWest
+# Sauvegarde de la base ApeX
 # -----------------------------------------------------------------------------
 # Effectue un pg_dump compressé et horodaté, puis applique une rotation
 # (conserve les N sauvegardes les plus récentes).

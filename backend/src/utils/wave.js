@@ -28,7 +28,7 @@ const WAVE_BASE_URL_SANDBOX = 'https://api.wave.com/v1';
  * @param {string} opts.mode           'mock' | 'sandbox' | 'live'
  * @param {number} opts.amount         Montant (entier, sans décimales pour XOF)
  * @param {string} opts.currency       Devise ISO (par défaut 'XOF')
- * @param {string} opts.clientReference Référence interne ComptaWest (ex. numéro de facture)
+ * @param {string} opts.clientReference Référence interne ApeX (ex. numéro de facture)
  * @param {string} opts.successUrl     URL de retour en cas de succès (page « merci »)
  * @param {string} opts.errorUrl       URL de retour en cas d'erreur
  * @param {string} [opts.restrictPayerMobile] Optionnel : impose un numéro Wave précis

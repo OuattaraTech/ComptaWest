@@ -1,5 +1,5 @@
 /**
- * Palettes de couleurs — ComptaWest
+ * Palettes de couleurs — ApeX
  * Utiliser getTheme(dark) pour obtenir les couleurs selon le mode
  */
 

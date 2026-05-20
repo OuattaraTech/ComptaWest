@@ -1,7 +1,7 @@
 {
-  "name": "comptawest-backend",
+  "name": "apex-backend",
   "version": "2.1.0",
-  "description": "API ComptaWest V2 — Multi-entreprise, Dépenses, Taxes",
+  "description": "API ApeX — Multi-entreprise, Dépenses, Taxes",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

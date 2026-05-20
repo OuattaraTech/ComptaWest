@@ -1,7 +1,7 @@
 SET client_encoding = 'UTF8';
 
 -- ============================================================================
--- ComptaWest — Enrichissement du compte démo
+-- ApeX — Enrichissement du compte démo
 -- ----------------------------------------------------------------------------
 -- Ajoute des données réalistes dans TOUS les modules pour l'entreprise démo
 -- principale (« Ouattara & Associés », id b0000000-0000-0000-0000-000000000001) :

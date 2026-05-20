@@ -288,7 +288,7 @@ const ecriturePaiementTaxe = async (client, { entrepriseId, utilisateurId, taxe,
  * Écriture de constat de la charge salariale d'un bulletin de paie (à la validation).
  * Journal PAI. Date = fin de période (periode_fin).
  *
- * Schéma SYSCOHADA (plan ComptaWest) :
+ * Schéma SYSCOHADA (plan ApeX) :
  *   661 Rémunérations directes              (D) brut_total
  *   664 Charges sociales patronales         (D) total_cotisations_patronales
  *       422 Personnel - rémunérations dues   (C) net_a_payer
@@ -296,7 +296,7 @@ const ecriturePaiementTaxe = async (client, { entrepriseId, utilisateurId, taxe,
  *       4471 État - ITS retenu               (C) total_impots
  *       421 Personnel - avances et acomptes  (C) total_retenues (solde des avances/acomptes versés)
  *
- * Note sur le plan : dans ComptaWest, 422 = net à payer (PASSIF) et 421 = avances/
+ * Note sur le plan : dans ApeX, 422 = net à payer (PASSIF) et 421 = avances/
  * acomptes (ACTIF) — l'inverse de la nomenclature SYSCOHADA stricte. Conserver
  * cette correspondance car c'est celle du seed plan_comptable_syscohada.js.
  *

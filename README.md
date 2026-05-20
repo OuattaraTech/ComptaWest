@@ -1,4 +1,4 @@
-# ComptaWest 🌍₣ — v2.1
+# ApeX 🌍₣ — v2.1
 > Logiciel de comptabilité full-stack pour PME d'Afrique de l'Ouest  
 > Stack : **React 18 + Vite** · **Node.js / Express** · **PostgreSQL**  
 > Normes **SYSCOHADA** · Devise **FCFA** · Multi-entreprise · Multi-utilisateur
@@ -29,7 +29,7 @@
 
 ## 1. Présentation
 
-ComptaWest est une application web de gestion comptable pour les PME d'Afrique de l'Ouest et la diaspora. Elle respecte les normes **SYSCOHADA** et gère les obligations fiscales locales (DGI, CNSS, TVA 18 %).
+ApeX est une application web de gestion comptable pour les PME d'Afrique de l'Ouest et la diaspora. Elle respecte les normes **SYSCOHADA** et gère les obligations fiscales locales (DGI, CNSS, TVA 18 %).
 
 **Fonctions principales :**
 - Gérer plusieurs entreprises depuis un seul compte
@@ -326,7 +326,7 @@ psql -U postgres -d comptawest -c "\dt"
 ```bash
 cd backend
 npm run dev
-# → 🚀 ComptaWest API v2.1 → http://localhost:5000
+# → 🚀 ApeX API → http://localhost:5000
 # → ✅ PostgreSQL connecté
 ```
 
@@ -343,7 +343,7 @@ Ouvrir **http://localhost:5173** dans le navigateur.
 
 ```bash
 curl http://localhost:5000/health
-# {"status":"OK","app":"ComptaWest API v2","version":"2.1.0"}
+# {"status":"OK","app":"ApeX API","version":"2.1.0"}
 ```
 
 ---
@@ -540,7 +540,7 @@ psql -U comptawest_user -d comptawest -f config/schema_v2.sql
 
 ```bash
 cd /var/www/comptawest/backend
-pm2 start src/index.js --name "comptawest-api"
+pm2 start src/index.js --name "apex-api"
 pm2 save
 pm2 startup
 # Exécuter la commande affichée
@@ -573,7 +573,7 @@ git init
 echo ".env" >> .gitignore
 echo "node_modules/" >> .gitignore
 git add .
-git commit -m "ComptaWest v2.1 initial"
+git commit -m "ApeX initial"
 git remote add origin https://github.com/votre-user/comptawest.git
 git push -u origin main
 ```
@@ -806,7 +806,7 @@ unzip -o comptawest_new.zip
 
 # 3. Backend
 cd backend && npm install --production
-pm2 restart comptawest-api
+pm2 restart apex-api
 
 # 4. Frontend
 cd ../frontend && npm install && npm run build
@@ -837,7 +837,7 @@ cat backend/.env | grep JWT_SECRET
 # Générer une nouvelle clé
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 # Mettre à jour .env puis redémarrer
-pm2 restart comptawest-api
+pm2 restart apex-api
 ```
 
 ### « Erreur génération PDF »
@@ -857,7 +857,7 @@ nginx -t
 curl http://localhost:5000/health
 
 # Vérifier les logs PM2
-pm2 logs comptawest-api --lines 50
+pm2 logs apex-api --lines 50
 ```
 
 ### Port 5000 déjà utilisé
@@ -878,7 +878,7 @@ GRANT ALL PRIVILEGES ON DATABASE comptawest TO comptawest_user;
 EOF
 
 psql -U comptawest_user -d comptawest -f backend/config/schema_v2.sql
-pm2 restart comptawest-api
+pm2 restart apex-api
 ```
 
 ---
@@ -919,4 +919,4 @@ Cette version corrige tous les problèmes identifiés lors de l'audit de sécuri
 ---
 
 *Développé par **dev225** 🇨🇮 — Abidjan, Côte d'Ivoire*  
-*ComptaWest v2.1 · SYSCOHADA · FCFA*
+*ApeX · SYSCOHADA · FCFA*

@@ -1,5 +1,5 @@
 /**
- * Configuration pm2 pour ComptaWest API
+ * Configuration pm2 pour ApeX API
  * -----------------------------------------------------------------------------
  * pm2 maintient l'application en vie : redémarrage automatique en cas de crash,
  * au reboot du serveur, et gestion centralisée des logs.
@@ -9,8 +9,8 @@
  *
  * Démarrage / exploitation :
  *   pm2 start ecosystem.config.js     # démarre l'API en production
- *   pm2 logs comptawest-api           # suit les logs en direct
- *   pm2 restart comptawest-api        # redémarre après un déploiement
+ *   pm2 logs apex-api           # suit les logs en direct
+ *   pm2 restart apex-api        # redémarre après un déploiement
  *   pm2 status                        # état des process
  *   pm2 save && pm2 startup           # relance automatique au reboot serveur
  *
@@ -20,7 +20,7 @@
 module.exports = {
   apps: [
     {
-      name: 'comptawest-api',
+      name: 'apex-api',
       script: 'src/index.js',
       cwd: __dirname,
       instances: 1,

@@ -1,5 +1,5 @@
 /**
- * Onboarding content for each ComptaWest page.
+ * Onboarding content for each ApeX page.
  *
  * Structure:
  *   - intro     : slides of the introduction modal (page overview)
@@ -30,7 +30,7 @@ export const ONBOARDING = {
       {
         icon: LayoutDashboard,
         titre: 'Welcome to your dashboard',
-        description: 'The dashboard is your starting point in ComptaWest. It brings together at a glance all the essential information about your business.',
+        description: 'The dashboard is your starting point in ApeX. It brings together at a glance all the essential information about your business.',
         points: [
           'Key indicators: revenue, expenses, profit',
           'Alerts on overdue invoices and taxes due',
@@ -51,7 +51,7 @@ export const ONBOARDING = {
       {
         icon: AlertCircle,
         titre: 'Smart alerts',
-        description: 'ComptaWest automatically warns you of important deadlines: unpaid invoices, taxes to settle, upcoming declarations.',
+        description: 'ApeX automatically warns you of important deadlines: unpaid invoices, taxes to settle, upcoming declarations.',
         points: [
           'Visual notifications at the top of the dashboard',
           'Direct link to the relevant item',
@@ -71,10 +71,10 @@ export const ONBOARDING = {
       {
         icon: Sparkles,
         titre: 'The tools that make the difference',
-        description: 'ComptaWest goes beyond classic accounting: three concrete levers to reduce your daily admin load and speed up collections.',
+        description: 'ApeX goes beyond classic accounting: three concrete levers to reduce your daily admin load and speed up collections.',
         points: [
           '**Mobile Money payment link** (Invoices) — Wave, Orange Money, MTN MoMo: the customer pays in two clicks from WhatsApp or a QR code, the invoice is settled automatically.',
-          '**OCR scanner** (Expenses & Purchase orders) — take a picture of an invoice, ComptaWest extracts supplier, date, amounts and VAT to pre-fill the form.',
+          '**OCR scanner** (Expenses & Purchase orders) — take a picture of an invoice, ApeX extracts supplier, date, amounts and VAT to pre-fill the form.',
           '**DGI / FNE tax certification** (Invoices) — every issued invoice receives an official tax number and a verifiable QR code.',
           'Configure everything from Settings → Integrations (Mobile Money) and Settings → Tax (DGI).',
         ],
@@ -150,7 +150,7 @@ export const ONBOARDING = {
       {
         icon: FileText,
         titre: 'The heart of your commercial activity',
-        description: 'Issue your invoices (F-YYYY-NNN) and credit notes (AV-YYYY-NNN). ComptaWest computes VAT, generates the PDF, updates accounting and stock. Quotes and proformas have their own dedicated page.',
+        description: 'Issue your invoices (F-YYYY-NNN) and credit notes (AV-YYYY-NNN). ApeX computes VAT, generates the PDF, updates accounting and stock. Quotes and proformas have their own dedicated page.',
         points: [
           'Automatic sequential numbering per year',
           'Automatic VAT and totals (0%, 9%, 18%)',
@@ -194,7 +194,7 @@ export const ONBOARDING = {
       {
         icon: Smartphone,
         titre: 'Mobile Money payment link (Wave · Orange Money · MTN MoMo)',
-        description: 'For pending invoices, a "Smartphone" button generates a secure payment link. The customer pays from their phone in seconds, and the provider webhook automatically settles the invoice in ComptaWest.',
+        description: 'For pending invoices, a "Smartphone" button generates a secure payment link. The customer pays from their phone in seconds, and the provider webhook automatically settles the invoice in ApeX.',
         points: [
           '3 supported providers: Wave, Orange Money, MTN MoMo',
           'When several integrations are active, a provider picker appears',
@@ -220,7 +220,7 @@ export const ONBOARDING = {
       {
         icon: AlertTriangle,
         titre: 'Credit notes: SYSCOHADA rules',
-        description: 'A credit note cancels an invoice partially or fully. The reference to the original invoice is mandatory — ComptaWest makes it impossible without one. The validated credit note reverses the initial entry and updates stock.',
+        description: 'A credit note cancels an invoice partially or fully. The reference to the original invoice is mandatory — ApeX makes it impossible without one. The validated credit note reverses the initial entry and updates stock.',
         points: [
           'Mandatory selection of the original invoice',
           'Automatic accounting reversal',
@@ -244,7 +244,7 @@ export const ONBOARDING = {
       {
         icon: FileText,
         titre: 'The starting point of the sale',
-        description: 'A quote is a commercial offer sent to the customer before any commitment. ComptaWest gives it its own lifecycle, separate from accounting: as long as a quote is not converted, no entry is generated.',
+        description: 'A quote is a commercial offer sent to the customer before any commitment. ApeX gives it its own lifecycle, separate from accounting: as long as a quote is not converted, no entry is generated.',
         points: [
           'Quotes and proformas gathered on a dedicated page',
           'Automatic numbering (D-YYYY-NNN)',
@@ -332,7 +332,7 @@ export const ONBOARDING = {
       {
         icon: Camera,
         titre: 'OCR scanner: zero data entry',
-        description: 'Take a picture of your receipt or supplier invoice, ComptaWest automatically extracts the accounting fields: supplier, date, number, net, VAT, gross. The expense form opens already pre-filled — you validate and it lands in your books.',
+        description: 'Take a picture of your receipt or supplier invoice, ApeX automatically extracts the accounting fields: supplier, date, number, net, VAT, gross. The expense form opens already pre-filled — you validate and it lands in your books.',
         points: [
           '**Scan** button next to "New expense"',
           'Direct camera capture on mobile (opens the camera)',
@@ -400,7 +400,7 @@ export const ONBOARDING = {
       {
         icon: Upload,
         titre: 'Bank statement import',
-        description: 'Import your bank or mobile money operator statement in CSV format. ComptaWest parses it automatically and proposes a reconciliation.',
+        description: 'Import your bank or mobile money operator statement in CSV format. ApeX parses it automatically and proposes a reconciliation.',
         points: [
           'Automatic column detection (date, label, debit/credit...)',
           'Common CSV formats supported (semicolon, comma, tab)',
@@ -487,7 +487,7 @@ export const ONBOARDING = {
       {
         icon: ShoppingCart,
         titre: 'Purchase orders (with OCR scanner)',
-        description: 'Formalize your commitments before the invoice arrives. Workflow: Draft → Sent → Received → Invoiced. Receipt triggers automatic stock-in of linked products. To save typing, a **"Scan"** button next to "New order" lets you photograph a supplier invoice: ComptaWest pre-fills the form (supplier matched by name, date, reference, lines, VAT).',
+        description: 'Formalize your commitments before the invoice arrives. Workflow: Draft → Sent → Received → Invoiced. Receipt triggers automatic stock-in of linked products. To save typing, a **"Scan"** button next to "New order" lets you photograph a supplier invoice: ApeX pre-fills the form (supplier matched by name, date, reference, lines, VAT).',
         points: [
           'Traceable supplier quotes',
           'Lines with catalog products or free description',
@@ -602,7 +602,7 @@ export const ONBOARDING = {
       {
         icon: TrendingDown,
         titre: 'Automatic depreciation',
-        description: 'At each annual closing, a button generates the depreciation charges for all in-service fixed assets. ComptaWest calculates the prorata temporis and posts the global accounting entry (681 Depreciation charges / 28x Accumulated depreciation).',
+        description: 'At each annual closing, a button generates the depreciation charges for all in-service fixed assets. ApeX calculates the prorata temporis and posts the global accounting entry (681 Depreciation charges / 28x Accumulated depreciation).',
         points: [
           'Year-by-year depreciation schedule visible before closing',
           'Prorata temporis for the 1st year (days after putting into service)',
@@ -648,7 +648,7 @@ export const ONBOARDING = {
       {
         icon: UserCheck,
         titre: 'Automated payroll for SMEs',
-        description: 'ComptaWest automatically applies CNPS, ITS, CN, FDFP and apprenticeship tax schedules according to the Ivorian General Tax Code and Social Welfare Code. No more manual calculations.',
+        description: 'ApeX automatically applies CNPS, ITS, CN, FDFP and apprenticeship tax schedules according to the Ivorian General Tax Code and Social Welfare Code. No more manual calculations.',
         points: [
           'Full employee record: personal info, contract, payroll, social security',
           'Automatic payslip generation in one click',
@@ -708,7 +708,7 @@ export const ONBOARDING = {
       {
         icon: Receipt,
         titre: 'All taxes and contributions in one place',
-        description: 'Centralize your tax and social declarations with their deadlines. ComptaWest manages 8 pre-configured types according to Ivorian schedules.',
+        description: 'Centralize your tax and social declarations with their deadlines. ApeX manages 8 pre-configured types according to Ivorian schedules.',
         points: [
           '**VAT** (DGI) — quarterly, 18% rate',
           '**IS / BIC** (DGI) — annual profit tax',
@@ -846,7 +846,7 @@ export const ONBOARDING = {
       {
         icon: Plus,
         titre: 'Manual entry (OD)',
-        description: 'For miscellaneous operations not covered by the modules (adjustments, provisions, opening balances...), enter a manual entry. ComptaWest checks the debit = credit balance before validation.',
+        description: 'For miscellaneous operations not covered by the modules (adjustments, provisions, opening balances...), enter a manual entry. ApeX checks the debit = credit balance before validation.',
         points: [
           'Choice of journal (default OD)',
           'At least 2 lines, sum of debit = sum of credit',
@@ -857,7 +857,7 @@ export const ONBOARDING = {
       {
         icon: Download,
         titre: 'FEC export for the DGI',
-        description: 'The Accounting Entries File (FEC) is required by the tax authority in case of an audit. ComptaWest produces a compliant FEC (18 columns, "|" separator, UTF-8 encoding) directly from the app.',
+        description: 'The Accounting Entries File (FEC) is required by the tax authority in case of an audit. ApeX produces a compliant FEC (18 columns, "|" separator, UTF-8 encoding) directly from the app.',
         points: [
           'Pipe-delimited export compliant with the DGI standard',
           'One row per entry line for the period',

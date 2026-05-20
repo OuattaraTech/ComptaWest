@@ -1,5 +1,5 @@
 /**
- * Matrice de permissions ComptaWest
+ * Matrice de permissions ApeX
  *
  * Source unique de vérité pour qui peut faire quoi sur chaque module.
  * Le middleware `requirePermission(module, action)` lit cette matrice ;

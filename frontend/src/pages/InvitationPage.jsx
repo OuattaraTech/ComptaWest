@@ -8,6 +8,7 @@ import api from '../utils/api.jsx';
 import { Sun, Moon, ShieldCheck, ArrowRight, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import LanguageSwitcher from '../components/LanguageSwitcher.jsx';
+import LogoApex from '../components/LogoApex.jsx';
 
 const getC = (dark) => dark ? {
   bg: '#0B0F1A', card: '#111827', border: '#1E2D40',
@@ -120,14 +121,22 @@ export default function InvitationPage() {
         boxShadow: dark ? '0 30px 70px rgba(0,0,0,0.5)' : '0 8px 40px rgba(0,0,0,0.1)',
       }}>
         {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{
-            width: 54, height: 54, borderRadius: 15, margin: '0 auto 14px',
-            background: 'linear-gradient(135deg, #00D4AA, #00A882)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 26, fontWeight: 900, color: '#000',
-          }}>₣</div>
-          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: C.text }}>ComptaWest</div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 28 }}>
+          <LogoApex
+            height={104}
+            direction="column"
+            textColor={C.text}
+            textSize={22}
+            gap={14}
+            fallback={(
+              <div style={{
+                width: 104, height: 104, borderRadius: 22,
+                background: 'linear-gradient(135deg, #00D4AA, #00A882)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 48, fontWeight: 900, color: '#000',
+              }}>₣</div>
+            )}
+          />
         </div>
 
         {etat === 'chargement' && (

@@ -119,7 +119,7 @@ async function creerCheckoutSession(opts) {
       externalId: clientReference,
       payer: { partyIdType: 'MSISDN', partyId: cleanMobile },
       payerMessage: payerMessage || `Facture ${clientReference}`,
-      payeeNote: payeeNote || `ComptaWest ${clientReference}`,
+      payeeNote: payeeNote || `ApeX ${clientReference}`,
     }),
   });
   if (initRes.status !== 202) {

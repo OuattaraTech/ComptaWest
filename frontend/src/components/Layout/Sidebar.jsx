@@ -8,6 +8,7 @@ import { useQuotas } from '../../hooks/useQuotas.jsx';
 import { useTheme } from '../../hooks/useTheme.jsx';
 import { initiales } from '../../utils/helpers.jsx';
 import LanguageSwitcher from '../LanguageSwitcher.jsx';
+import LogoApex from '../LogoApex.jsx';
 import {
   LayoutDashboard, Users, FileText, BarChart3, LogOut,
   Settings, ChevronRight, Receipt, Calculator, Plus,
@@ -142,17 +143,23 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
     }}>
       {/* Logo */}
       <div style={{ padding: '20px 16px 16px', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-            background: 'linear-gradient(135deg, #00D4AA, #00A882)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 17, fontWeight: 900, color: '#000',
-          }}>₣</div>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 800, color: C.text }}>ComptaWest</div>
-            <div style={{ fontSize: 9, color: C.muted, letterSpacing: '0.06em' }}>SYSCOHADA · v2</div>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
+          <LogoApex
+            height={64}
+            subtitle="SYSCOHADA"
+            subtitleColor={C.muted}
+            subtitleSize={9}
+            textColor={C.text}
+            textSize={14}
+            fallback={(
+              <div style={{
+                width: 64, height: 64, borderRadius: 14, flexShrink: 0,
+                background: 'linear-gradient(135deg, #00D4AA, #00A882)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 28, fontWeight: 900, color: '#000',
+              }}>₣</div>
+            )}
+          />
         </div>
 
         {/* Switcher entreprise */}

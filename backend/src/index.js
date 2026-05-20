@@ -59,7 +59,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api', routes);
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', app: 'ComptaWest API v2', version: '2.1.0', env: process.env.NODE_ENV });
+  res.json({ status: 'OK', app: 'ApeX API', version: '2.1.0', env: process.env.NODE_ENV });
 });
 
 // ── 404 ───────────────────────────────────────────────────────────────────
@@ -98,7 +98,7 @@ process.on('uncaughtException', (err) => {
 });
 
 app.listen(PORT, () => {
-  logger.info(`ComptaWest API v2.1 démarrée sur le port ${PORT}`, {
+  logger.info(`ApeX API démarrée sur le port ${PORT}`, {
     env: process.env.NODE_ENV || 'development',
   });
 });

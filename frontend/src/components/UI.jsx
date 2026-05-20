@@ -1,5 +1,5 @@
 /**
- * Composants UI partagés ComptaWest
+ * Composants UI partagés ApeX
  * Chaque composant lit le thème lui-même via useTheme()
  * → Ils se mettent à jour automatiquement en dark/light mode
  */

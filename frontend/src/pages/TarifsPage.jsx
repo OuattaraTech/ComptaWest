@@ -158,7 +158,7 @@ export default function TarifsPage() {
             background: 'transparent', border: 'none', cursor: 'pointer',
             color: C.muted, fontSize: 13, fontWeight: 600, padding: 0,
           }}>
-          <ArrowLeft size={14} /> {location.state?.from || (user ? t('common.back') : 'ComptaWest')}
+          <ArrowLeft size={14} /> {location.state?.from || (user ? t('common.back') : 'ApeX')}
         </button>
 
         <div style={{ textAlign: 'center', margin: '40px 0 28px' }}>
