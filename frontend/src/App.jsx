@@ -9,6 +9,7 @@ import { usePermissions } from './hooks/usePermissions.jsx';
 import PermissionGate from './components/PermissionGate.jsx';
 import QuotaGate from './components/QuotaGate.jsx';
 import UpgradeModal from './components/UpgradeModal.jsx';
+import CelebrationModal from './components/CelebrationModal.jsx';
 import Layout from './components/Layout/Layout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import InvitationPage from './pages/InvitationPage.jsx';
@@ -152,6 +153,10 @@ export default function App() {
                 {/* Monté globalement pour pouvoir être ouvert depuis
                     l'intercepteur Axios sur une réponse 402. */}
                 <UpgradeModal />
+                {/* Modal chaleureuse affichée après un changement de
+                    palier réussi. Déclenchée par ouvrirCelebrationModal()
+                    depuis TarifsPage ou LoginPage. */}
+                <CelebrationModal />
               </BrowserRouter>
             </QuotasProvider>
           </PermissionsProvider>

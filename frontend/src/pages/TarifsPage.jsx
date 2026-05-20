@@ -3,9 +3,11 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useTheme } from '../hooks/useTheme.jsx';
+import { useQuotas } from '../hooks/useQuotas.jsx';
 import { getC } from '../components/UI.jsx';
 import api from '../utils/api.jsx';
 import toast from 'react-hot-toast';
+import { ouvrirCelebrationModal } from '../components/CelebrationModal.jsx';
 import {
   Check, X, ArrowLeft, Sparkles, ShieldCheck,
   Users, Building2, ScanLine, CreditCard, FileText, HelpCircle,
@@ -97,6 +99,7 @@ export default function TarifsPage() {
   const { t } = useTranslation();
   const { dark } = useTheme();
   const { user } = useAuth();
+  const { recharger: rechargerQuotas } = useQuotas();
   const navigate = useNavigate();
   const location = useLocation();
   const C = getC(dark);
@@ -128,7 +131,12 @@ export default function TarifsPage() {
         periodicite: annuel ? 'annuel' : 'mensuel',
       });
       setPalierActuel(code);
-      toast.success(t('tarifs.saved_msg'));
+      // Propage le nouveau palier à tout le contexte Quotas : sans ça,
+      // les badges de la sidebar, les modules verrouillés et les boutons
+      // gatés resteraient sur l'ancien palier jusqu'à un F5.
+      await rechargerQuotas();
+      // Modal chaleureuse au lieu d'un toast discret.
+      ouvrirCelebrationModal({ palier: code, isNewSignup: false });
     } catch (err) {
       if (!err.handled) toast.error(err.response?.data?.message || t('common.error_generic'));
     } finally {

@@ -2041,5 +2041,31 @@
     "feature_ocr": "Le scan automatique OCR",
     "feature_utilisateurs": "L'ajout d'utilisateurs",
     "feature_entreprises": "La gestion multi-entreprises"
+  },
+  "celebration": {
+    "kicker_new": "Bienvenue dans ComptaWest",
+    "kicker_upgrade": "Votre formule a évolué",
+    "title_new": "Heureux de vous compter parmi nous, votre formule {{palier}} est active !",
+    "title_upgrade": "Félicitations, vous êtes maintenant en formule {{palier}} !",
+    "subtitle": "Tout est en place pour que vous puissiez piloter votre entreprise sereinement. Voici un aperçu de ce que vous venez de débloquer.",
+    "highlights_title": "Ce qui vous attend",
+    "thanks": "Merci de la confiance que vous nous accordez. Notre équipe est là pour vous accompagner — n'hésitez jamais à nous écrire.",
+    "cta": "Découvrir mon tableau de bord",
+    "h_factures10": "Création de jusqu'à 10 factures par mois pour tester en conditions réelles",
+    "h_fne": "Certification fiscale DGI (FNE) sur toutes vos factures émises",
+    "h_dashboard": "Tableau de bord financier en temps réel",
+    "h_ocr30": "30 scans OCR par mois — fini la ressaisie de vos reçus papier",
+    "h_mm1": "Encaissement Mobile Money via 1 fournisseur (Wave, Orange ou MTN)",
+    "h_factures_unlim": "Factures, devis et dépenses illimités",
+    "h_ocr300": "300 scans OCR par mois pour gérer un gros volume de pièces",
+    "h_mm3": "Wave, Orange Money ET MTN MoMo activés simultanément",
+    "h_paie25": "Module Paie & RH avec 25 bulletins/mois (CNSS, ITS, CMU automatiques)",
+    "h_immo": "Module Immobilisations avec amortissements automatiques",
+    "h_support": "Support e-mail et WhatsApp sous 12 heures",
+    "h_users_unlim": "Utilisateurs illimités — invitez toute votre équipe",
+    "h_ent15": "Gérez jusqu'à 15 entreprises sous un même compte",
+    "h_api": "Accès à l'API publique pour vos intégrations sur mesure",
+    "h_paie_unlim": "Bulletins de paie illimités, idéal pour un portefeuille clients",
+    "h_support_prio": "Support prioritaire WhatsApp et téléphone sous 4 heures"
   }
 }

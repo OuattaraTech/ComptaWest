@@ -13,6 +13,7 @@ import {
   UserPlus, Send, Check, X,
 } from 'lucide-react';
 import LogoFournisseur from '../components/LogoFournisseur.jsx';
+import { ouvrirCelebrationModal } from '../components/CelebrationModal.jsx';
 import toast from 'react-hot-toast';
 import LanguageSwitcher from '../components/LanguageSwitcher.jsx';
 
@@ -141,15 +142,27 @@ export default function LoginPage() {
       // « decouverte » est déjà le palier par défaut, inutile de payer
       // un round-trip pour rien. On laisse passer l'erreur silencieuse
       // pour ne pas bloquer l'arrivée sur le dashboard si l'API 422.
+      let palierAppliqueAvecSucces = false;
       if (mode === 'register' && planChoisi && planChoisi !== 'decouverte') {
         try {
           await api.put('/abonnement', { palier: planChoisi, periodicite: 'mensuel' });
+          palierAppliqueAvecSucces = true;
         } catch (errPlan) {
           console.warn('[login] application palier échouée:', errPlan.message);
         }
       }
 
-      toast.success(mode === 'login' ? t('login.success_login') : t('login.success_register'));
+      // Modal chaleureuse pour fêter l'arrivée. Pour les nouveaux comptes
+      // sans plan, on célèbre quand même le palier « Découverte ». On
+      // remplace le toast de succès dans ce cas pour ne pas faire doublon.
+      if (mode === 'register') {
+        ouvrirCelebrationModal({
+          palier: palierAppliqueAvecSucces ? planChoisi : 'decouverte',
+          isNewSignup: true,
+        });
+      } else {
+        toast.success(t('login.success_login'));
+      }
       navigate('/dashboard');
     } catch (err) {
       toast.error(err.response?.data?.message || t('login.error_login'));

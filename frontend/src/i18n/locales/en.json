@@ -2041,5 +2041,31 @@
     "feature_ocr": "Automatic OCR scanning",
     "feature_utilisateurs": "Adding users",
     "feature_entreprises": "Multi-company management"
+  },
+  "celebration": {
+    "kicker_new": "Welcome to ComptaWest",
+    "kicker_upgrade": "Your plan has evolved",
+    "title_new": "Glad to have you on board — your {{palier}} plan is active!",
+    "title_upgrade": "Congratulations, you are now on the {{palier}} plan!",
+    "subtitle": "Everything is set up so you can run your business with peace of mind. Here's a glimpse of what you've just unlocked.",
+    "highlights_title": "What awaits you",
+    "thanks": "Thank you for placing your trust in us. Our team is here to support you — never hesitate to reach out.",
+    "cta": "Discover my dashboard",
+    "h_factures10": "Up to 10 invoices per month to try things out for real",
+    "h_fne": "DGI (FNE) tax certification on every issued invoice",
+    "h_dashboard": "Real-time financial dashboard",
+    "h_ocr30": "30 OCR scans per month — no more re-typing your paper receipts",
+    "h_mm1": "Mobile Money collection via 1 provider (Wave, Orange or MTN)",
+    "h_factures_unlim": "Unlimited invoices, quotes and expenses",
+    "h_ocr300": "300 OCR scans per month for high volumes of receipts",
+    "h_mm3": "Wave, Orange Money AND MTN MoMo activated simultaneously",
+    "h_paie25": "Payroll & HR module with 25 payslips/month (CNSS, ITS, CMU automated)",
+    "h_immo": "Fixed assets module with automatic depreciation",
+    "h_support": "Email and WhatsApp support within 12 hours",
+    "h_users_unlim": "Unlimited users — invite your whole team",
+    "h_ent15": "Manage up to 15 companies under a single account",
+    "h_api": "Access to the public API for your custom integrations",
+    "h_paie_unlim": "Unlimited payslips, ideal for a client portfolio",
+    "h_support_prio": "Priority WhatsApp and phone support within 4 hours"
   }
 }
