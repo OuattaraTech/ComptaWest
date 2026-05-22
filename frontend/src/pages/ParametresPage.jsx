@@ -111,16 +111,19 @@ function IntegrationsTab({ C, dark }) {
   const [comptes, setComptes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [formOuvert, setFormOuvert] = useState(null); // fournisseur en cours d'édition
+  const [abonnement, setAbonnement] = useState(null);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [intRes, comptesRes] = await Promise.all([
+      const [intRes, comptesRes, aboRes] = await Promise.all([
         api.get('/integrations-paiement'),
         api.get('/tresorerie/comptes'),
+        api.get('/abonnement').catch(() => ({ data: { data: null } })),
       ]);
       setIntegrations(intRes.data.data || []);
       setComptes(comptesRes.data.data || []);
+      setAbonnement(aboRes.data.data);
     } catch (err) {
       if (!err.handled) toast.error(t('common.loading_error'));
     } finally {
@@ -132,6 +135,14 @@ function IntegrationsTab({ C, dark }) {
   const webhookUrl = (fournisseur) =>
     `${window.location.origin.replace(':5173', ':5000')}/api/webhooks/${fournisseur}/${actuelle?.id || ''}`;
 
+  // Quota par palier : nombre d'opérateurs Mobile Money activables en
+  // production simultanément. Calculé côté UI pour l'info visuelle ; le
+  // backend revérifie de toute façon à l'upsert.
+  const PALIER_MAX_OPS = { decouverte: 0, starter: 1, pro: 2, cabinet: 3 };
+  const palier = abonnement?.palier || 'decouverte';
+  const maxOps = PALIER_MAX_OPS[palier] ?? 0;
+  const opsActifs = integrations.filter(i => i.mode === 'live' && i.actif).length;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{
@@ -139,6 +150,36 @@ function IntegrationsTab({ C, dark }) {
         padding: '14px 16px', fontSize: 12, color: C.sub, lineHeight: 1.6,
       }}>
         {t('parametres.integrations_intro')}
+      </div>
+
+      {/* Bandeau quota — affiche la limite Mobile Money selon le palier */}
+      <div style={{
+        background: maxOps === 0
+          ? `${C.gold}12`
+          : opsActifs >= maxOps ? `${C.red}12` : `${C.accent}10`,
+        border: `1px solid ${
+          maxOps === 0 ? `${C.gold}40`
+          : opsActifs >= maxOps ? `${C.red}40` : `${C.accent}40`
+        }`,
+        borderRadius: 12, padding: '14px 16px',
+        fontSize: 12.5, color: C.sub, lineHeight: 1.55,
+        display: 'flex', alignItems: 'flex-start', gap: 10,
+      }}>
+        <Shield size={16} color={maxOps === 0 ? C.gold : opsActifs >= maxOps ? C.red : C.accent} style={{ flexShrink: 0, marginTop: 2 }} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, color: C.text, marginBottom: 4 }}>
+            {t('parametres.integrations_quota_title', {
+              palier: t(`tarifs.palier_${palier}`),
+              actifs: opsActifs,
+              max: maxOps,
+            })}
+          </div>
+          <div>
+            {maxOps === 0
+              ? t('parametres.integrations_quota_locked')
+              : t('parametres.integrations_quota_help', { max: maxOps })}
+          </div>
+        </div>
       </div>
 
       {Object.keys(FOURNISSEURS_META).map(f => (
@@ -375,6 +416,151 @@ function InfoLine({ label, value, C }) {
 // Permet d'enregistrer le NCC, le centre fiscal et les credentials API
 // DGI. Aujourd'hui seul le mode mock est branché côté backend ; les
 // champs sandbox / prod sont prêts pour le jour où l'API DGI sera ouverte.
+// ─── Wizard FNE — checklist guidée de configuration ────────────────────
+// La FNE (Facture Normalisée Électronique) impose plusieurs démarches
+// administratives auprès de la DGI. Ce composant les liste comme une
+// checklist visuelle dont les coches se valident automatiquement selon
+// l'état du formulaire — l'utilisateur voit en un coup d'œil ce qu'il
+// lui reste à faire pour basculer en production.
+function WizardFne({ ncc, centreFiscal, cleConfigured, fneActif, modeProduction, statutPing, C, dark, t }) {
+  const etapes = [
+    {
+      id: 'ncc',
+      titre: t('parametres.fne_wiz_step1_titre'),
+      desc:  t('parametres.fne_wiz_step1_desc'),
+      done:  Boolean(ncc && ncc.trim()),
+    },
+    {
+      id: 'centre',
+      titre: t('parametres.fne_wiz_step2_titre'),
+      desc:  t('parametres.fne_wiz_step2_desc'),
+      done:  Boolean(centreFiscal && centreFiscal.trim()),
+    },
+    {
+      id: 'inscription',
+      titre: t('parametres.fne_wiz_step3_titre'),
+      desc:  t('parametres.fne_wiz_step3_desc'),
+      // Heuristique : si l'utilisateur a une clé API, c'est qu'il a déjà fait la demande
+      done:  Boolean(cleConfigured),
+    },
+    {
+      id: 'cle',
+      titre: t('parametres.fne_wiz_step4_titre'),
+      desc:  t('parametres.fne_wiz_step4_desc'),
+      done:  Boolean(cleConfigured),
+    },
+    {
+      id: 'mock',
+      titre: t('parametres.fne_wiz_step5_titre'),
+      desc:  t('parametres.fne_wiz_step5_desc'),
+      done:  Boolean(fneActif),
+    },
+    {
+      id: 'prod',
+      titre: t('parametres.fne_wiz_step6_titre'),
+      desc:  t('parametres.fne_wiz_step6_desc'),
+      done:  Boolean(modeProduction && statutPing === 'ok'),
+    },
+  ];
+
+  const nbDone   = etapes.filter(e => e.done).length;
+  const total    = etapes.length;
+  const progress = Math.round((nbDone / total) * 100);
+  const allDone  = nbDone === total;
+
+  return (
+    <div style={{
+      background: C.card, border: `1.5px solid ${allDone ? C.accent : C.border}`,
+      borderRadius: 16, padding: '20px 22px',
+      transition: 'border-color 0.3s',
+    }}>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+        gap: 16, marginBottom: 14, flexWrap: 'wrap',
+      }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: C.text, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <CheckCircle size={16} color={allDone ? C.accent : C.muted} />
+            {t('parametres.fne_wiz_title')}
+          </div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>
+            {allDone
+              ? t('parametres.fne_wiz_complete')
+              : t('parametres.fne_wiz_progress', { done: nbDone, total })}
+          </div>
+        </div>
+        <div style={{
+          fontFamily: 'monospace', fontSize: 16, fontWeight: 700, color: allDone ? C.accent : C.text,
+          whiteSpace: 'nowrap',
+        }}>
+          {progress} %
+        </div>
+      </div>
+
+      {/* Barre de progression */}
+      <div style={{
+        height: 4, background: `${C.border}88`, borderRadius: 100,
+        marginBottom: 18, overflow: 'hidden',
+      }}>
+        <div style={{
+          height: '100%', width: `${progress}%`, background: C.accent,
+          transition: 'width 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
+          boxShadow: progress > 0 ? `0 0 6px ${C.accent}80` : 'none',
+        }} />
+      </div>
+
+      {/* Liste des étapes */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+        {etapes.map((e, i) => (
+          <div key={e.id} style={{
+            display: 'grid', gridTemplateColumns: '28px 1fr', gap: 12,
+            padding: '12px 0',
+            borderTop: i === 0 ? 'none' : `1px solid ${C.border}44`,
+            opacity: e.done ? 0.7 : 1,
+          }}>
+            {/* Pastille numérotée ou coche */}
+            <div style={{
+              width: 24, height: 24, borderRadius: '50%',
+              background: e.done ? C.accent : 'transparent',
+              border: `1.5px solid ${e.done ? C.accent : C.border}`,
+              color: e.done ? '#000' : C.muted,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 800, fontFamily: 'monospace',
+              flexShrink: 0,
+            }}>
+              {e.done ? <CheckCircle size={13} /> : i + 1}
+            </div>
+            <div>
+              <div style={{
+                fontSize: 13, fontWeight: 700, color: C.text,
+                textDecoration: e.done ? 'line-through' : 'none',
+                textDecorationColor: `${C.muted}80`,
+              }}>
+                {e.titre}
+              </div>
+              <div style={{ fontSize: 12, color: C.muted, marginTop: 3, lineHeight: 1.55 }}>
+                {e.desc}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Lien officiel DGI Côte d'Ivoire */}
+      <div style={{
+        marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.border}88`,
+        fontSize: 11.5, color: C.muted, lineHeight: 1.55,
+      }}>
+        {t('parametres.fne_wiz_more')}{' '}
+        <a href="https://www.dgi.gouv.ci/fne/" target="_blank" rel="noopener noreferrer"
+           style={{ color: C.accent, textDecoration: 'underline' }}>
+          dgi.gouv.ci/fne
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function FiscalTab({ C, dark }) {
   const { t } = useTranslation();
   const [config, setConfig] = useState(null);
@@ -499,6 +685,19 @@ function FiscalTab({ C, dark }) {
       }}>
         {t('parametres.fne_intro')}
       </div>
+
+      {/* Wizard FNE : checklist guidée qui se coche automatiquement selon
+          l'état du formulaire. Aide pas-à-pas pour les nouveaux utilisateurs
+          (la procédure DGI demande plusieurs démarches préalables). */}
+      <WizardFne
+        ncc={form.ncc}
+        centreFiscal={form.centre_fiscal}
+        cleConfigured={config?.fne_api_key_set || (form.fne_api_key && form.fne_api_key.trim())}
+        fneActif={form.fne_actif}
+        modeProduction={form.fne_mode === 'live'}
+        statutPing={statutPing}
+        C={C} dark={dark} t={t}
+      />
 
       {/* Carte principale */}
       <div style={{ background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: 24 }}>

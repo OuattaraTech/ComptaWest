@@ -49,7 +49,7 @@ const QUOTAS = {
     entreprises:   1,
     factures_mois:  Infinity,
     ocr_scans_mois: 300,
-    paiement_fournisseurs: 3,
+    paiement_fournisseurs: 2,  // 2 opérateurs Mobile Money au choix
     paie_bulletins: 25,
     immobilisations: true,
     api_publique:   false,

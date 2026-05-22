@@ -341,6 +341,17 @@ export default function TaxesPage() {
       {showModal && (
         <Modal title={t('taxes.new_declaration')} onClose={() => setShowModal(false)}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Bandeau d'aide : flexibilité totale, type Autre pour les
+                taxes locales (vignette, taxe de séjour, contribution
+                exceptionnelle…) que l'utilisateur veut tracer lui-même. */}
+            <div style={{
+              background: `${C.accent}10`, border: `1px solid ${C.accent}30`,
+              borderRadius: 10, padding: '11px 14px', fontSize: 12,
+              color: C.sub, lineHeight: 1.55,
+            }}>
+              <strong style={{ color: C.text }}>{t('taxes.flex_intro_title')}</strong>{' '}
+              {t('taxes.flex_intro_help')}
+            </div>
             <div>
               <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>{t('taxes.col_type')} *</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -357,6 +368,25 @@ export default function TaxesPage() {
                   );
                 })}
               </div>
+              {form.type_taxe === 'Autre' && (
+                <div style={{
+                  marginTop: 8, padding: '8px 12px', borderRadius: 8,
+                  background: dark ? '#0D1525' : C.cardAlt,
+                  fontSize: 11.5, color: C.muted, lineHeight: 1.5,
+                }}>
+                  {t('taxes.flex_autre_help')}
+                </div>
+              )}
+              {/* Si l'utilisateur a choisi « Autre », on permet aussi de
+                  nommer librement la taxe (sinon l'organisme suffit). */}
+              {form.type_taxe === 'Autre' && (
+                <div style={{ marginTop: 10 }}>
+                  <Input label={t('taxes.flex_libelle_label')}
+                    value={form.libelle_custom || ''}
+                    onChange={set('libelle_custom')}
+                    placeholder={t('taxes.flex_libelle_placeholder')} />
+                </div>
+              )}
             </div>
             <Input label={t('taxes.field_organisation')} value={form.organisme} onChange={set('organisme')} placeholder="DGI, CNPS, CNAM..." required />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

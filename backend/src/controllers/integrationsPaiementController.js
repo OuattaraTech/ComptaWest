@@ -117,6 +117,46 @@ const upsertIntegration = async (req, res) => {
       });
     }
 
+    // ── Quota par palier ─────────────────────────────────────────────
+    // Découverte : 0 opérateur live (mode démo seulement).
+    // Starter   : 1 opérateur live au choix.
+    // Pro       : 2 opérateurs live au choix.
+    // Cabinet   : 3 opérateurs (tous débloqués).
+    // Le mode 'mock' n'est PAS compté — chacun peut tester sans débourser.
+    if (mode === 'live' && actif) {
+      const palierRes = await client.query(
+        `SELECT palier FROM abonnements WHERE entreprise_id = $1 LIMIT 1`,
+        [req.entrepriseId]
+      ).catch(() => ({ rows: [] }));
+      const palier = palierRes.rows[0]?.palier || 'decouverte';
+      const { getQuotas } = require('../utils/quotas');
+      const max = getQuotas(palier).paiement_fournisseurs;
+
+      if (max === 0) {
+        return res.status(402).json({
+          success: false,
+          code: 'QUOTA_PALIER',
+          message: `Votre palier (${palier}) n'autorise pas le mode production. Passez en Starter pour activer un opérateur Mobile Money en réel.`,
+        });
+      }
+
+      // Compte les opérateurs DÉJÀ actifs en live (hors celui qu'on est en train d'éditer)
+      const activesRes = await client.query(
+        `SELECT fournisseur FROM integrations_paiement
+         WHERE entreprise_id = $1 AND mode = 'live' AND actif = true AND fournisseur != $2`,
+        [req.entrepriseId, fournisseur]
+      );
+      if (activesRes.rows.length >= max) {
+        return res.status(402).json({
+          success: false,
+          code: 'QUOTA_PALIER',
+          message: `Votre palier (${palier}) limite à ${max} opérateur(s) Mobile Money actifs en production. `
+                 + `Désactivez d'abord un opérateur ou passez à un palier supérieur.`,
+          data: { actifs: activesRes.rows.map(r => r.fournisseur), max },
+        });
+      }
+    }
+
     // Validation du compte de trésorerie : doit appartenir à l'entreprise
     if (compteFinal) {
       const cRes = await client.query(
