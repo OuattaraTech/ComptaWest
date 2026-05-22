@@ -138,9 +138,11 @@ function IntegrationsTab({ C, dark }) {
   // Quota par palier : nombre d'opérateurs Mobile Money activables en
   // production simultanément. Calculé côté UI pour l'info visuelle ; le
   // backend revérifie de toute façon à l'upsert.
-  const PALIER_MAX_OPS = { decouverte: 0, starter: 1, pro: 2, cabinet: 3 };
-  const palier = abonnement?.palier || 'decouverte';
-  const maxOps = PALIER_MAX_OPS[palier] ?? 0;
+  // Note : l'API /abonnement renvoie { abonnement: { palier }, quotas: {...} } —
+  // on lit donc dans `quotas.paiement_fournisseurs` (déjà résolu côté back)
+  // plutôt que de redériver via une matrice JS.
+  const palier = abonnement?.abonnement?.palier || 'decouverte';
+  const maxOps = abonnement?.quotas?.paiement_fournisseurs ?? 0;
   const opsActifs = integrations.filter(i => i.mode === 'live' && i.actif).length;
 
   return (
