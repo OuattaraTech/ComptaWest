@@ -548,16 +548,39 @@ function WizardFne({ ncc, centreFiscal, cleConfigured, fneActif, modeProduction,
         ))}
       </div>
 
-      {/* Lien officiel DGI Côte d'Ivoire */}
+      {/* Coordonnées officielles DGI Côte d'Ivoire — tirées du document
+          DGI « Procédure d'interfaçage des entreprises par API » (mai 2025).
+          L'URL de production est transmise par mail après validation. */}
       <div style={{
         marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.border}88`,
-        fontSize: 11.5, color: C.muted, lineHeight: 1.55,
+        fontSize: 11.5, color: C.muted, lineHeight: 1.6,
       }}>
-        {t('parametres.fne_wiz_more')}{' '}
-        <a href="https://www.dgi.gouv.ci/fne/" target="_blank" rel="noopener noreferrer"
-           style={{ color: C.accent, textDecoration: 'underline' }}>
-          dgi.gouv.ci/fne
-        </a>
+        <div style={{ marginBottom: 6 }}>
+          {t('parametres.fne_wiz_more')}
+        </div>
+        <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <li>
+            {t('parametres.fne_wiz_portal_test')}{' '}
+            <a href="http://54.247.95.108" target="_blank" rel="noopener noreferrer"
+               style={{ color: C.accent, textDecoration: 'underline' }}>
+              http://54.247.95.108
+            </a>
+          </li>
+          <li>
+            {t('parametres.fne_wiz_support')}{' '}
+            <a href="mailto:support.fne@dgi.gouv.ci"
+               style={{ color: C.accent, textDecoration: 'underline' }}>
+              support.fne@dgi.gouv.ci
+            </a>
+          </li>
+          <li>
+            {t('parametres.fne_wiz_dgi')}{' '}
+            <a href="https://www.dgi.gouv.ci/" target="_blank" rel="noopener noreferrer"
+               style={{ color: C.accent, textDecoration: 'underline' }}>
+              dgi.gouv.ci
+            </a>
+          </li>
+        </ul>
       </div>
     </div>
   );
