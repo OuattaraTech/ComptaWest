@@ -723,7 +723,7 @@ export const ONBOARDING = {
           '**TVA** (DGI) — trimestrielle, taux 18 %',
           '**IS / BIC** (DGI) — impôt sur le bénéfice annuel',
           '**ITS** — impôt sur traitements et salaires (lié à la paie)',
-          '**CNSS / CMU** — cotisations sociales',
+          '**CNPS / CMU** — cotisations sociales',
           '**IRVM, Patente, Autres** — pour les cas particuliers',
         ],
       },
@@ -751,7 +751,7 @@ export const ONBOARDING = {
       {
         icon: CreditCard,
         titre: 'Paiement intégré',
-        description: 'Le bouton « Payer » sur une déclaration enchaîne automatiquement : sortie sur le compte de trésorerie choisi + écriture comptable (4441 TVA / 441 IS / 4311 CNSS… au débit, trésorerie au crédit) + mise à jour du statut.',
+        description: 'Le bouton « Payer » sur une déclaration enchaîne automatiquement : sortie sur le compte de trésorerie choisi + écriture comptable (4441 TVA / 441 IS / 4311 CNPS… au débit, trésorerie au crédit) + mise à jour du statut.',
         points: [
           'Choix du compte trésorerie (banque, mobile money…)',
           'Mode et référence de paiement tracés',
@@ -778,7 +778,7 @@ export const ONBOARDING = {
         points: [
           'Recettes mois par mois (TTC et encaissées)',
           'Dépenses ventilées par catégorie SYSCOHADA',
-          'Taxes payées (TVA, IS/BIC, CNSS, Patente…)',
+          'Taxes payées (TVA, IS/BIC, CNPS, Patente…)',
           'Résultat net = recettes − dépenses − taxes',
           'Marge en % du chiffre d\'affaires',
         ],

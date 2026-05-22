@@ -713,7 +713,7 @@ export const ONBOARDING = {
           '**VAT** (DGI) — quarterly, 18% rate',
           '**IS / BIC** (DGI) — annual profit tax',
           '**ITS** — wage and salary tax (linked to payroll)',
-          '**CNSS / CMU** — social contributions',
+          '**CNPS / CMU** — social contributions',
           '**IRVM, Patente, Other** — for specific cases',
         ],
       },
@@ -741,7 +741,7 @@ export const ONBOARDING = {
       {
         icon: CreditCard,
         titre: 'Integrated payment',
-        description: 'The "Pay" button on a declaration triggers automatically: outflow on the chosen treasury account + accounting entry (4441 VAT / 441 IS / 4311 CNSS... on the debit side, treasury on the credit side) + status update.',
+        description: 'The "Pay" button on a declaration triggers automatically: outflow on the chosen treasury account + accounting entry (4441 VAT / 441 IS / 4311 CNPS... on the debit side, treasury on the credit side) + status update.',
         points: [
           'Choice of treasury account (bank, mobile money...)',
           'Payment method and reference traced',
@@ -768,7 +768,7 @@ export const ONBOARDING = {
         points: [
           'Income month by month (gross and collected)',
           'Expenses broken down by SYSCOHADA category',
-          'Taxes paid (VAT, IS/BIC, CNSS, Patente...)',
+          'Taxes paid (VAT, IS/BIC, CNPS, Patente...)',
           'Net result = income − expenses − taxes',
           'Margin as a % of revenue',
         ],

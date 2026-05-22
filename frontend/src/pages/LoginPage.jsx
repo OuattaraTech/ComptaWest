@@ -2573,9 +2573,19 @@ export default function LoginPage() {
             <Lock size={13} strokeWidth={1.8} />
             {t('login.footer_secure')}
           </div>
-          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center' }}>
             <span>{t('login.footer_syscohada')}</span>
             <span>{t('login.footer_dgi')}</span>
+            <a href="/cgu" style={{ color: C.muted, textDecoration: 'none', borderBottom: `1px dotted ${C.border}` }}
+               onMouseEnter={e => e.currentTarget.style.color = C.accent}
+               onMouseLeave={e => e.currentTarget.style.color = C.muted}>
+              {t('login.footer_cgu')}
+            </a>
+            <a href="/confidentialite" style={{ color: C.muted, textDecoration: 'none', borderBottom: `1px dotted ${C.border}` }}
+               onMouseEnter={e => e.currentTarget.style.color = C.accent}
+               onMouseLeave={e => e.currentTarget.style.color = C.muted}>
+              {t('login.footer_confidentialite')}
+            </a>
           </div>
         </div>
       </section>

@@ -1,0 +1,29 @@
+# robots.txt — ApeX
+# Indexation publique autorisée pour la landing et la page tarifs.
+# Les routes applicatives (dashboard, comptabilité, etc.) sont par
+# nature protégées par auth ; on les exclut explicitement pour ne pas
+# polluer les SERP avec des « 302 vers /login ».
+
+User-agent: *
+Allow: /
+Allow: /tarifs
+Allow: /cgu
+Allow: /confidentialite
+Disallow: /dashboard
+Disallow: /clients
+Disallow: /factures
+Disallow: /devis
+Disallow: /depenses
+Disallow: /tresorerie
+Disallow: /paie
+Disallow: /immobilisations
+Disallow: /produits
+Disallow: /fournisseurs
+Disallow: /taxes
+Disallow: /rapports
+Disallow: /comptabilite
+Disallow: /audit-log
+Disallow: /parametres
+Disallow: /invitation/
+
+Sitemap: https://apex.ci/sitemap.xml

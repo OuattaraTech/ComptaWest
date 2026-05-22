@@ -12,7 +12,10 @@ const { ComptaError } = require('../utils/comptabilite');
 // trois invariants : ordre chronologique, échéance postérieure à la
 // période, et période d'amplitude raisonnable (≤ 3 ans).
 const taxeRules = [
-  body('type_taxe').isIn(['TVA', 'IS', 'BIC', 'CNSS', 'CMU', 'IRVM', 'Patente', 'Autre']).withMessage('Type de taxe invalide'),
+  // CNPS = Caisse Nationale de Prévoyance Sociale (Côte d'Ivoire) ;
+  // CNSS reste accepté en lecture pour les déclarations antérieures
+  // au renommage (rétrocompatibilité des données historiques).
+  body('type_taxe').isIn(['TVA', 'IS', 'BIC', 'CNPS', 'CNSS', 'CMU', 'IRVM', 'Patente', 'ITS', 'TS', 'Autre']).withMessage('Type de taxe invalide'),
   body('periode_debut').isISO8601().withMessage('Période de début invalide'),
   body('periode_fin').isISO8601().withMessage('Période de fin invalide'),
   body('date_echeance').isISO8601().withMessage("Date d'échéance invalide"),
@@ -53,8 +56,10 @@ const TAUX_LEGAUX = {
   TVA: { taux: 18, organisme: 'DGI', echeance_jours: 20 },
   IS:  { taux: 25, organisme: 'DGI', echeance_jours: 120 },
   BIC: { taux: 20, organisme: 'DGI', echeance_jours: 120 },
-  CNSS: { taux: 14, organisme: 'CNSS', echeance_jours: 15 },  // part patronale
-  CMU:  { taux: 3.5, organisme: 'CNSS', echeance_jours: 15 },
+  CNPS: { taux: 16.4, organisme: 'CNPS', echeance_jours: 15 },  // part patronale CI (5,75 % maternité + 1,2 % AT + 7,7 % retraite + 1,75 % CNAM)
+  CMU:  { taux: 1,    organisme: 'CNAM', echeance_jours: 15 },  // 1 000 FCFA/mois par salarié (CMU forfaitaire)
+  ITS:  { taux: 0,    organisme: 'DGI',  echeance_jours: 15 },  // barème progressif — taux laissé à 0, à saisir
+  TS:   { taux: 1.2,  organisme: 'DGI',  echeance_jours: 15 },  // taxe sur salaires (apprentissage + FDFP)
   IRVM: { taux: 15, organisme: 'DGI', echeance_jours: 30 },
   Patente: { taux: 0.5, organisme: 'DGI', echeance_jours: 90 },
 };

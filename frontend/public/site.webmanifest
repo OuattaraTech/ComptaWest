@@ -1,0 +1,14 @@
+{
+  "name": "ApeX — Comptabilité SYSCOHADA",
+  "short_name": "ApeX",
+  "description": "Logiciel de comptabilité et de gestion pour PME ivoiriennes — facturation FNE, paie CNPS, Mobile Money, SYSCOHADA.",
+  "lang": "fr-CI",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0E1116",
+  "theme_color": "#0F8A6E",
+  "icons": [
+    { "src": "/logos/apex.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/logos/apex.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

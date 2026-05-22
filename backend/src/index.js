@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const routes = require('./routes');
 const logger = require('./utils/logger');
@@ -24,22 +25,60 @@ if (isProd && !process.env.FRONTEND_URL) {
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// ── Scalabilité ───────────────────────────────────────────────────────────
+// Derrière un reverse proxy (Nginx, CloudFlare, Render, Fly.io…), il faut
+// faire confiance à X-Forwarded-For sinon express-rate-limit voit toutes
+// les requêtes venir de la même IP (celle du proxy) et applique le rate
+// limit globalement au lieu de par utilisateur. `1` = un seul hop (cas
+// standard). À augmenter si chaîne de plusieurs proxies.
+app.set('trust proxy', 1);
+
+// Compression gzip/brotli sur toutes les réponses > 1 Ko. Gain typique
+// 60-80 % sur du JSON, ~5× moins de bande passante côté client mobile.
+app.use(compression({ threshold: 1024 }));
+
 // ── Sécurité ──────────────────────────────────────────────────────────────
-app.use(helmet());
+// Helmet ajoute une douzaine de headers défensifs (X-Frame-Options,
+// X-Content-Type-Options, Strict-Transport-Security, etc.)
+app.use(helmet({
+  // L'API renvoie du JSON uniquement, jamais de HTML. CSP n'a donc pas
+  // de sens ici (c'est le frontend qui gère sa propre CSP).
+  contentSecurityPolicy: false,
+  // crossOriginEmbedderPolicy bloque les chargements cross-origin sans
+  // CORP — gênant pour le frontend qui consomme l'API.
+  crossOriginEmbedderPolicy: false,
+}));
 
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true,
 }));
 
-// Rate limiter global
+// Rate limiter global — 300 req / 15 min par IP. Bloque les robots
+// abusifs et les scans, tout en laissant respirer un usage normal.
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip pour les health-checks (sinon le load balancer se fait rate-limit)
+  skip: (req) => req.path === '/health',
   message: { success: false, message: 'Trop de requêtes, réessayez dans 15 minutes.' },
 }));
+
+// Rate limiter STRICT sur les endpoints d'authentification : 10 tentatives
+// par IP toutes les 15 min. Stoppe le brute-force de mot de passe avant
+// même d'atteindre la BDD (utilité majeure si compte démo populaire).
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Trop de tentatives de connexion. Patientez 15 minutes.' },
+});
+app.use('/api/auth/login',    authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/demo',     authLimiter);
 
 // ── Logging ───────────────────────────────────────────────────────────────
 if (process.env.NODE_ENV !== 'test') {

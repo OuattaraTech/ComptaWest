@@ -14,6 +14,8 @@ import Layout from './components/Layout/Layout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import InvitationPage from './pages/InvitationPage.jsx';
 import TarifsPage from './pages/TarifsPage.jsx';
+import CguPage from './pages/CguPage.jsx';
+import ConfidentialitePage from './pages/ConfidentialitePage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import DashboardRH from './pages/DashboardRH.jsx';
 import ClientsPage from './pages/ClientsPage.jsx';
@@ -82,6 +84,9 @@ function AppRoutes() {
           (consultation/upgrade depuis l'app). Pas de wrapper Public car on
           ne veut pas rediriger un utilisateur connecté vers /dashboard. */}
       <Route path="/tarifs" element={<TarifsPage />} />
+      {/* Pages légales publiques — référencées dans robots.txt et sitemap.xml */}
+      <Route path="/cgu" element={<CguPage />} />
+      <Route path="/confidentialite" element={<ConfidentialitePage />} />
       <Route path="/" element={<Protected><Layout /></Protected>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         {/* Chaque route est protégée par PermissionGate qui interroge

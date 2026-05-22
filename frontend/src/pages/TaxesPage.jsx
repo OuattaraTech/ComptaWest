@@ -11,19 +11,27 @@ import { Can, ReadOnlyBanner } from '../components/Can.jsx';
 import { Plus, AlertTriangle, CheckCircle, Clock, Calculator } from 'lucide-react';
 
 // Couleurs des types de taxe ; les libellés sont résolus via t('taxes.type_*') au rendu.
+// NB : la terminologie ivoirienne est CNPS (Caisse Nationale de Prévoyance
+// Sociale), pas CNSS (qui est sénégalais). CNSS reste accepté comme alias
+// pour les déclarations enregistrées avant le renommage.
 const TYPE_COLORS = {
   TVA:     '#00D4AA',
   IS:      '#4E8BF5',
   BIC:     '#4E8BF5',
-  CNSS:    '#A855F7',
+  CNPS:    '#A855F7',
   CMU:     '#EC4899',
+  ITS:     '#F59E0B',
+  TS:      '#06B6D4',
   IRVM:    '#F97316',
   Patente: '#84CC16',
   Autre:   '#6B7A99',
 };
 
-const TAUX_DEFAUTS = { TVA: 18, IS: 25, BIC: 20, CNSS: 14, CMU: 3.5, IRVM: 15, Patente: 0.5 };
-const ORGANISMES   = { TVA: 'DGI', IS: 'DGI', BIC: 'DGI', CNSS: 'CNSS', CMU: 'CNSS', IRVM: 'DGI', Patente: 'DGI', Autre: '' };
+// Taux légaux en vigueur Côte d'Ivoire (juin 2025) — à actualiser au gré
+// des arrêtés DGI/CNPS. ITS reste à 0 car barème progressif (le formulaire
+// laisse l'utilisateur saisir le montant calculé via le bulletin de paie).
+const TAUX_DEFAUTS = { TVA: 18, IS: 25, BIC: 20, CNPS: 16.4, CMU: 1, ITS: 0, TS: 1.2, IRVM: 15, Patente: 0.5 };
+const ORGANISMES   = { TVA: 'DGI', IS: 'DGI', BIC: 'DGI', CNPS: 'CNPS', CMU: 'CNAM', ITS: 'DGI', TS: 'DGI', IRVM: 'DGI', Patente: 'DGI', Autre: '' };
 
 export default function TaxesPage() {
   const { t } = useTranslation();
@@ -350,7 +358,7 @@ export default function TaxesPage() {
                 })}
               </div>
             </div>
-            <Input label={t('taxes.field_organisation')} value={form.organisme} onChange={set('organisme')} placeholder="DGI, CNSS..." required />
+            <Input label={t('taxes.field_organisation')} value={form.organisme} onChange={set('organisme')} placeholder="DGI, CNPS, CNAM..." required />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Input label={t('taxes.field_period_start')} type="date" value={form.periode_debut} onChange={set('periode_debut')} required />
               <Input label={t('taxes.field_period_end')} type="date" value={form.periode_fin} onChange={set('periode_fin')} required />

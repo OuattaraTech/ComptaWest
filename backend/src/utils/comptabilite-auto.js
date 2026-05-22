@@ -10,7 +10,7 @@
  *   Paiement fournisseur : 401 (D) / 521|571|541 (C)
  *   Paiement TVA :         4441 (D) / 521 (C)
  *   Paiement IS :          441 (D) / 521 (C)
- *   Paiement CNSS :        431x (D) / 521 (C)
+ *   Paiement CNPS :        431x (D) / 521 (C)
  *
  * Toutes les fonctions sont best-effort : elles attrapent leurs propres erreurs
  * pour ne PAS faire échouer l'action métier (la facture s'enregistre même si
@@ -255,11 +255,14 @@ const ecritureDepense = async (client, { entrepriseId, utilisateurId, depense, c
 
 /**
  * Écriture de paiement de taxe.
- * Mapping : TVA→4441, IS→441, BIC→441, CNSS→4311, CMU→4311, IRVM→4472, Patente→4426
+ * Mapping : TVA→4441, IS→441, BIC→441, CNPS→4311, CMU→4314,
+ *           IRVM→4472, Patente→4426, ITS→442, TS→4421.
+ * CNSS conservé en alias rétrocompatible.
  */
 const COMPTE_TAXE = {
   TVA: '4441', IS: '441', BIC: '441',
-  CNSS: '4311', CMU: '4311',
+  CNPS: '4311', CNSS: '4311',  // alias historique
+  CMU: '4314', ITS: '442', TS: '4421',
   IRVM: '4472', Patente: '4426',
 };
 
