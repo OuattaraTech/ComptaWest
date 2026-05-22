@@ -7,7 +7,8 @@ import toast from 'react-hot-toast';
 import { getC, Input, Modal } from '../components/UI.jsx';
 import Onboarding from '../components/Onboarding.jsx';
 import { Can, ReadOnlyBanner } from '../components/Can.jsx';
-import { Plus, Search, Trash2, Phone, Mail, MapPin, FileText } from 'lucide-react';
+import { Plus, Search, Trash2, Phone, Mail, MapPin, FileText, Upload } from 'lucide-react';
+import ImportExcelModal from '../components/ImportExcelModal.jsx';
 
 const PAYS = ["Côte d'Ivoire","Sénégal","Mali","Burkina Faso","Guinée","Togo","Bénin","Niger","Cameroun","France"];
 
@@ -27,6 +28,7 @@ export default function ClientsPage() {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, pages: 1 });
   const [showModal, setShowModal] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [showDetail, setShowDetail] = useState(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -83,13 +85,22 @@ export default function ClientsPage() {
           </p>
         </div>
         <Can module="clients" action="create">
-          <button data-onboarding="btn-nouveau" onClick={() => { setForm(emptyForm); setShowModal(true); }} style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10,
-            border: 'none', background: C.accent, color: dark ? '#000' : '#fff',
-            fontSize: 13, fontWeight: 700, cursor: 'pointer',
-          }}>
-            <Plus size={16} /> {t('clients.new')}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setShowImport(true)} style={{
+              display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 10,
+              border: `1px solid ${C.border}`, background: 'transparent', color: C.text,
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            }}>
+              <Upload size={15} /> {t('imports.btn_import')}
+            </button>
+            <button data-onboarding="btn-nouveau" onClick={() => { setForm(emptyForm); setShowModal(true); }} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10,
+              border: 'none', background: C.accent, color: dark ? '#000' : '#fff',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>
+              <Plus size={16} /> {t('clients.new')}
+            </button>
+          </div>
         </Can>
       </div>
 
@@ -256,6 +267,13 @@ export default function ClientsPage() {
       )}
 
       <Onboarding pageKey="clients" />
+
+      <ImportExcelModal
+        type="clients"
+        open={showImport}
+        onClose={() => { setShowImport(false); fetchClients(); }}
+        onDone={() => fetchClients()}
+      />
 
       {/* Modal détail */}
       {showDetail && (

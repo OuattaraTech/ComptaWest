@@ -17,7 +17,9 @@ const { register, login, me, updateLangue, loginDemo, getInvitation, accepterInv
 const entrepriseAccess = require('../middleware/entreprise');
 const {
   getMesEntreprises, createEntreprise, updateEntreprise,
-  getMembres, inviterMembre, updateRoleMembre, retirerMembre, entrepriseRules,
+  getMembres, inviterMembre, updateRoleMembre, retirerMembre,
+  updatePermissionsMembre, getTemplateRole,
+  entrepriseRules,
 } = require('../controllers/entreprisesController');
 const { getClients, getClientById, createClient, updateClient, deleteClient, clientRules } = require('../controllers/clientsController');
 const { getFactures, getFactureById, createFacture, updateFacture, updateStatut, addPaiement, deleteFacture, factureRules, paiementRules } = require('../controllers/facturesController');
@@ -41,6 +43,8 @@ const {
   getPlanComptable, getJournaux, getExercices,
   getEcritures, getEcritureById, getGrandLivre, getBalance,
   createEcritureManuelle, exportFEC,
+  exportJournalTxt, exportJournalExcel,
+  exportGrandLivreTxt, exportGrandLivreExcel,
   getClotureChecks, cloturerExercice,
 } = require('../controllers/comptabiliteController');
 const {
@@ -81,6 +85,11 @@ const {
   createFournisseur, updateFournisseur, archiveFournisseur,
   getStatsFournisseurs,
 } = require('../controllers/fournisseursController');
+const {
+  importerClients, importerFournisseurs, importerProduits,
+  importerPlanComptable, importerBalanceOuverture, importerEcrituresHistoriques,
+  telechargerModele,
+} = require('../controllers/importController');
 const {
   commandeRules, paiementFournisseurRules,
   getCommandes, getCommandeById, createCommande,
@@ -128,7 +137,14 @@ router.put('/entreprises/:id', auth, can(MODULES.ENTREPRISE, ACTIONS.UPDATE), up
 router.get('/entreprises/:id/membres', auth, can(MODULES.USERS, ACTIONS.READ), getMembres);
 router.post('/entreprises/:id/membres', auth, can(MODULES.USERS, ACTIONS.CREATE), checkQuota('utilisateurs'), inviterMembre);
 router.put('/entreprises/:id/membres/:userId/role', auth, can(MODULES.USERS, ACTIONS.UPDATE), updateRoleMembre);
+// Surcharge personnalisée des permissions d'un membre — Propriétaire / Admin
+// uniquement (users.update). Body : { permissions_override: { module: [actions] } }
+// ou { permissions_override: null } pour réinitialiser à la matrice rôle.
+router.put('/entreprises/:id/membres/:userId/permissions', auth, can(MODULES.USERS, ACTIONS.UPDATE), updatePermissionsMembre);
 router.delete('/entreprises/:id/membres/:userId', auth, can(MODULES.USERS, ACTIONS.DELETE), retirerMembre);
+// Template de permissions par défaut pour un rôle (utilisé par l'UI
+// pour pré-cocher les cases dans la modale d'invitation / édition).
+router.get('/permissions/template/:role', auth, can(MODULES.USERS, ACTIONS.READ), getTemplateRole);
 
 // ─── DASHBOARD ─────────────────────────────────────────────────────────────
 router.get('/dashboard/stats', auth, can(MODULES.DASHBOARD, ACTIONS.READ), getStats);
@@ -141,6 +157,28 @@ router.get('/clients/:id', auth, can(MODULES.CLIENTS, ACTIONS.READ), getClientBy
 router.post('/clients', auth, can(MODULES.CLIENTS, ACTIONS.CREATE), clientRules, validate, createClient);
 router.put('/clients/:id', auth, can(MODULES.CLIENTS, ACTIONS.UPDATE), updateClient);
 router.delete('/clients/:id', auth, can(MODULES.CLIENTS, ACTIONS.DELETE), deleteClient);
+
+// ─── IMPORT EN MASSE (Excel / CSV / Sage / Ciel) ──────────────────────────
+// `dry_run=true` (défaut) : aperçu validé sans insertion.
+// `dry_run=false`         : insertion réelle si zéro erreur (rollback total
+//                           à la moindre exception SQL).
+// Le `:type` est /clients, /fournisseurs ou /produits — chaque endpoint
+// utilise la permission CREATE du module correspondant pour rester
+// cohérent avec la matrice de droits.
+router.post('/import/clients',      auth, can(MODULES.CLIENTS,      ACTIONS.CREATE), importerClients);
+router.post('/import/fournisseurs', auth, can(MODULES.FOURNISSEURS, ACTIONS.CREATE), importerFournisseurs);
+router.post('/import/produits',     auth, can(MODULES.PRODUITS,     ACTIONS.CREATE), importerProduits);
+// Imports comptables sensibles (gestion du plan, AN, reprise d'historique) :
+// permission cloture.create — réservée à l'EC + admin + propriétaire.
+// Tous les imports comptables passent par ecritures.create (Propriétaire +
+// Admin + EC + Comptable). La clôture annuelle reste exclusivement EC via
+// cloture.create — c'est la responsabilité ONECCA distincte de la reprise
+// initiale qu'un propriétaire fait au démarrage de son entreprise.
+router.post('/import/plan_comptable',         auth, can(MODULES.ECRITURES, ACTIONS.CREATE), importerPlanComptable);
+router.post('/import/balance_ouverture',      auth, can(MODULES.ECRITURES, ACTIONS.CREATE), importerBalanceOuverture);
+router.post('/import/ecritures_historiques', auth, can(MODULES.ECRITURES, ACTIONS.CREATE), importerEcrituresHistoriques);
+// Modèle XLSX vide avec les en-têtes attendues — accessible aux mêmes rôles.
+router.get('/import/template/:type', auth, telechargerModele);
 
 // ─── FACTURES ──────────────────────────────────────────────────────────────
 router.get('/factures', auth, can(MODULES.FACTURES, ACTIONS.READ), getFactures);
@@ -262,8 +300,16 @@ router.get('/comptabilite/ecritures/:id',auth, can(MODULES.ECRITURES, ACTIONS.RE
 router.post('/comptabilite/ecritures',   auth, can(MODULES.ECRITURES, ACTIONS.CREATE), createEcritureManuelle);
 router.get('/comptabilite/grand-livre',  auth, can(MODULES.ECRITURES, ACTIONS.READ),   getGrandLivre);
 router.get('/comptabilite/balance',      auth, can(MODULES.ECRITURES, ACTIONS.READ),   getBalance);
-// Export FEC : pièce fiscale officielle, on aligne sur cloture.read (EC + admin + auditeur)
-router.get('/comptabilite/fec',          auth, can(MODULES.CLOTURE,   ACTIONS.READ),   exportFEC);
+// Exports comptables — article 17 OHADA (intangibilité + extraction
+// numérique en cas de contrôle DGI). Toutes les routes vérifient
+// cloture.read (Propriétaire + Admin + Expert-comptable + Auditeur).
+// Journal général = chronologique. Grand-Livre = tri par compte + solde.
+router.get('/comptabilite/journal/txt',         auth, can(MODULES.CLOTURE, ACTIONS.READ), exportJournalTxt);
+router.get('/comptabilite/journal/excel',       auth, can(MODULES.CLOTURE, ACTIONS.READ), exportJournalExcel);
+router.get('/comptabilite/grand-livre/txt',     auth, can(MODULES.CLOTURE, ACTIONS.READ), exportGrandLivreTxt);
+router.get('/comptabilite/grand-livre/excel',   auth, can(MODULES.CLOTURE, ACTIONS.READ), exportGrandLivreExcel);
+// Alias historique préservé pour compat (= Journal général en TXT)
+router.get('/comptabilite/fec',                 auth, can(MODULES.CLOTURE, ACTIONS.READ), exportFEC);
 
 // ─── TRÉSORERIE ────────────────────────────────────────────────────────────
 router.get('/tresorerie/operateurs',              auth, can(MODULES.TRESORERIE, ACTIONS.READ),   getOperateurs);

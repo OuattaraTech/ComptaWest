@@ -299,6 +299,84 @@ function rolesPour(module, action) {
   return PERMISSIONS[module]?.[action] || [];
 }
 
+/**
+ * Projette la matrice statique pour UN rôle donné — utilisé comme
+ * template à l'invitation (le Propriétaire voit les cases par défaut
+ * pré-cochées) et comme fallback si pas d'override personnalisé.
+ *
+ * Retour : { module: ['read', 'create', ...], ... }
+ * Les modules pour lesquels le rôle n'a AUCUNE action sont omis (la
+ * sémantique « module absent = pas d'accès » est cohérente avec le
+ * JSONB stocké en BDD).
+ */
+function templatePourRole(role) {
+  if (!role) return {};
+  const out = {};
+  for (const [module, actions] of Object.entries(PERMISSIONS)) {
+    const autorisees = [];
+    for (const [action, roles] of Object.entries(actions)) {
+      if (Array.isArray(roles) && roles.includes(role)) autorisees.push(action);
+    }
+    if (autorisees.length > 0) out[module] = autorisees;
+  }
+  return out;
+}
+
+/**
+ * Permission effective d'un membre = override s'il existe, sinon la
+ * matrice rôle. Utilisé par le middleware et par getMesPermissions
+ * pour avoir une vérité unique.
+ *
+ * Note : l'override est trusté en lecture, mais sanitisé en écriture
+ * (validerOverride ci-dessous) pour ne stocker que des modules/actions
+ * connus de la matrice.
+ */
+function peutAvecOverride(role, override, module, action) {
+  if (!module || !action) return false;
+  if (override && typeof override === 'object') {
+    const allowed = override[module];
+    return Array.isArray(allowed) && allowed.includes(action);
+  }
+  return peut(role, module, action);
+}
+
+/**
+ * Renvoie les permissions effectives sous la même forme que
+ * templatePourRole : { module: [actions] }. Utilisé par
+ * getMesPermissions pour construire le payload `can` du front.
+ */
+function effectivesPourMembre(role, override) {
+  if (override && typeof override === 'object' && !Array.isArray(override)) {
+    return override;
+  }
+  return templatePourRole(role);
+}
+
+/**
+ * Sanitise un override avant insertion BDD : on ne garde que les
+ * modules + actions reconnus par la matrice, on déduplique, et on
+ * supprime les modules vides. Évite qu'un client injecte « delete »
+ * sur ecritures (interdit par SYSCOHADA) ou un module fictif.
+ *
+ * Retourne soit un objet JSONB propre, soit null si l'override est
+ * vide / invalide (-> on retombera sur la matrice rôle).
+ */
+function validerOverride(override) {
+  if (!override || typeof override !== 'object' || Array.isArray(override)) {
+    return null;
+  }
+  const out = {};
+  const modulesValides = new Set(Object.keys(PERMISSIONS));
+  for (const [module, actions] of Object.entries(override)) {
+    if (!modulesValides.has(module)) continue;
+    if (!Array.isArray(actions)) continue;
+    const actionsValides = new Set(Object.keys(PERMISSIONS[module]));
+    const filtrees = [...new Set(actions.filter(a => actionsValides.has(a) && PERMISSIONS[module][a].length > 0))];
+    if (filtrees.length > 0) out[module] = filtrees;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 module.exports = {
   ROLES,
   ALL_ROLES,
@@ -310,4 +388,8 @@ module.exports = {
   peutVoirChamp,
   masquerChamps,
   rolesPour,
+  templatePourRole,
+  peutAvecOverride,
+  effectivesPourMembre,
+  validerOverride,
 };

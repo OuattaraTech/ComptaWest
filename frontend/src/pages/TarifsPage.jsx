@@ -349,7 +349,7 @@ export default function TarifsPage() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {[1, 2, 3, 4, 5].map(n => (
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
             <details key={n} style={{
               background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
               padding: '14px 18px', cursor: 'pointer',

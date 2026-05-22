@@ -1,4 +1,5 @@
 const pool = require('../../config/database');
+const ExcelJS = require('exceljs');
 const { creerEcriture, ComptaError } = require('../utils/comptabilite');
 const {
   verifierPreCloture, ecritureSoldeCharges, ecritureSoldeProduits, ecritureSoldeHAO,
@@ -346,51 +347,135 @@ const createEcritureManuelle = async (req, res) => {
   }
 };
 
-// ─── EXPORT FEC (Fichier des Écritures Comptables) ─────────────────────────
-// GET /api/comptabilite/fec?annee=YYYY
-// Format pipe-delimited, UTF-8, en-tête sur la première ligne. 18 colonnes.
-const exportFEC = async (req, res) => {
+// ═══════════════════════════════════════════════════════════════════════════
+//   EXPORTS COMPTABLES (Journal général + Grand-Livre) — TXT et Excel
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// CONTEXTE OHADA. Le « FEC » au sens du CGI est une obligation française et
+// n'existe pas en droit ivoirien. Ce que la Côte d'Ivoire impose, c'est
+// l'article 17 de l'Acte uniforme OHADA : intangibilité, chronologie et
+// durabilité des écritures, avec extraction sous format numérique
+// exploitable en cas de contrôle DGI. Tous ces exports ne ramènent que des
+// écritures VALIDÉES (e.validee = true) — donc intangibles par construction.
+//
+// Deux états distincts, deux formats chacun :
+//   • Journal général    = ordre chronologique des écritures par pièce
+//   • Grand-Livre        = ordre par compte avec solde progressif
+//
+//   • Format TXT (pipe-delimited UTF-8)  → universel, machine readable
+//   • Format Excel (.xlsx, ExcelJS)      → lisible, mis en forme, totaux
+//
+// ─── Helpers communs ───────────────────────────────────────────────────────
+const clean       = (s) => String(s || '').replace(/[|\r\n\t]+/g, ' ').trim();
+const fmtMontant  = (n) => (parseFloat(n) || 0).toFixed(2);
+const fmtDateNum  = (d) => {
+  if (!d) return '';
+  const dt = new Date(d);
+  return `${dt.getFullYear()}${String(dt.getMonth() + 1).padStart(2, '0')}${String(dt.getDate()).padStart(2, '0')}`;
+};
+const fmtDateFR   = (d) => {
+  if (!d) return '';
+  const dt = new Date(d);
+  return `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`;
+};
+const slugify = (s) => String(s || 'entreprise').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 40);
+
+// Récupère les écritures validées d'un exercice + entête entreprise.
+// Centralisé pour les 4 exports (DRY + cohérence des données).
+const fetchEcrituresValidees = async (eid, annee, { triParCompte = false } = {}) => {
+  const dateDebut = `${annee}-01-01`;
+  const dateFin   = `${annee}-12-31`;
+  const orderBy = triParCompte
+    ? 'l.compte_numero, e.date_ecriture, e.numero_piece, l.ordre'
+    : 'e.date_ecriture, e.numero_piece, l.ordre';
+
+  const result = await pool.query(
+    `SELECT
+       j.code AS journal_code, j.libelle AS journal_lib,
+       e.numero_piece, e.date_ecriture, e.libelle AS ecriture_lib,
+       e.reference AS piece_ref, e.created_at AS valid_date,
+       l.compte_numero, pc.libelle AS compte_lib,
+       l.libelle AS ligne_lib, l.debit, l.credit, l.lettrage, l.ordre
+     FROM ecritures e
+     JOIN lignes_ecriture l ON l.ecriture_id = e.id
+     JOIN journaux j ON j.id = e.journal_id
+     LEFT JOIN plan_comptable pc ON pc.id = l.compte_id
+     WHERE e.entreprise_id = $1
+       AND e.date_ecriture BETWEEN $2 AND $3
+       AND e.validee = true
+     ORDER BY ${orderBy}`,
+    [eid, dateDebut, dateFin]
+  );
+
+  const entRes = await pool.query('SELECT nom, ninea FROM entreprises WHERE id=$1', [eid]);
+  const ent = entRes.rows[0] || { nom: 'entreprise', ninea: '' };
+
+  return { rows: result.rows, ent };
+};
+
+// Valide & normalise le paramètre ?annee=YYYY
+const lireAnnee = (req) => {
+  const annee = parseInt(req.query.annee) || new Date().getFullYear();
+  if (annee < 2000 || annee > 2100) return null;
+  return annee;
+};
+
+// Mise en forme Excel commune : un en-tête entreprise + une ligne titre +
+// un header de colonnes vert, puis les données. Renvoie la worksheet
+// déjà configurée pour que le caller n'ait qu'à pousser les lignes.
+const initWorksheet = (workbook, sheetName, ent, annee, titre, colonnes) => {
+  const ws = workbook.addWorksheet(sheetName, {
+    views: [{ state: 'frozen', ySplit: 5 }],
+    pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true },
+  });
+
+  // Ligne 1 : Nom entreprise (gros, gras)
+  ws.mergeCells(1, 1, 1, colonnes.length);
+  const c1 = ws.getCell(1, 1);
+  c1.value = ent.nom || 'Entreprise';
+  c1.font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF0E1116' } };
+  c1.alignment = { vertical: 'middle' };
+
+  // Ligne 2 : NINEA + titre du document
+  ws.mergeCells(2, 1, 2, colonnes.length);
+  const c2 = ws.getCell(2, 1);
+  c2.value = `${ent.ninea ? 'NINEA ' + ent.ninea + '  ·  ' : ''}${titre}  ·  Exercice ${annee}`;
+  c2.font  = { name: 'Calibri', size: 10, color: { argb: 'FF6B7280' } };
+
+  // Ligne 3 : mention OHADA (intangibilité)
+  ws.mergeCells(3, 1, 3, colonnes.length);
+  const c3 = ws.getCell(3, 1);
+  c3.value = 'Document produit par ApeX  ·  Écritures validées (intangibilité — article 17 OHADA)';
+  c3.font  = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF6B7280' } };
+
+  // Ligne 4 : vide
+  ws.addRow([]);
+
+  // Ligne 5 : header des colonnes
+  const headerRow = ws.addRow(colonnes.map(c => c.label));
+  headerRow.eachCell((cell) => {
+    cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F8A6E' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'left' };
+    cell.border = { bottom: { style: 'thin', color: { argb: 'FF0F8A6E' } } };
+  });
+
+  // Largeur des colonnes
+  colonnes.forEach((col, i) => {
+    ws.getColumn(i + 1).width = col.width || 14;
+    if (col.numFmt) ws.getColumn(i + 1).numFmt = col.numFmt;
+  });
+
+  return ws;
+};
+
+// ─── Journal général : format TXT pipe-delimited ───────────────────────────
+// GET /api/comptabilite/journal/txt?annee=YYYY (alias /fec préservé pour compat)
+const exportJournalTxt = async (req, res) => {
   try {
-    const annee = parseInt(req.query.annee) || new Date().getFullYear();
-    if (annee < 2000 || annee > 2100) {
-      return res.status(400).json({ success: false, message: 'Année invalide' });
-    }
-    const eid = req.entrepriseId;
-    const dateDebut = `${annee}-01-01`;
-    const dateFin   = `${annee}-12-31`;
-
-    const result = await pool.query(
-      `SELECT
-         j.code AS journal_code, j.libelle AS journal_lib,
-         e.numero_piece, e.date_ecriture, e.libelle AS ecriture_lib,
-         e.reference AS piece_ref, e.created_at AS valid_date,
-         l.compte_numero, pc.libelle AS compte_lib,
-         l.libelle AS ligne_lib, l.debit, l.credit, l.lettrage, l.ordre
-       FROM ecritures e
-       JOIN lignes_ecriture l ON l.ecriture_id = e.id
-       JOIN journaux j ON j.id = e.journal_id
-       LEFT JOIN plan_comptable pc ON pc.id = l.compte_id
-       WHERE e.entreprise_id = $1
-         AND e.date_ecriture BETWEEN $2 AND $3
-         AND e.validee = true
-       ORDER BY e.date_ecriture, e.numero_piece, l.ordre`,
-      [eid, dateDebut, dateFin]
-    );
-
-    // Récupère le nom de l'entreprise pour le nom de fichier
-    const entRes = await pool.query('SELECT nom, ninea FROM entreprises WHERE id=$1', [eid]);
-    const ent = entRes.rows[0] || { nom: 'entreprise', ninea: '' };
-
-    // Format date : YYYYMMDD
-    const fmtDate = (d) => {
-      if (!d) return '';
-      const dt = new Date(d);
-      return `${dt.getFullYear()}${String(dt.getMonth() + 1).padStart(2, '0')}${String(dt.getDate()).padStart(2, '0')}`;
-    };
-    // Décimaux : 2 chiffres, point comme séparateur
-    const fmtMontant = (n) => (parseFloat(n) || 0).toFixed(2);
-    // Échappement minimal : neutralise les retours ligne et le pipe dans les libellés
-    const clean = (s) => String(s || '').replace(/[|\r\n\t]+/g, ' ').trim();
+    const annee = lireAnnee(req);
+    if (!annee) return res.status(400).json({ success: false, message: 'Année invalide' });
+    const { rows, ent } = await fetchEcrituresValidees(req.entrepriseId, annee);
 
     const enTete = [
       'JournalCode','JournalLib','EcritureNum','EcritureDate',
@@ -399,40 +484,234 @@ const exportFEC = async (req, res) => {
       'EcritureLet','DateLet','ValidDate','Montantdevise','Idevise',
     ].join('|');
 
-    const lignes = result.rows.map(r => [
-      clean(r.journal_code),
-      clean(r.journal_lib),
-      clean(r.numero_piece),
-      fmtDate(r.date_ecriture),
-      clean(r.compte_numero),
-      clean(r.compte_lib),
-      '',  // CompAuxNum (auxiliaire client/fournisseur — non géré dans cette version)
-      '',  // CompAuxLib
-      clean(r.piece_ref),
-      fmtDate(r.date_ecriture),  // PieceDate (= date écriture par défaut)
+    const lignes = rows.map(r => [
+      clean(r.journal_code), clean(r.journal_lib),
+      clean(r.numero_piece), fmtDateNum(r.date_ecriture),
+      clean(r.compte_numero), clean(r.compte_lib),
+      '', '',                                       // comptes auxiliaires non gérés
+      clean(r.piece_ref), fmtDateNum(r.date_ecriture),
       clean(r.ligne_lib || r.ecriture_lib),
-      fmtMontant(r.debit),
-      fmtMontant(r.credit),
-      clean(r.lettrage),
-      '',  // DateLet
-      fmtDate(r.valid_date),
-      '',  // Montantdevise
-      '',  // Idevise
+      fmtMontant(r.debit), fmtMontant(r.credit),
+      clean(r.lettrage), '',
+      fmtDateNum(r.valid_date),
+      '', '',
     ].join('|'));
 
     const contenu = [enTete, ...lignes].join('\r\n') + '\r\n';
-
-    const slug = (ent.ninea || ent.nom || 'fec').replace(/[^a-zA-Z0-9]/g, '_').slice(0, 40);
-    const filename = `FEC_${slug}_${annee}.txt`;
-
+    const filename = `Journal_${slugify(ent.ninea || ent.nom)}_${annee}.txt`;
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(contenu);
   } catch (err) {
-    console.error('Erreur exportFEC:', err.message);
-    res.status(500).json({ success: false, message: 'Erreur génération FEC' });
+    console.error('Erreur exportJournalTxt:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur génération du Journal' });
   }
 };
+
+// ─── Journal général : format Excel (.xlsx) ────────────────────────────────
+// GET /api/comptabilite/journal/excel?annee=YYYY
+const exportJournalExcel = async (req, res) => {
+  try {
+    const annee = lireAnnee(req);
+    if (!annee) return res.status(400).json({ success: false, message: 'Année invalide' });
+    const { rows, ent } = await fetchEcrituresValidees(req.entrepriseId, annee);
+
+    const colonnes = [
+      { label: 'Date',        width: 12 },
+      { label: 'N° Pièce',    width: 18 },
+      { label: 'Journal',     width: 10 },
+      { label: 'Compte',      width: 10 },
+      { label: 'Libellé compte', width: 28 },
+      { label: 'Libellé écriture', width: 32 },
+      { label: 'Référence',   width: 14 },
+      { label: 'Débit',       width: 14, numFmt: '#,##0.00' },
+      { label: 'Crédit',      width: 14, numFmt: '#,##0.00' },
+      { label: 'Lettrage',    width: 10 },
+    ];
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'ApeX';
+    workbook.created = new Date();
+    const ws = initWorksheet(workbook, 'Journal général', ent, annee, 'JOURNAL GÉNÉRAL', colonnes);
+
+    let totalDebit = 0, totalCredit = 0;
+    rows.forEach(r => {
+      ws.addRow([
+        fmtDateFR(r.date_ecriture),
+        r.numero_piece || '',
+        r.journal_code || '',
+        r.compte_numero || '',
+        r.compte_lib || '',
+        r.ligne_lib || r.ecriture_lib || '',
+        r.piece_ref || '',
+        parseFloat(r.debit)  || 0,
+        parseFloat(r.credit) || 0,
+        r.lettrage || '',
+      ]);
+      totalDebit  += parseFloat(r.debit)  || 0;
+      totalCredit += parseFloat(r.credit) || 0;
+    });
+
+    // Ligne totaux en gras
+    const totalRow = ws.addRow(['', '', '', '', '', '', 'TOTAUX', totalDebit, totalCredit, '']);
+    totalRow.eachCell((cell, col) => {
+      cell.font = { name: 'Calibri', size: 10, bold: true };
+      if (col === 8 || col === 9) cell.numFmt = '#,##0.00';
+      cell.border = { top: { style: 'medium', color: { argb: 'FF0F8A6E' } } };
+    });
+
+    const buf = await workbook.xlsx.writeBuffer();
+    const filename = `Journal_${slugify(ent.ninea || ent.nom)}_${annee}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(Buffer.from(buf));
+  } catch (err) {
+    console.error('Erreur exportJournalExcel:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur génération du Journal Excel' });
+  }
+};
+
+// ─── Grand-Livre : format TXT pipe-delimited (tri par compte) ──────────────
+// GET /api/comptabilite/grand-livre/txt?annee=YYYY
+const exportGrandLivreTxt = async (req, res) => {
+  try {
+    const annee = lireAnnee(req);
+    if (!annee) return res.status(400).json({ success: false, message: 'Année invalide' });
+    const { rows, ent } = await fetchEcrituresValidees(req.entrepriseId, annee, { triParCompte: true });
+
+    const enTete = [
+      'CompteNum','CompteLib','Date','JournalCode','EcritureNum','PieceRef',
+      'EcritureLib','Debit','Credit','SoldeProgressif','Lettrage','ValidDate',
+    ].join('|');
+
+    const lignes = [];
+    let compteCourant = null;
+    let solde = 0;
+
+    rows.forEach(r => {
+      // Saut de compte → on remet le solde à zéro
+      if (r.compte_numero !== compteCourant) {
+        compteCourant = r.compte_numero;
+        solde = 0;
+      }
+      solde += (parseFloat(r.debit) || 0) - (parseFloat(r.credit) || 0);
+      lignes.push([
+        clean(r.compte_numero), clean(r.compte_lib),
+        fmtDateNum(r.date_ecriture),
+        clean(r.journal_code), clean(r.numero_piece), clean(r.piece_ref),
+        clean(r.ligne_lib || r.ecriture_lib),
+        fmtMontant(r.debit), fmtMontant(r.credit),
+        fmtMontant(solde),
+        clean(r.lettrage),
+        fmtDateNum(r.valid_date),
+      ].join('|'));
+    });
+
+    const contenu = [enTete, ...lignes].join('\r\n') + '\r\n';
+    const filename = `Grand-Livre_${slugify(ent.ninea || ent.nom)}_${annee}.txt`;
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(contenu);
+  } catch (err) {
+    console.error('Erreur exportGrandLivreTxt:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur génération du Grand-Livre' });
+  }
+};
+
+// ─── Grand-Livre : format Excel (.xlsx) ────────────────────────────────────
+// GET /api/comptabilite/grand-livre/excel?annee=YYYY
+// Ajoute un séparateur visuel entre chaque compte avec totaux et solde final.
+const exportGrandLivreExcel = async (req, res) => {
+  try {
+    const annee = lireAnnee(req);
+    if (!annee) return res.status(400).json({ success: false, message: 'Année invalide' });
+    const { rows, ent } = await fetchEcrituresValidees(req.entrepriseId, annee, { triParCompte: true });
+
+    const colonnes = [
+      { label: 'Compte',      width: 10 },
+      { label: 'Libellé compte', width: 28 },
+      { label: 'Date',        width: 12 },
+      { label: 'Journal',     width: 10 },
+      { label: 'N° Pièce',    width: 18 },
+      { label: 'Libellé',     width: 32 },
+      { label: 'Débit',       width: 14, numFmt: '#,##0.00' },
+      { label: 'Crédit',      width: 14, numFmt: '#,##0.00' },
+      { label: 'Solde',       width: 14, numFmt: '#,##0.00' },
+    ];
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'ApeX';
+    workbook.created = new Date();
+    const ws = initWorksheet(workbook, 'Grand-Livre', ent, annee, 'GRAND-LIVRE', colonnes);
+
+    let compteCourant = null, libCourant = null;
+    let soldeCompte = 0, totalDebitCompte = 0, totalCreditCompte = 0;
+    let totalDebitGlobal = 0, totalCreditGlobal = 0;
+
+    const flushCompte = () => {
+      if (compteCourant === null) return;
+      const totalRow = ws.addRow([
+        compteCourant, `Total ${libCourant || ''}`, '', '', '', '',
+        totalDebitCompte, totalCreditCompte, soldeCompte,
+      ]);
+      totalRow.eachCell((cell, col) => {
+        cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF0B6E58' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F2EC' } };
+        if (col === 7 || col === 8 || col === 9) cell.numFmt = '#,##0.00';
+        cell.border = { top: { style: 'thin', color: { argb: 'FF0F8A6E' } } };
+      });
+      ws.addRow([]);
+    };
+
+    rows.forEach(r => {
+      if (r.compte_numero !== compteCourant) {
+        flushCompte();
+        compteCourant = r.compte_numero;
+        libCourant = r.compte_lib;
+        soldeCompte = 0;
+        totalDebitCompte = 0;
+        totalCreditCompte = 0;
+      }
+      const d = parseFloat(r.debit)  || 0;
+      const c = parseFloat(r.credit) || 0;
+      soldeCompte       += d - c;
+      totalDebitCompte  += d;
+      totalCreditCompte += c;
+      totalDebitGlobal  += d;
+      totalCreditGlobal += c;
+      ws.addRow([
+        r.compte_numero || '', r.compte_lib || '',
+        fmtDateFR(r.date_ecriture),
+        r.journal_code || '', r.numero_piece || '',
+        r.ligne_lib || r.ecriture_lib || '',
+        d, c, soldeCompte,
+      ]);
+    });
+    flushCompte();
+
+    // Total général en pied de tableau
+    const grandTotal = ws.addRow(['', 'TOTAL GÉNÉRAL', '', '', '', '', totalDebitGlobal, totalCreditGlobal, totalDebitGlobal - totalCreditGlobal]);
+    grandTotal.eachCell((cell, col) => {
+      cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F8A6E' } };
+      if (col === 7 || col === 8 || col === 9) cell.numFmt = '#,##0.00';
+    });
+
+    const buf = await workbook.xlsx.writeBuffer();
+    const filename = `Grand-Livre_${slugify(ent.ninea || ent.nom)}_${annee}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(Buffer.from(buf));
+  } catch (err) {
+    console.error('Erreur exportGrandLivreExcel:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur génération du Grand-Livre Excel' });
+  }
+};
+
+// Alias historique : /comptabilite/fec ramène désormais le Journal général
+// en TXT (= ancien comportement). Préservé pour ne pas casser les anciens
+// liens partagés ou intégrations tierces.
+const exportFEC = exportJournalTxt;
 
 // ─── CLÔTURE D'EXERCICE ────────────────────────────────────────────────────
 // GET /api/comptabilite/exercices/:id/pre-cloture
@@ -562,6 +841,8 @@ module.exports = {
   getPlanComptable, getJournaux, getExercices,
   getEcritures, getEcritureById,
   getGrandLivre, getBalance, createEcritureManuelle,
-  exportFEC,
+  exportFEC,                                            // alias historique → Journal TXT
+  exportJournalTxt, exportJournalExcel,
+  exportGrandLivreTxt, exportGrandLivreExcel,
   getClotureChecks, cloturerExercice,
 };

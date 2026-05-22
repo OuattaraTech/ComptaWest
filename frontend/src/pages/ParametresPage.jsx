@@ -5,7 +5,7 @@ import { usePermissions } from '../hooks/usePermissions.jsx';
 import api from '../utils/api.jsx';
 import { formatDate, initiales } from '../utils/helpers.jsx';
 import toast from 'react-hot-toast';
-import { Users, Building2, Plus, X, Edit2, Trash2, Shield, Save, Copy, Link2, Globe, Smartphone, CheckCircle, AlertCircle, Eye, EyeOff, RefreshCw, Activity, CreditCard } from 'lucide-react';
+import { Users, Building2, Plus, X, Edit2, Trash2, Shield, Save, Copy, Link2, Globe, Smartphone, CheckCircle, AlertCircle, Eye, EyeOff, RefreshCw, Activity, CreditCard, Sliders, RotateCcw, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../hooks/useTheme.jsx';
 import { getC, Input } from '../components/UI.jsx';
@@ -844,6 +844,200 @@ function AbonnementTab({ C, dark }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Matrice de permissions éditable. Affiche les modules accessibles à un
+// rôle (ou tous les modules si l'utilisateur veut élargir au-delà du
+// template), avec une case à cocher par action. Charge le template par
+// défaut depuis l'API à chaque changement de rôle, puis laisse l'admin
+// cocher / décocher ce qu'il veut.
+//
+// Props :
+//   - role          : code du rôle (ex. 'commercial')
+//   - value         : override actuel { module: [actions] } ou null
+//   - onChange(o)   : appelé avec le nouvel override sanitisé
+//   - C, dark, t    : style + i18n
+// ═══════════════════════════════════════════════════════════════════════
+const MODULES_AFFICHES = [
+  // Ordre identique à la sidebar applicative pour rester reconnaissable.
+  'factures', 'devis', 'clients', 'depenses', 'fournisseurs', 'tresorerie',
+  'produits', 'paie', 'immobilisations', 'comptabilite', 'cloture',
+  'taxes', 'rapports', 'audit_log', 'users', 'entreprise',
+];
+// Mapping module → clé i18n existante (nav.* déjà traduite).
+const MODULE_LABEL_KEY = {
+  factures: 'nav.factures', devis: 'nav.devis', clients: 'nav.clients',
+  depenses: 'nav.depenses', fournisseurs: 'nav.fournisseurs',
+  tresorerie: 'nav.tresorerie', produits: 'nav.produits',
+  paie: 'nav.paie', immobilisations: 'nav.immobilisations',
+  comptabilite: 'nav.comptabilite', cloture: 'parametres.tab_cloture',
+  taxes: 'nav.taxes', rapports: 'nav.rapports', audit_log: 'nav.audit_log',
+  users: 'parametres.members', entreprise: 'parametres.company',
+};
+// Mapping nom interne API → clé module back. Identique côté FE et BE pour
+// éviter les divergences.
+const API_MODULE_KEY = {
+  ...Object.fromEntries(MODULES_AFFICHES.map(m => [m, m])),
+  comptabilite: 'ecritures',  // back : module 'ecritures'
+};
+const ACTIONS_AFFICHEES = ['read', 'create', 'update', 'delete', 'counter_pass'];
+
+function MatricePermissions({ role, value, onChange, C, dark, t }) {
+  const [template, setTemplate] = useState(null);  // matrice par défaut du rôle
+  const [loading, setLoading] = useState(false);
+  // Override courant (state local pour la fluidité, propagé via onChange).
+  // Si `value` est null on retombe sur le template au premier rendu.
+  const override = value || template || {};
+
+  // Recharge le template à chaque changement de rôle pour pré-cocher
+  // correctement (ex : passer de RH à Commercial change tout).
+  useEffect(() => {
+    if (!role) return;
+    setLoading(true);
+    api.get(`/permissions/template/${role}`)
+      .then(r => {
+        setTemplate(r.data.data.template);
+        // Si pas d'override custom encore, pré-rempli avec le template
+        if (!value) onChange(r.data.data.template);
+      })
+      .catch(() => {/* silent : l'admin peut quand même cocher manuellement */})
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role]);
+
+  const togglePermission = (module, action) => {
+    const next = { ...override };
+    const apiKey = API_MODULE_KEY[module] || module;
+    const current = next[apiKey] || [];
+    const has = current.includes(action);
+    const updated = has ? current.filter(a => a !== action) : [...current, action];
+    if (updated.length === 0) {
+      delete next[apiKey];
+    } else {
+      next[apiKey] = updated;
+    }
+    onChange(next);
+  };
+
+  const resetToRole = () => {
+    if (template) onChange({ ...template });
+    toast.success(t('parametres.perms_reset_done'));
+  };
+
+  // Une action est cochable si la matrice back l'autorise pour AU MOINS un
+  // rôle (ex : delete sur ecritures est interdit à tout le monde — case grisée).
+  // Pour rester simple, on grise une action sur un module si le template du
+  // rôle initial ne l'a jamais eue ET que le module l'a pas dans son set
+  // (heuristique : si le template d'un autre rôle pourrait l'avoir, on laisse
+  // la case ouverte). Ici on simplifie : on laisse cliquer librement, le back
+  // sanitise en sortie via validerOverride().
+
+  const isChecked = (module, action) => {
+    const apiKey = API_MODULE_KEY[module] || module;
+    return Array.isArray(override[apiKey]) && override[apiKey].includes(action);
+  };
+
+  const modulesAvecAcces = Object.values(override).filter(arr => Array.isArray(arr) && arr.length > 0).length;
+
+  return (
+    <div style={{
+      background: dark ? '#0D1220' : C.cardAlt || '#F8FAFC',
+      border: `1px solid ${C.border}`,
+      borderRadius: 12, padding: '16px 18px',
+    }}>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        marginBottom: 14, gap: 12, flexWrap: 'wrap',
+      }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.text }}>
+            {t('parametres.perms_matrix_title')}
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+            {loading ? t('parametres.perms_loading_template')
+                     : t('parametres.perms_summary', { count: modulesAvecAcces })}
+          </div>
+        </div>
+        <button type="button" onClick={resetToRole} disabled={!template}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '6px 12px', borderRadius: 7,
+            border: `1px solid ${C.border}`, background: 'transparent',
+            color: C.muted, fontSize: 11, fontWeight: 600,
+            cursor: template ? 'pointer' : 'not-allowed',
+            fontFamily: 'inherit',
+          }}>
+          <RotateCcw size={11} /> {t('parametres.perms_reset_to_role')}
+        </button>
+      </div>
+
+      <div style={{ overflowX: 'auto', margin: '0 -18px', padding: '0 18px' }}>
+        <table style={{
+          width: '100%', borderCollapse: 'collapse', minWidth: 520,
+          fontSize: 12, color: C.text,
+        }}>
+          <thead>
+            <tr>
+              <th style={cellThModule(C)}>{t('comptabilite.col_account') /* Module */}</th>
+              {ACTIONS_AFFICHEES.map(a => (
+                <th key={a} style={cellThAction(C)}>
+                  {t(`parametres.perms_action_${a}`)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {MODULES_AFFICHES.map((m, idx) => (
+              <tr key={m} style={{ borderTop: idx === 0 ? 'none' : `1px solid ${C.border}33` }}>
+                <td style={cellTdModule(C)}>{t(MODULE_LABEL_KEY[m] || m)}</td>
+                {ACTIONS_AFFICHEES.map(a => {
+                  const checked = isChecked(m, a);
+                  return (
+                    <td key={a} style={cellTdCheck(C)}>
+                      <button type="button"
+                        onClick={() => togglePermission(m, a)}
+                        aria-pressed={checked}
+                        title={`${t(MODULE_LABEL_KEY[m])} · ${t(`parametres.perms_action_${a}`)}`}
+                        style={{
+                          width: 22, height: 22, borderRadius: 6,
+                          border: `1.5px solid ${checked ? C.accent : C.border}`,
+                          background: checked ? C.accent : 'transparent',
+                          color: checked ? '#000' : 'transparent',
+                          cursor: 'pointer', padding: 0,
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          transition: 'all 0.15s',
+                        }}>
+                        {checked && <Check size={14} strokeWidth={3} />}
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+const cellThModule = (C) => ({
+  textAlign: 'left', padding: '6px 8px 10px', fontSize: 10, fontWeight: 700,
+  color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em',
+  borderBottom: `1px solid ${C.border}`,
+});
+const cellThAction = (C) => ({
+  textAlign: 'center', padding: '6px 8px 10px', fontSize: 10, fontWeight: 700,
+  color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em',
+  borderBottom: `1px solid ${C.border}`, minWidth: 70,
+});
+const cellTdModule = (C) => ({
+  padding: '8px 8px', fontSize: 12, color: C.text, fontWeight: 500,
+  whiteSpace: 'nowrap',
+});
+const cellTdCheck = (C) => ({
+  padding: '6px 8px', textAlign: 'center',
+});
+
 export default function ParametresPage() {
   const { t } = useTranslation();
   const { dark } = useTheme();
@@ -867,6 +1061,12 @@ export default function ParametresPage() {
   const [membres, setMembres] = useState([]);
   const [form, setForm] = useState({});
   const [inviteForm, setInviteForm] = useState({ email: '', role: 'user', nom: '' });
+  // Permissions personnalisées à l'invitation : OFF par défaut (le membre
+  // hérite de la matrice rôle), ON = on cocher action par action.
+  const [inviteCustom, setInviteCustom] = useState(false);
+  const [inviteOverride, setInviteOverride] = useState(null);
+  // Modale d'édition des permissions d'un membre existant
+  const [editingPermissions, setEditingPermissions] = useState(null);  // { id, nom, role, override }
   const [saving, setSaving] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [invitationGeneree, setInvitationGeneree] = useState(null);  // { email, role, lien_invitation, compte_existant }
@@ -917,11 +1117,19 @@ export default function ParametresPage() {
   const handleInviter = async (e) => {
     e.preventDefault();
     try {
-      const res = await api.post(`/entreprises/${actuelle.id}/membres`, inviteForm);
+      const payload = {
+        ...inviteForm,
+        // Override envoyé uniquement si le Propriétaire a explicitement
+        // demandé une personnalisation. Sinon NULL → matrice rôle par défaut.
+        permissions_override: inviteCustom ? inviteOverride : null,
+      };
+      const res = await api.post(`/entreprises/${actuelle.id}/membres`, payload);
       const data = res.data.data || {};
       const emailInvite = inviteForm.email;
       setShowInvite(false);
       setInviteForm({ email: '', role: 'user', nom: '' });
+      setInviteCustom(false);
+      setInviteOverride(null);
       fetchMembres();
       if (data.lien_invitation) {
         // Nouveau compte : on affiche le lien à transmettre
@@ -953,6 +1161,23 @@ export default function ParametresPage() {
     } catch (err) {
       toast.error(err.response?.data?.message || t('parametres.err_role_update'));
       fetchMembres();  // resynchronise le sélecteur sur la valeur réelle
+    }
+  };
+
+  // Enregistre l'override permissions d'un membre. `override` peut être
+  // null = retour aux valeurs par défaut du rôle.
+  const handleSavePermissions = async () => {
+    if (!editingPermissions) return;
+    try {
+      await api.put(
+        `/entreprises/${actuelle.id}/membres/${editingPermissions.id}/permissions`,
+        { permissions_override: editingPermissions.override }
+      );
+      toast.success(t('parametres.perms_saved'));
+      setEditingPermissions(null);
+      fetchMembres();
+    } catch (err) {
+      toast.error(err.response?.data?.message || t('parametres.perms_save_error'));
     }
   };
 
@@ -1122,27 +1347,79 @@ export default function ParametresPage() {
             {/* Formulaire invitation */}
             {showInvite && canInviteMembre && (
               <div style={{ padding: '20px 24px', background: dark ? '#0D1220' : C.cardAlt, borderBottom: `1px solid ${C.border}` }}>
-                <form onSubmit={handleInviter} style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                  <div style={{ flex: '1 0 200px' }}>
-                    <Input label={t('parametres.invite_email')} type="email" value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} placeholder={t('parametres.invite_email_placeholder')} />
+                <form onSubmit={handleInviter} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                    <div style={{ flex: '1 0 200px' }}>
+                      <Input label={t('parametres.invite_email')} type="email" value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} placeholder={t('parametres.invite_email_placeholder')} />
+                    </div>
+                    <div style={{ flex: '1 0 140px' }}>
+                      <Input label={t('parametres.invite_name')} value={inviteForm.nom} onChange={e => setInviteForm(f => ({ ...f, nom: e.target.value }))} placeholder={t('parametres.invite_name_placeholder')} />
+                    </div>
+                    <div style={{ flex: '0 0 160px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('parametres.invite_role')}</label>
+                      <select value={inviteForm.role} onChange={e => {
+                          const newRole = e.target.value;
+                          setInviteForm(f => ({ ...f, role: newRole }));
+                          // Reset override pour que MatricePermissions recharge le template du nouveau rôle.
+                          setInviteOverride(null);
+                        }}
+                        style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
+                        {Object.entries(ROLES)
+                          .filter(([k, v]) => k !== 'proprietaire' && !v.legacy)
+                          .map(([k, v]) => (
+                            <option key={k} value={k}>{t(v.labelKey)}</option>
+                          ))}
+                      </select>
+                    </div>
+                    <button type="submit" style={{ padding: '10px 20px', borderRadius: 9, border: 'none', background: C.accent, color: '#000', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                      {t('parametres.invite_submit')}
+                    </button>
                   </div>
-                  <div style={{ flex: '1 0 140px' }}>
-                    <Input label={t('parametres.invite_name')} value={inviteForm.nom} onChange={e => setInviteForm(f => ({ ...f, nom: e.target.value }))} placeholder={t('parametres.invite_name_placeholder')} />
+
+                  {/* Toggle « Personnaliser les permissions » + matrice */}
+                  <div style={{
+                    padding: '12px 14px', borderRadius: 10,
+                    border: `1px solid ${inviteCustom ? C.accent : C.border}`,
+                    background: inviteCustom ? `${C.accent}08` : 'transparent',
+                    transition: 'all 0.2s',
+                  }}>
+                    <label style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 10,
+                      cursor: 'pointer', userSelect: 'none',
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={inviteCustom}
+                        onChange={e => {
+                          setInviteCustom(e.target.checked);
+                          if (!e.target.checked) setInviteOverride(null);
+                        }}
+                        style={{
+                          marginTop: 3, width: 16, height: 16,
+                          accentColor: C.accent, cursor: 'pointer',
+                        }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: C.text, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Sliders size={13} color={C.accent} />
+                          {t('parametres.perms_custom_toggle')}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4, lineHeight: 1.5 }}>
+                          {t('parametres.perms_custom_help')}
+                        </div>
+                      </div>
+                    </label>
+                    {inviteCustom && (
+                      <div style={{ marginTop: 14 }}>
+                        <MatricePermissions
+                          role={inviteForm.role}
+                          value={inviteOverride}
+                          onChange={setInviteOverride}
+                          C={C} dark={dark} t={t}
+                        />
+                      </div>
+                    )}
                   </div>
-                  <div style={{ flex: '0 0 160px', display: 'flex', flexDirection: 'column', gap: 5 }}>
-                    <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('parametres.invite_role')}</label>
-                    <select value={inviteForm.role} onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))}
-                      style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
-                      {Object.entries(ROLES)
-                        .filter(([k, v]) => k !== 'proprietaire' && !v.legacy)
-                        .map(([k, v]) => (
-                          <option key={k} value={k}>{t(v.labelKey)}</option>
-                        ))}
-                    </select>
-                  </div>
-                  <button type="submit" style={{ padding: '10px 20px', borderRadius: 9, border: 'none', background: C.accent, color: '#000', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-                    {t('parametres.invite_submit')}
-                  </button>
                 </form>
               </div>
             )}
@@ -1223,6 +1500,31 @@ export default function ParametresPage() {
                       {t(roleInfo.labelKey)}
                     </span>
                   )}
+                  {/* Bouton « Permissions » — visible aux Propriétaire/Admin
+                      (users.update). Le badge « personnalisées » apparaît
+                      uniquement si le membre a un override actif. */}
+                  {canChangeRole && m.role !== 'proprietaire' && (
+                    <button
+                      onClick={() => setEditingPermissions({
+                        id: m.id, nom: m.nom, role: m.role,
+                        override: m.permissions_override || null,
+                      })}
+                      title={t('parametres.perms_tooltip_edit')}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        padding: '6px 10px', background: m.permissions_override
+                          ? `${C.accent}20` : 'none',
+                        border: `1px solid ${m.permissions_override ? C.accent : C.border}`,
+                        borderRadius: 7, cursor: 'pointer',
+                        color: m.permissions_override ? C.accent : C.muted,
+                        fontSize: 11, fontWeight: 600,
+                      }}>
+                      <Sliders size={12} />
+                      {m.permissions_override && (
+                        <span style={{ fontSize: 10 }}>{t('parametres.perms_status_custom')}</span>
+                      )}
+                    </button>
+                  )}
                   {canRemoveMembre && (
                     <button onClick={() => handleRetirerMembre(m.id)}
                       title={t('parametres.member_remove_tooltip')}
@@ -1233,6 +1535,71 @@ export default function ParametresPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Modale d'édition des permissions d'un membre */}
+      {editingPermissions && (
+        <div
+          onClick={() => setEditingPermissions(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100,
+            background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20,
+          }}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: C.card, border: `1px solid ${C.border}`,
+              borderRadius: 16, padding: 28,
+              maxWidth: 720, width: '100%', maxHeight: '90vh', overflowY: 'auto',
+              boxShadow: '0 30px 80px rgba(0,0,0,0.45)',
+            }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6, gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: C.text }}>
+                  {t('parametres.perms_edit_title', { name: editingPermissions.nom })}
+                </div>
+                <div style={{ fontSize: 12, color: C.muted, marginTop: 4, lineHeight: 1.55 }}>
+                  {t('parametres.perms_edit_subtitle')}
+                </div>
+              </div>
+              <button onClick={() => setEditingPermissions(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, padding: 6 }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ marginTop: 18 }}>
+              <MatricePermissions
+                role={editingPermissions.role}
+                value={editingPermissions.override}
+                onChange={override => setEditingPermissions(p => ({ ...p, override }))}
+                C={C} dark={dark} t={t}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+              <button onClick={() => setEditingPermissions(null)}
+                style={{
+                  padding: '10px 18px', borderRadius: 9,
+                  border: `1px solid ${C.border}`, background: 'transparent',
+                  color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                }}>
+                {t('parametres.perms_edit_cancel')}
+              </button>
+              <button onClick={handleSavePermissions}
+                style={{
+                  padding: '10px 18px', borderRadius: 9, border: 'none',
+                  background: C.accent, color: '#000',
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                }}>
+                <Save size={13} /> {t('parametres.perms_edit_save')}
+              </button>
+            </div>
           </div>
         </div>
       )}

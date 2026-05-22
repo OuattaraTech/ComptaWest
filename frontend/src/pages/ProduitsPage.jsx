@@ -10,8 +10,9 @@ import { Can, ReadOnlyBanner } from '../components/Can.jsx';
 import {
   Plus, Search, Edit2, Trash2, Eye, Package, Box, Wrench,
   AlertTriangle, ArrowDownCircle, ArrowUpCircle, ClipboardCheck,
-  ChevronLeft, CheckCircle, BarChart3, TrendingUp, ListChecks,
+  ChevronLeft, CheckCircle, BarChart3, TrendingUp, ListChecks, Upload,
 } from 'lucide-react';
+import ImportExcelModal from '../components/ImportExcelModal.jsx';
 
 const fmt = (n) => formatFCFA(n, false);
 const fmtQ = (n) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3 }).format(parseFloat(n) || 0);
@@ -127,6 +128,7 @@ function CatalogueTab({ onSelect, C, dark }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [showImport, setShowImport] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -179,14 +181,30 @@ function CatalogueTab({ onSelect, C, dark }) {
         </button>
         <div style={{ flex: 1 }} />
         <Can module="produits" action="create">
-          <button data-onboarding="btn-nouveau" onClick={() => { setEditing(null); setShowForm(true); }} style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
-            border: 'none', background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-          }}>
-            <Plus size={15} /> {t('produits.new')}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setShowImport(true)} style={{
+              display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 10,
+              border: `1px solid ${C.border}`, background: 'transparent', color: C.text,
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            }}>
+              <Upload size={15} /> {t('imports.btn_import')}
+            </button>
+            <button data-onboarding="btn-nouveau" onClick={() => { setEditing(null); setShowForm(true); }} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
+              border: 'none', background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>
+              <Plus size={15} /> {t('produits.new')}
+            </button>
+          </div>
         </Can>
       </div>
+
+      <ImportExcelModal
+        type="produits"
+        open={showImport}
+        onClose={() => { setShowImport(false); fetchData(); }}
+        onDone={() => fetchData()}
+      />
 
       <ReadOnlyBanner module="produits" />
 

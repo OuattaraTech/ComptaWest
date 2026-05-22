@@ -807,7 +807,7 @@ export const ONBOARDING = {
   // ─── ACCOUNTING ─────────────────────────────────────────────────────────
   comptabilite: {
     titre: 'Accounting',
-    sousTitre: 'SYSCOHADA chart of accounts · journals · entries · general ledger · trial balance · FEC',
+    sousTitre: 'SYSCOHADA chart of accounts · journals · entries · general ledger · trial balance · DGI export',
     intro: [
       {
         icon: BookOpen,
@@ -856,12 +856,12 @@ export const ONBOARDING = {
       },
       {
         icon: Download,
-        titre: 'FEC export for the DGI',
-        description: 'The Accounting Entries File (FEC) is required by the tax authority in case of an audit. ApeX produces a compliant FEC (18 columns, "|" separator, UTF-8 encoding) directly from the app.',
+        titre: 'General ledger export for the DGI',
+        description: 'Article 17 of the OHADA Uniform Act requires that computerised bookkeeping guarantees entry immutability and can be extracted in a digital format during a tax audit. ApeX produces a general ledger of validated entries in a pipe-delimited UTF-8 format — openable in Excel, LibreOffice or any DGI tool.',
         points: [
-          'Pipe-delimited export compliant with the DGI standard',
-          'One row per entry line for the period',
-          'All mandatory fields: document, journal, account, debit, credit...',
+          'Pipe-delimited export (18 columns) openable in Excel',
+          'Only validated entries are exported (intangibility — OHADA art. 17)',
+          'All OHADA fields: journal, document number, account, label, debit, credit, validation date',
           'Download reserved for Owner and Admin',
         ],
       },

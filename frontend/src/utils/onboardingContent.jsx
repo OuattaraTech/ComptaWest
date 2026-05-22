@@ -817,7 +817,7 @@ export const ONBOARDING = {
   // ─── COMPTABILITÉ ──────────────────────────────────────────────────────
   comptabilite: {
     titre: 'Comptabilité',
-    sousTitre: 'Plan SYSCOHADA · journaux · écritures · grand livre · balance · FEC',
+    sousTitre: 'Plan SYSCOHADA · journaux · écritures · grand livre · balance · export DGI',
     intro: [
       {
         icon: BookOpen,
@@ -866,12 +866,12 @@ export const ONBOARDING = {
       },
       {
         icon: Download,
-        titre: 'Export FEC pour la DGI',
-        description: 'Le Fichier des Écritures Comptables est exigé par l\'administration fiscale en cas de contrôle. ApeX produit un FEC conforme (18 colonnes, séparateur « | », encodage UTF-8) directement depuis l\'app.',
+        titre: 'Export du Grand-Livre pour la DGI',
+        description: 'L\'article 17 de l\'Acte uniforme OHADA impose que la comptabilité informatisée garantisse l\'intangibilité des écritures et puisse être extraite sous format numérique en cas de contrôle. ApeX produit un Grand-Livre des écritures validées au format pipe-delimited UTF-8 — ouvrable dans Excel, LibreOffice ou tout outil DGI.',
         points: [
-          'Export pipe-delimited conforme à la norme DGI',
-          'Une ligne par ligne d\'écriture sur l\'exercice',
-          'Tous les champs obligatoires : pièce, journal, compte, débit, crédit…',
+          'Export pipe-delimited (18 colonnes) ouvert par Excel',
+          'Seules les écritures validées sont exportées (intangibilité art. 17 OHADA)',
+          'Tous les champs OHADA : journal, n° pièce, compte, libellé, débit, crédit, date de validation',
           'Téléchargement réservé au Propriétaire et à l\'Admin',
         ],
       },

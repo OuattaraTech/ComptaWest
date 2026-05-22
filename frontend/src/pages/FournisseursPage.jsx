@@ -12,9 +12,10 @@ import {
   Plus, Search, Edit2, Trash2, FileText, ChevronLeft, Eye,
   ShoppingCart, Truck, CheckCircle, Send, AlertTriangle, Clock,
   Calendar, X, ArrowRight, CreditCard, Mail, Phone, MapPin,
-  Building2, Users, TrendingUp, Receipt, Camera,
+  Building2, Users, TrendingUp, Receipt, Camera, Upload,
 } from 'lucide-react';
 import ScannerFacture from '../components/ScannerFacture.jsx';
+import ImportExcelModal from '../components/ImportExcelModal.jsx';
 
 const fmt = (n) => formatFCFA(n, false);
 const fmtQ = (n) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3 }).format(parseFloat(n) || 0);
@@ -137,6 +138,7 @@ function ListeTab({ onSelect, C, dark }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [showImport, setShowImport] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -165,14 +167,30 @@ function ListeTab({ onSelect, C, dark }) {
               borderRadius: 10, padding: '10px 12px 10px 36px', color: C.text, fontSize: 13, outline: 'none', fontFamily: 'inherit' }} />
         </div>
         <Can module="fournisseurs" action="create">
-          <button data-onboarding="btn-nouveau" onClick={() => { setEditing(null); setShowForm(true); }} style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
-            border: 'none', background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-          }}>
-            <Plus size={15} /> {t('fournisseurs.new')}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setShowImport(true)} style={{
+              display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 10,
+              border: `1px solid ${C.border}`, background: 'transparent', color: C.text,
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            }}>
+              <Upload size={15} /> {t('imports.btn_import')}
+            </button>
+            <button data-onboarding="btn-nouveau" onClick={() => { setEditing(null); setShowForm(true); }} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 10,
+              border: 'none', background: C.accent, color: dark ? '#000' : '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>
+              <Plus size={15} /> {t('fournisseurs.new')}
+            </button>
+          </div>
         </Can>
       </div>
+
+      <ImportExcelModal
+        type="fournisseurs"
+        open={showImport}
+        onClose={() => { setShowImport(false); fetchData(); }}
+        onDone={() => fetchData()}
+      />
 
       <ReadOnlyBanner module="fournisseurs" />
 

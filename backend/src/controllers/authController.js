@@ -323,28 +323,40 @@ const getMesPermissions = async (req, res) => {
     if (!role) {
       return res.status(400).json({ success: false, message: 'Rôle entreprise non résolu' });
     }
-    // Pour ce rôle, on liste les modules+actions accessibles
-    const can = {};
-    for (const [module, actions] of Object.entries(PERMISSIONS)) {
-      const autorisees = [];
-      for (const [action, roles] of Object.entries(actions)) {
-        if (Array.isArray(roles) && roles.includes(role)) autorisees.push(action);
-      }
-      if (autorisees.length > 0) can[module] = autorisees;
-    }
+    // Si le membre a un override personnalisé (réglé par le Propriétaire
+    // depuis Paramètres → Membres), on l'utilise tel quel. Sinon on
+    // projette la matrice statique pour son rôle. Le front a `is_custom`
+    // pour afficher un indicateur « permissions personnalisées ».
+    const override = req.permissionsOverride;
+    const can = override
+      ? { ...override }
+      : (() => {
+          const out = {};
+          for (const [module, actions] of Object.entries(PERMISSIONS)) {
+            const autorisees = [];
+            for (const [action, roles] of Object.entries(actions)) {
+              if (Array.isArray(roles) && roles.includes(role)) autorisees.push(action);
+            }
+            if (autorisees.length > 0) out[module] = autorisees;
+          }
+          return out;
+        })();
+
     // Champs sensibles que l'utilisateur PEUT voir (inverse du masquage)
     const voitChamps = {};
     for (const [module, fields] of Object.entries(VISIBILITY)) {
       const visibles = Object.entries(fields)
         .filter(([, roles]) => roles.includes(role))
         .map(([champ]) => champ);
-      // Champs visibles dans ce module — on garde la liste pour que le frontend
-      // sache ce qu'il devrait afficher comme colonnes (sans tout deviner).
       voitChamps[module] = visibles;
     }
     res.json({
       success: true,
-      data: { role, can, voitChamps, entreprise_id: req.entrepriseId },
+      data: {
+        role, can, voitChamps,
+        entreprise_id: req.entrepriseId,
+        is_custom: !!override,
+      },
     });
   } catch (err) {
     console.error('Erreur getMesPermissions:', err.message);

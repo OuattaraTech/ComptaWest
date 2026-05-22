@@ -13,7 +13,9 @@ import {
   BookOpen, FileSpreadsheet, BookMarked, Scale, Plus, Download,
   Search, ChevronLeft, ChevronRight, Trash2, AlertTriangle,
   Lock, CheckCircle2, XCircle, AlertCircle,
+  ChevronDown, FileText, Sheet, Upload,
 } from 'lucide-react';
+import ImportExcelModal from '../components/ImportExcelModal.jsx';
 
 // Onglets : id + icône ; le libellé est résolu via t('comptabilite.tab_*') au rendu.
 const TABS = [
@@ -61,6 +63,9 @@ export default function ComptabilitePage() {
   const [tab, setTab] = useState('plan');
   const [showOD, setShowOD] = useState(false);
   const [journaux, setJournaux] = useState([]);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [importType, setImportType] = useState(null);  // 'plan_comptable' | 'balance_ouverture' | 'ecritures_historiques'
+  const [importOpen, setImportOpen] = useState(false);
 
   // Charge la liste des journaux une fois (utile pour le filtre journal et l'OD)
   useEffect(() => {
@@ -69,20 +74,26 @@ export default function ComptabilitePage() {
       .catch(() => {});
   }, []);
 
-  const downloadFEC = async () => {
+  // Téléchargement générique pour les 4 exports comptables. `kind` cible
+  // l'état (« journal » ou « grand-livre »), `format` choisit txt ou
+  // excel, `prettyName` sert au nom de fichier proposé au navigateur.
+  const downloadExport = async (kind, format, prettyName) => {
     const annee = prompt(t('comptabilite.fec_prompt'), String(new Date().getFullYear()));
     if (!annee) return;
+    setExportOpen(false);
     try {
-      const res = await api.get(`/comptabilite/fec?annee=${annee}`, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const res = await api.get(`/comptabilite/${kind}/${format}?annee=${annee}`, { responseType: 'blob' });
+      const ext = format === 'excel' ? 'xlsx' : 'txt';
+      const blob = new Blob([res.data]);
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `FEC_${annee}.txt`;
+      link.download = `${prettyName}_${annee}.${ext}`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      toast.success(t('comptabilite.fec_downloaded', { year: annee }));
+      toast.success(t('comptabilite.export_done', { name: prettyName, year: annee }));
     } catch (err) {
       toast.error(err.response?.data?.message || t('comptabilite.fec_error'));
     }
@@ -115,10 +126,47 @@ export default function ComptabilitePage() {
               <Plus size={14} /> {t('comptabilite.new_od')}
             </button>
           )}
+          {peutEcrire && (
+            <ImportMenu C={C} dark={dark} t={t} onPick={(type) => { setImportType(type); setImportOpen(true); }} />
+          )}
           {peutExporter && (
-            <button onClick={downloadFEC} style={btnSecondary(C)}>
-              <Download size={14} /> {t('comptabilite.export_fec')}
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => setExportOpen(o => !o)} style={btnSecondary(C)}>
+                <Download size={14} />
+                {t('comptabilite.export_menu')}
+                <ChevronDown size={12} style={{ transition: 'transform 0.2s', transform: exportOpen ? 'rotate(180deg)' : 'none' }} />
+              </button>
+              {exportOpen && (
+                <>
+                  {/* Overlay invisible : un clic n'importe où ferme le menu */}
+                  <div onClick={() => setExportOpen(false)} style={{
+                    position: 'fixed', inset: 0, zIndex: 20,
+                  }} />
+                  <div style={{
+                    position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 21,
+                    background: C.card, border: `1px solid ${C.border}`,
+                    borderRadius: 10, padding: 6, minWidth: 260,
+                    boxShadow: dark ? '0 16px 36px rgba(0,0,0,0.45)' : '0 14px 30px rgba(14,17,22,0.14)',
+                  }}>
+                    <div style={menuLabel(C)}>{t('comptabilite.tab_journal')}</div>
+                    <button onClick={() => downloadExport('journal', 'txt',   'Journal')}      style={menuItem(C)}>
+                      <FileText size={14} color={C.muted} /> {t('comptabilite.export_format_txt')}
+                    </button>
+                    <button onClick={() => downloadExport('journal', 'excel', 'Journal')}      style={menuItem(C)}>
+                      <Sheet size={14} color={C.accent} /> {t('comptabilite.export_format_excel')}
+                    </button>
+                    <div style={{ height: 1, background: C.border, margin: '6px 4px' }} />
+                    <div style={menuLabel(C)}>{t('comptabilite.tab_gl')}</div>
+                    <button onClick={() => downloadExport('grand-livre', 'txt',   'Grand-Livre')} style={menuItem(C)}>
+                      <FileText size={14} color={C.muted} /> {t('comptabilite.export_format_txt')}
+                    </button>
+                    <button onClick={() => downloadExport('grand-livre', 'excel', 'Grand-Livre')} style={menuItem(C)}>
+                      <Sheet size={14} color={C.accent} /> {t('comptabilite.export_format_excel')}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -168,6 +216,50 @@ export default function ComptabilitePage() {
       )}
 
       <Onboarding pageKey="comptabilite" />
+
+      <ImportExcelModal
+        type={importType}
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onDone={() => { /* l'utilisateur ferme manuellement après avoir vu le récap ;
+                          la liste se rechargera à l'ouverture de l'onglet concerné. */ }}
+      />
+    </div>
+  );
+}
+
+// Menu d'import des 3 imports comptables (plan, balance, écritures
+// historiques). Inspiré du menu d'export, mais avec icône Upload.
+function ImportMenu({ C, dark, t, onPick }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(o => !o)} style={btnSecondary(C)}>
+        <Upload size={14} />
+        {t('imports.btn_import')}
+        <ChevronDown size={12} style={{ transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }} />
+      </button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 20 }} />
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 21,
+            background: C.card, border: `1px solid ${C.border}`,
+            borderRadius: 10, padding: 6, minWidth: 280,
+            boxShadow: dark ? '0 16px 36px rgba(0,0,0,0.45)' : '0 14px 30px rgba(14,17,22,0.14)',
+          }}>
+            <button onClick={() => { setOpen(false); onPick('plan_comptable'); }} style={menuItem(C)}>
+              <BookOpen size={14} color={C.accent} /> {t('imports.title_plan_comptable')}
+            </button>
+            <button onClick={() => { setOpen(false); onPick('balance_ouverture'); }} style={menuItem(C)}>
+              <Scale size={14} color={C.accent} /> {t('imports.title_balance_ouverture')}
+            </button>
+            <button onClick={() => { setOpen(false); onPick('ecritures_historiques'); }} style={menuItem(C)}>
+              <FileSpreadsheet size={14} color={C.accent} /> {t('imports.title_ecritures_historiques')}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -988,6 +1080,20 @@ const btnSecondary = (C) => ({
   display: 'flex', alignItems: 'center', gap: 6,
   padding: '8px 14px', borderRadius: 8, border: `1px solid ${C.border}`,
   background: 'transparent', color: C.text, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+});
+
+// Menu déroulant des exports : item cliquable + petit label de section.
+const menuItem = (C) => ({
+  display: 'flex', alignItems: 'center', gap: 10,
+  width: '100%', padding: '9px 12px', borderRadius: 7,
+  border: 'none', background: 'transparent', cursor: 'pointer',
+  fontSize: 13, fontWeight: 600, color: C.text,
+  textAlign: 'left', transition: 'background 0.15s',
+});
+
+const menuLabel = (C) => ({
+  padding: '6px 12px 4px', fontSize: 10, fontWeight: 700, color: C.muted,
+  letterSpacing: '0.08em', textTransform: 'uppercase',
 });
 
 const pagBtn = (C, disabled) => ({
