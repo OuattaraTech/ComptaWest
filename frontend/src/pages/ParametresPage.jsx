@@ -104,6 +104,93 @@ const FOURNISSEURS_META = {
 };
 
 // ─── Onglet Intégrations : configuration des paiements externes ──────────
+// ─── Guide pas-à-pas pour configurer un opérateur Mobile Money ─────────
+// Affiché en haut du formulaire d'intégration (Wave / Orange Money / MTN MoMo).
+// Chaque opérateur a son propre portail dev avec sa propre procédure pour
+// générer la clé API et le secret webhook. On déplie le panneau au clic
+// pour les nouveaux utilisateurs ; replié par défaut pour ceux qui savent.
+function GuideOperateur({ fournisseur, C, dark }) {
+  const { t } = useTranslation();
+  const [ouvert, setOuvert] = useState(false);
+  const meta = FOURNISSEURS_META[fournisseur];
+
+  // 5 étapes communes ; le contenu (libellé du portail, format des clés)
+  // change selon le fournisseur via les clés i18n parametres.guide_<f>_*.
+  const etapes = [1, 2, 3, 4, 5].map(n => ({
+    n,
+    titre: t(`parametres.guide_${fournisseur}_step${n}_titre`),
+    desc:  t(`parametres.guide_${fournisseur}_step${n}_desc`),
+  }));
+
+  return (
+    <div style={{
+      background: dark ? '#0D1220' : C.cardAlt || '#F8FAFC',
+      border: `1px solid ${C.border}`,
+      borderRadius: 12, overflow: 'hidden',
+    }}>
+      <button type="button" onClick={() => setOuvert(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+          padding: '12px 16px', background: 'transparent', border: 'none',
+          cursor: 'pointer', color: C.text, fontFamily: 'inherit', textAlign: 'left',
+        }}>
+        <Activity size={15} color={C.accent} />
+        <div style={{ flex: 1, fontSize: 13, fontWeight: 700 }}>
+          {t('parametres.guide_title', { fournisseur: meta.label })}
+        </div>
+        <div style={{
+          fontSize: 11, color: C.muted, fontFamily: 'monospace',
+          transition: 'transform 0.2s', transform: ouvert ? 'rotate(90deg)' : 'none',
+        }}>▸</div>
+      </button>
+
+      {ouvert && (
+        <div style={{ padding: '4px 16px 16px', borderTop: `1px solid ${C.border}88` }}>
+          <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 12, marginTop: 6, lineHeight: 1.55 }}>
+            {t('parametres.guide_intro')}
+          </div>
+
+          <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {etapes.map((e, i) => (
+              <li key={e.n} style={{
+                display: 'grid', gridTemplateColumns: '24px 1fr', gap: 12,
+                padding: '10px 0', borderTop: i === 0 ? 'none' : `1px solid ${C.border}55`,
+              }}>
+                <span style={{
+                  width: 22, height: 22, borderRadius: '50%',
+                  background: C.accent, color: dark ? '#000' : '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, fontWeight: 800, fontFamily: 'monospace', flexShrink: 0,
+                }}>{e.n}</span>
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: C.text, marginBottom: 3 }}>
+                    {e.titre}
+                  </div>
+                  <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.55 }}>
+                    {e.desc}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
+
+          {/* Lien direct vers le portail dev de l'opérateur */}
+          <div style={{
+            marginTop: 12, padding: '10px 12px', borderRadius: 8,
+            background: `${C.accent}10`, fontSize: 11.5, color: C.sub, lineHeight: 1.55,
+          }}>
+            {t('parametres.guide_portal_link', { fournisseur: meta.label })}{' '}
+            <a href={t(`parametres.guide_${fournisseur}_portal_url`)} target="_blank" rel="noopener noreferrer"
+               style={{ color: C.accent, fontWeight: 700, textDecoration: 'underline' }}>
+              {t(`parametres.guide_${fournisseur}_portal_label`)}
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function IntegrationsTab({ C, dark }) {
   const { t } = useTranslation();
   const { actuelle } = useEntreprise();
@@ -297,6 +384,12 @@ function CarteFournisseur({ fournisseur, integration, comptes, loading, webhookU
 
       {showForm && (
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 16 }}>
+          {/* Guide pas-à-pas spécifique à l'opérateur — replié par défaut
+              pour ne pas alourdir l'écran des utilisateurs déjà configurés.
+              Pour les nouveaux utilisateurs, c'est ici qu'ils apprennent
+              où récupérer les clés sur le dashboard de chaque opérateur. */}
+          <GuideOperateur fournisseur={fournisseur} C={C} dark={dark} />
+
           <div style={{ display: 'flex', gap: 6 }}>
             {['mock', 'sandbox', 'live'].map(m => (
               <button key={m} type="button"
