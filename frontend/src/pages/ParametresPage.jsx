@@ -1304,8 +1304,11 @@ export default function ParametresPage() {
         telephone: actuelle.telephone || '', adresse: actuelle.adresse || '',
         ville: actuelle.ville || '', pays: actuelle.pays || "Côte d'Ivoire",
         ninea: actuelle.ninea || '', rccm: actuelle.rccm || '',
+        idu: actuelle.idu || '',
         regime_fiscal: actuelle.regime_fiscal || 'RSI',
         taux_tva: actuelle.taux_tva || 18,
+        // Coordonnées bancaires affichées sur la facture PDF (migration 025)
+        banque: actuelle.banque || '', rib: actuelle.rib || '', swift: actuelle.swift || '',
       });
       // Ne pas tenter de charger les membres si l'utilisateur n'a pas
       // users.read — sinon l'API renvoie 403 et l'utilisateur voit un
@@ -1513,9 +1516,25 @@ export default function ParametresPage() {
 
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28 }}>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 20 }}>{t('parametres.fiscal_id_section')}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
               <Input label={t('parametres.ninea')} value={form.ninea} onChange={set('ninea')} placeholder="CI-2020-A-12345" />
               <Input label={t('parametres.rccm')} value={form.rccm} onChange={set('rccm')} placeholder="RCC/ABJ/2020/B/1234" />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <Input label={t('parametres.idu')} value={form.idu || ''} onChange={set('idu')} placeholder="CI-EXP-2024-12345" />
+              <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.5, alignSelf: 'end', paddingBottom: 10 }}>
+                {t('parametres.idu_help')}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{t('parametres.bank_section')}</div>
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 18 }}>{t('parametres.bank_help')}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 140px', gap: 16 }}>
+              <Input label={t('parametres.bank_name')}  value={form.banque || ''} onChange={set('banque')} placeholder="Banque Atlantique CI" />
+              <Input label={t('parametres.bank_rib')}   value={form.rib || ''}    onChange={set('rib')}    placeholder="CI008 01001 ..." />
+              <Input label={t('parametres.bank_swift')} value={form.swift || ''}  onChange={set('swift')}  placeholder="BANKCIAB" />
             </div>
           </div>
 

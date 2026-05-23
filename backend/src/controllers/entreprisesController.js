@@ -97,26 +97,42 @@ const updateEntreprise = async (req, res) => {
     const {
       nom, sigle, forme_juridique, secteur, email, telephone,
       adresse, ville, pays, ninea, rccm, regime_fiscal, taux_tva,
+      // Champs FNE / DGI ajoutés mai 2026 (migration 025) — utilisés
+      // sur le PDF facture pour conformité DGI Côte d'Ivoire.
+      idu, banque, rib, swift,
     } = req.body;
 
     if (!nom || !nom.trim()) {
       return res.status(400).json({ success: false, message: 'Nom requis' });
     }
 
-    const result = await pool.query(
-      `UPDATE entreprises SET
+    // Tentative UPDATE avec idu/banque/rib/swift ; fallback sans ces colonnes
+    // si la migration 025 n'a pas été appliquée (catch 42703).
+    const buildSql = (avecBanque) => `
+      UPDATE entreprises SET
         nom=$1, sigle=$2, forme_juridique=$3, secteur=$4, email=$5, telephone=$6,
-        adresse=$7, ville=$8, pays=$9, ninea=$10, rccm=$11, regime_fiscal=$12, taux_tva=$13,
+        adresse=$7, ville=$8, pays=$9, ninea=$10, rccm=$11, regime_fiscal=$12, taux_tva=$13
+        ${avecBanque ? ', idu=$15, banque=$16, rib=$17, swift=$18' : ''},
         updated_at=NOW()
-       WHERE id=$14 RETURNING *`,
-      [
-        nom.trim(), sigle || null, forme_juridique || 'SARL', secteur || null,
-        email || null, telephone || null, adresse || null,
-        ville || null, pays || "Côte d'Ivoire", ninea || null,
-        rccm || null, regime_fiscal || 'RSI', parseFloat(taux_tva) || 18.00,
-        id,
-      ]
-    );
+       WHERE id=$14 RETURNING *`;
+
+    const baseParams = [
+      nom.trim(), sigle || null, forme_juridique || 'SARL', secteur || null,
+      email || null, telephone || null, adresse || null,
+      ville || null, pays || "Côte d'Ivoire", ninea || null,
+      rccm || null, regime_fiscal || 'RSI', parseFloat(taux_tva) || 18.00,
+      id,
+    ];
+
+    let result;
+    try {
+      result = await pool.query(buildSql(true),
+        [...baseParams, idu || null, banque || null, rib || null, swift || null]);
+    } catch (err) {
+      if (err.code === '42703') {
+        result = await pool.query(buildSql(false), baseParams);
+      } else { throw err; }
+    }
 
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Entreprise introuvable' });
