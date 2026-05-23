@@ -19,63 +19,80 @@ const round2 = (n) => Math.round((parseFloat(n) || 0) * 100) / 100;
 const round0 = (n) => Math.round(parseFloat(n) || 0);
 
 // ═══════════════════════════════════════════════════════════════════════════
-// calculateIvoryCoastPayroll — moteur pur (mai 2026)
+// calculateIvoryCoastPayroll — moteur ITS unique post-réforme 2024
 // ═══════════════════════════════════════════════════════════════════════════
-// Implémente la spec utilisateur (architecture IS + CN + IGR séparés,
-// modèle CGI CI ancien régime). Cf. PR « refonte calcul paie » pour les
-// hypothèses arbitrées :
-//   - Plafond CNPS sal = 70 000 FCFA STRICT (spec utilisateur ; à ajuster
-//     à 2 700 000 si vous voulez le plafond retraite réel CGI)
-//   - Charges patronales = 16,3 % flat sur brut social (spec utilisateur ;
-//     pour un détail Retraite + PF + AT + FDFP + CMU, utiliser
-//     calculerBulletin() plus bas)
-//   - Barème IGR = grille mensuelle CI ancien régime, exonération bas
-//     salaire garantie (premier seuil à 25 000 / part)
+// Source officielle : Note DGI N° 00026/MFB/DGI/DLCD-SDL du 03 janvier 2024
+// portant précisions sur l'ordonnance n° 2023-719 du 13 septembre 2023.
+//
+// La réforme 2024 a :
+//   1. FUSIONNÉ les 3 anciens impôts cédulaires (IS + CN + IGR) en un
+//      PRÉLÈVEMENT UNIQUE appelé « ITS » (Impôt sur Traitements et Salaires)
+//      à barème progressif par tranches.
+//   2. SUPPRIMÉ l'abattement forfaitaire de 20 % pour frais professionnels
+//      (article 119 CGI modifié).
+//   3. SUPPRIMÉ le mécanisme du quotient familial. Remplacé par une
+//      RÉDUCTION FORFAITAIRE MENSUELLE déduite de l'impôt brut, fonction
+//      uniquement du nombre de parts.
+//   4. Fixé la CONTRIBUTION EMPLOYEUR à 2,8 % (personnel local) ou 12 %
+//      (expatrié) sur le revenu brut imposable, sans abattement.
+//
+// La CNPS salariale reste à 6,6 % et est déductible de la base imposable
+// (règle générale CGI inchangée par la réforme). Pour le mode STRICT
+// document (base = brut SANS déduction CNPS), poser deduireCnpsDeBaseITS=false.
 
-// Spec utilisateur révisée (juin 2026) : pas de plafond sur la CNPS
-// salariale. Pour 450 000 brut → 29 700 de CNPS (= 450 000 × 6,6 %).
-// Si tu veux réintroduire un plafond, modifie PLAFOND_CNPS_SAL_MENSUEL
-// ci-dessous (mettre Infinity = pas de plafond).
-const PLAFOND_CNPS_SAL_MENSUEL = Infinity;
-const TAUX_CNPS_SAL            = 0.066;      // 5,5 % retraite + 1,1 % complém.
-const ABATTEMENT_FRAIS_PRO     = 0.20;       // 20 % pour IS et CN
-const TAUX_IS                  = 0.012;      // 1,2 % flat
-const ABATTEMENT_IGR           = 0.18;       // 18 % supplémentaire pour IGR
-const TAUX_PATRONAL_GLOBAL     = 0.163;      // 16,3 % flat sur brut social
+const TAUX_CNPS_SAL = 0.066;   // 5,5 % retraite générale + 1,1 % complémentaire
 
-// Barème Contribution Nationale (CN) — mensuel, par tranches cumulatives
-const BAREME_CN = [
-  { plafond:  50_000, taux: 0.000 },
-  { plafond: 130_000, taux: 0.015 },
-  { plafond: 200_000, taux: 0.050 },
-  { plafond: Infinity, taux: 0.100 },
+// Barème ITS mensuel — réforme 2024, 6 tranches progressives cumulatives
+// (Note DGI, page 2, « Barème journalier d'imposition de la main d'œuvre
+// occasionnelle » qui reprend les tranches mensuelles de l'ordonnance)
+const BAREME_ITS_2024 = [
+  { plafond:    75_000, taux: 0.00 },
+  { plafond:   240_000, taux: 0.16 },
+  { plafond:   800_000, taux: 0.21 },
+  { plafond: 2_400_000, taux: 0.24 },
+  { plafond: 8_000_000, taux: 0.28 },
+  { plafond:  Infinity, taux: 0.32 },
 ];
 
-// Barème IGR officiel DGI CI 2024 — formule mensuelle N × Q × T - N × K
-// où N = nb parts, Q = quotient familial (base IGR / parts), T = taux
-// de la tranche du quotient, K = constante de décote de la tranche.
-// Cette méthode officielle évite l'erreur des tranches cumulatives
-// classiques et applique automatiquement la progressivité avec décote.
-// Source : Code Général des Impôts CI, annexe fiscale.
-const BAREME_IGR_DGI = [
-  { plafond:  25_000, taux: 0.00, K:       0 },
-  { plafond:  45_583, taux: 0.10, K:   2_500 },
-  { plafond:  81_583, taux: 0.15, K:   4_779 },
-  { plafond: 126_583, taux: 0.20, K:   8_858 },
-  { plafond: 220_333, taux: 0.25, K:  15_187 },
-  { plafond: 389_083, taux: 0.35, K:  37_220 },
-  { plafond: 842_166, taux: 0.45, K:  76_128 },
-  { plafond: Infinity, taux: 0.60, K: 202_478 },
-];
+// Réductions mensuelles d'impôt pour charges de famille (Note DGI page 2)
+// Remplace le quotient familial. Indexées par le nombre de parts fiscales.
+const REDUCTION_CHARGES_FAMILLE = {
+  1.0:      0,
+  1.5:  5_500,
+  2.0: 11_000,
+  2.5: 16_500,
+  3.0: 22_000,
+  3.5: 27_500,
+  4.0: 33_000,
+  4.5: 38_500,
+  5.0: 44_000,
+};
 
-// Helper pour la formule officielle DGI : N × Q × T - N × K, où K et T
-// dépendent de la tranche dans laquelle Q tombe.
-function igrParts(quotient, nbParts) {
-  for (const tranche of BAREME_IGR_DGI) {
-    if (quotient <= tranche.plafond) {
-      return Math.max(0, nbParts * quotient * tranche.taux - nbParts * tranche.K);
-    }
+// Taux Contribution Employeur (Note DGI section IV, page 5)
+const TAUX_CE_LOCAL    = 0.028;   // Personnel local
+const TAUX_CE_EXPATRIE = 0.12;    // Personnel expatrié
+
+// Calcul ITS brut par application du barème progressif cumulatif.
+// Méthode standard : on remplit chaque tranche puis on passe à la suivante.
+function appliquerBaremeITS2024(baseImposable) {
+  let impot = 0;
+  let plafondPrecedent = 0;
+  for (const tranche of BAREME_ITS_2024) {
+    if (baseImposable <= plafondPrecedent) break;
+    const segment = Math.min(baseImposable, tranche.plafond) - plafondPrecedent;
+    impot += segment * tranche.taux;
+    plafondPrecedent = tranche.plafond;
   }
+  return impot;
+}
+
+// Retourne la réduction forfaitaire pour le nombre de parts donné.
+// Interpolation linéaire pour les parts intermédiaires (5,5 = 49 500…)
+function reductionPourParts(nbParts) {
+  const p = Math.max(1, parseFloat(nbParts) || 1);
+  if (REDUCTION_CHARGES_FAMILLE[p] !== undefined) return REDUCTION_CHARGES_FAMILLE[p];
+  // Au-delà de 5 parts, la réduction continue linéairement à +5 500 par 0,5 part
+  if (p > 5) return 44_000 + Math.floor((p - 5) / 0.5) * 5_500;
   return 0;
 }
 
@@ -103,20 +120,25 @@ function appliquerBaremeProgressif(base, bareme) {
  *
  * @param {object} input
  * @param {number} input.salaireDeBase       — Salaire brut de base mensuel
- * @param {number} [input.primesImposables]  — Sursalaire + ancienneté + rendement (TOUTES soumises à CNPS, IS, CN, IGR)
- * @param {number} [input.indemniteLogement] — Indemnité logement en espèces (soumise à CNPS + IS + CN + IGR)
+ * @param {number} [input.primesImposables]  — Sursalaire + ancienneté + rendement (toutes soumises à CNPS et ITS)
+ * @param {number} [input.indemniteLogement] — Indemnité logement en espèces (soumise CNPS + ITS, CGI CI)
  * @param {number} [input.primeTransport]    — Prime transport (exonérée sous 30 000, surplus imposable)
- * @param {number} [input.partsFiscales]     — Nombre de parts fiscales (1 / 1,5 / 2 / 2,5 …), défaut 1
+ * @param {number} [input.partsFiscales]     — Nb parts fiscales (1 / 1,5 / 2 / 2,5 …) — sert UNIQUEMENT à la réduction forfaitaire
+ * @param {boolean}[input.deduireCnpsDeBaseITS=true] — Si true (défaut), base ITS = brut - CNPS sal.
+ *                                              Si false (lecture stricte note DGI), base ITS = brut directement.
+ * @param {boolean}[input.expatrie=false]     — Si true, Contribution Employeur 12 % au lieu de 2,8 %
  *
  * @returns {{
- *   salaireBrutSocial: number,        // assiette CNPS / IS / CN
- *   cotisationsSalariales: number,    // CNPS salariale (avec plafond)
- *   montantIS: number,
- *   montantCN: number,
- *   montantIGR: number,
- *   impotsTotaux: number,             // IS + CN + IGR
- *   chargesPatronales: number,        // 16,3 % flat
- *   coutEmployeurTotal: number,       // salaire brut versé + charges patronales
+ *   salaireBrutSocial: number,        // assiette CNPS + ITS
+ *   cotisationsSalariales: number,    // CNPS salariale 6,6 %
+ *   baseImposableITS: number,         // base de calcul de l'ITS
+ *   itsBrut: number,                  // ITS avant réduction charges famille
+ *   reductionChargesFamille: number,  // réduction forfaitaire selon parts
+ *   itsNet: number,                   // ITS effectivement retenu = itsBrut - réduction
+ *   impotsTotaux: number,             // = itsNet (un seul impôt depuis 2024)
+ *   contributionEmployeur: number,    // 2,8 % local ou 12 % expatrié
+ *   chargesPatronales: number,        // CNPS pat + CE + FDFP + apprentissage + CMU
+ *   coutEmployeurTotal: number,       // brut versé + charges patronales
  *   netAPayer: number,                // versé au salarié
  *   detail: object,                   // exposé pour traçabilité du calcul
  * }}
@@ -127,53 +149,59 @@ function calculateIvoryCoastPayroll({
   indemniteLogement = 0,
   primeTransport = 0,
   partsFiscales = 1,
+  deduireCnpsDeBaseITS = true,
+  expatrie = false,
 }) {
   // ── 1. ASSIETTE BRUTE SOCIALE (CNPS) ─────────────────────────────────────
   // Surplus de prime transport (au-delà de 30 000 mensuels) réintégré dans
-  // l'assiette imposable conformément au CGI CI.
+  // l'assiette imposable (CGI CI art. 116).
   const surplusTransport = Math.max(0, primeTransport - 30_000);
   const salaireBrutCNPS = salaireDeBase + primesImposables + indemniteLogement + surplusTransport;
 
-  // CNPS salariale = 6,6 % plafonné à PLAFOND_CNPS_SAL_MENSUEL
-  // ⚠ ATTENTION : plafond 70 000 FCFA conforme à la spec utilisateur.
-  //   La pratique CNPS réelle utilise 2 700 000 FCFA pour la retraite.
-  //   Pour basculer, remplacer PLAFOND_CNPS_SAL_MENSUEL par 2_700_000.
-  const baseCotisable = Math.min(salaireBrutCNPS, PLAFOND_CNPS_SAL_MENSUEL);
-  const cotisationsSalariales = baseCotisable * TAUX_CNPS_SAL;
+  // CNPS salariale = 6,6 % SANS plafond (spec utilisateur 2026 + pratique courante)
+  const cotisationsSalariales = salaireBrutCNPS * TAUX_CNPS_SAL;
 
-  // ── 2. IMPÔT SUR LE SALAIRE (IS) — 1,2 % flat ────────────────────────────
-  const baseIS_CN = (salaireBrutCNPS - cotisationsSalariales) * (1 - ABATTEMENT_FRAIS_PRO);
-  const montantIS = baseIS_CN * TAUX_IS;
+  // ── 2. IMPÔT UNIQUE ITS (post-réforme 2024) ──────────────────────────────
+  // Base imposable = brut, déduit éventuellement de la CNPS salariale
+  // (pratique paie standard préservée par la réforme — la CNPS reste
+  // déductible des revenus salariaux selon art. 116 CGI).
+  // Pas d'abattement 20 % : SUPPRIMÉ par l'ordonnance 2023-719.
+  const baseImposableITS = deduireCnpsDeBaseITS
+    ? Math.max(0, salaireBrutCNPS - cotisationsSalariales)
+    : salaireBrutCNPS;
 
-  // ── 3. CONTRIBUTION NATIONALE (CN) — barème progressif ───────────────────
-  const montantCN = appliquerBaremeProgressif(baseIS_CN, BAREME_CN);
+  // Barème 6 tranches : 0/16/21/24/28/32 % (Note DGI page 2)
+  const itsBrut = appliquerBaremeITS2024(baseImposableITS);
 
-  // ── 4. IMPÔT GÉNÉRAL SUR LE REVENU (IGR) ─────────────────────────────────
-  // Base = (brut - CNPS - IS - CN) × 82 % (abattement 18 % supplémentaire)
-  // Quotient familial = Base / parts → barème IGR → résultat × parts
-  const baseIGRBrute = Math.max(
-    0,
-    (salaireBrutCNPS - cotisationsSalariales - montantIS - montantCN) * (1 - ABATTEMENT_IGR)
-  );
+  // ── 3. RÉDUCTION FORFAITAIRE POUR CHARGES DE FAMILLE ─────────────────────
+  // Remplace l'ancien quotient familial. Tableau officiel de la Note DGI.
   const parts = Math.max(1, parseFloat(partsFiscales) || 1);
-  const quotient = baseIGRBrute / parts;
-  // Formule officielle DGI CI : N × Q × T - N × K (avec décote K par tranche).
-  // Plus précise que les tranches cumulatives classiques et conforme à
-  // l'usage administratif fiscal ivoirien.
-  const montantIGR = igrParts(quotient, parts);
-  const igrParPart = parts > 0 ? montantIGR / parts : 0;
+  const reductionChargesFamille = reductionPourParts(parts);
 
-  const impotsTotaux = montantIS + montantCN + montantIGR;
+  // L'ITS net ne peut pas être négatif (si réduction > ITS brut → 0)
+  const itsNet = Math.max(0, itsBrut - reductionChargesFamille);
+  const impotsTotaux = itsNet;
 
-  // ── 5. CHARGES PATRONALES ────────────────────────────────────────────────
-  // Spec utilisateur : 16,3 % flat sur brut social. Englobe Retraite + PF +
-  // AT + FDFP + Taxe Apprentissage + CMU en moyenne pondérée. Calcul détaillé
-  // par cotisation disponible dans calculerBulletin() ci-dessous.
-  const chargesPatronales = salaireBrutCNPS * TAUX_PATRONAL_GLOBAL;
+  // ── 4. CONTRIBUTION EMPLOYEUR (Note DGI section IV) ──────────────────────
+  // 2,8 % local OU 12 % expatrié sur le brut imposable (sans abattement 20 %)
+  const tauxCE = expatrie ? TAUX_CE_EXPATRIE : TAUX_CE_LOCAL;
+  const contributionEmployeur = salaireBrutCNPS * tauxCE;
+
+  // ── 5. AUTRES CHARGES PATRONALES (CNPS + FDFP + Apprentissage + CMU) ────
+  // Reprises de PARAMS_CI pour cohérence avec les pratiques 2024
+  const basePF = Math.min(salaireBrutCNPS, PARAMS_CI.plafond_pf);
+  const cnpsRetraitePat   = salaireBrutCNPS * PARAMS_CI.taux_cnps_retraite_pat / 100;
+  const cnpsPF            = basePF * PARAMS_CI.taux_cnps_pf / 100;
+  const cnpsAT            = basePF * PARAMS_CI.taux_at_default / 100;
+  const fdfp              = salaireBrutCNPS * PARAMS_CI.taux_fdfp / 100;
+  const taxeApprentissage = salaireBrutCNPS * PARAMS_CI.taux_taxe_apprentissage / 100;
+  const cmuPat            = PARAMS_CI.cmu_forfait;
+
+  const chargesPatronales = contributionEmployeur + cnpsRetraitePat + cnpsPF
+                           + cnpsAT + fdfp + taxeApprentissage + cmuPat;
 
   // ── 6. NET À PAYER + COÛT EMPLOYEUR ──────────────────────────────────────
-  // Net = brut salarié (toutes primes y compris transport intégral) -
-  //       cotisations salariales - impôts
+  // Net = brut salarié (toutes primes, transport intégral) - CNPS sal - ITS net
   const brutVerse = salaireDeBase + primesImposables + indemniteLogement + primeTransport;
   const netAPayer = brutVerse - cotisationsSalariales - impotsTotaux;
   const coutEmployeurTotal = brutVerse + chargesPatronales;
@@ -181,21 +209,27 @@ function calculateIvoryCoastPayroll({
   return {
     salaireBrutSocial: round0(salaireBrutCNPS),
     cotisationsSalariales: round0(cotisationsSalariales),
-    montantIS: round0(montantIS),
-    montantCN: round0(montantCN),
-    montantIGR: round0(montantIGR),
+    baseImposableITS: round0(baseImposableITS),
+    itsBrut: round0(itsBrut),
+    reductionChargesFamille,
+    itsNet: round0(itsNet),
     impotsTotaux: round0(impotsTotaux),
+    contributionEmployeur: round0(contributionEmployeur),
     chargesPatronales: round0(chargesPatronales),
     coutEmployeurTotal: round0(coutEmployeurTotal),
     netAPayer: round0(netAPayer),
+    // Champs rétro-compat (les contrôleurs et le PDF s'en servent encore)
+    montantIS:  0,                            // legacy : impôts désormais unifiés dans itsNet
+    montantCN:  0,
+    montantIGR: round0(itsNet),               // alias pour rétrocompat affichage
     detail: {
       surplusTransportTaxable: round0(surplusTransport),
-      baseCotisableCnps:        round0(baseCotisable),
-      baseImpotsISetCN:         round0(baseIS_CN),
-      baseIGRBrute:             round0(baseIGRBrute),
-      quotientFamilial:         round0(quotient),
-      igrParPart:               round0(igrParPart),
-      partsFiscales:            parts,
+      baseImposableITS:        round0(baseImposableITS),
+      itsBrut:                 round0(itsBrut),
+      reductionChargesFamille,
+      partsFiscales:           parts,
+      tauxContributionEmployeur: tauxCE,
+      regime: 'ITS_2024',
     },
   };
 }
@@ -386,41 +420,55 @@ const calculerBulletin = ({ employe, rubriques = [], parametres_entreprise = {} 
   // L'ancien moteur produisait 5 lignes cotisations (CNPS retraite, CMU,
   // ITS, CN puis patronales détaillées). Le nouveau moteur produit
   // CNPS sal + IS + CN + IGR côté salarié + charges patronales globales.
+  // Lignes côté salarié — régime ITS unique 2024
   lignes.push({
-    code: 'CNPS_SAL', libelle: 'CNPS salariale (6,6 % plafonné)',
+    code: 'CNPS_SAL', libelle: 'CNPS salariale (6,6 %)',
     type: 'cotisation_salariale',
-    base: calc.detail.baseCotisableCnps, taux: 6.6,
+    base: calc.salaireBrutSocial, taux: 6.6,
     montant: calc.cotisationsSalariales, est_patronale: false, ordre: 200,
   });
-  if (calc.montantIS > 0) {
+  if (calc.itsBrut > 0) {
     lignes.push({
-      code: 'IS', libelle: 'IS — Impôt sur le Salaire (1,2 %)',
+      code: 'ITS_BRUT', libelle: 'ITS brut (barème 6 tranches 0/16/21/24/28/32 %)',
       type: 'cotisation_salariale',
-      base: calc.detail.baseImpotsISetCN, taux: 1.2,
-      montant: calc.montantIS, est_patronale: false, ordre: 210,
+      base: calc.baseImposableITS, taux: null,
+      montant: calc.itsBrut, est_patronale: false, ordre: 210,
     });
   }
-  if (calc.montantCN > 0) {
+  if (calc.reductionChargesFamille > 0) {
     lignes.push({
-      code: 'CN', libelle: 'CN — Contribution Nationale',
+      code: 'REDUCTION_FAMILLE',
+      libelle: `Réduction pour charges de famille (${calc.detail.partsFiscales} parts)`,
       type: 'cotisation_salariale',
-      base: calc.detail.baseImpotsISetCN, taux: null,
-      montant: calc.montantCN, est_patronale: false, ordre: 220,
+      base: null, taux: null,
+      montant: -calc.reductionChargesFamille,    // négatif = réduction
+      est_patronale: false, ordre: 220,
     });
   }
-  if (calc.montantIGR > 0) {
+  // Ligne ITS net = ce qui est effectivement retenu sur le bulletin
+  if (calc.itsNet > 0) {
     lignes.push({
-      code: 'IGR', libelle: 'IGR — Impôt Général sur le Revenu',
+      code: 'ITS_NET', libelle: 'ITS net retenu',
       type: 'cotisation_salariale',
-      base: calc.detail.baseIGRBrute, taux: null,
-      montant: calc.montantIGR, est_patronale: false, ordre: 230,
+      base: null, taux: null,
+      montant: calc.itsNet, est_patronale: false, ordre: 230,
     });
   }
+  // Lignes côté patronal — ventilation détaillée (plus précis que 16,3 % flat)
   lignes.push({
-    code: 'CHARGES_PATRONALES', libelle: 'Charges patronales (16,3 % flat)',
+    code: 'CONTRIB_EMPLOYEUR',
+    libelle: `Contribution employeur (${(calc.detail.tauxContributionEmployeur * 100).toFixed(1)} %)`,
     type: 'cotisation_patronale',
-    base: calc.salaireBrutSocial, taux: 16.3,
-    montant: calc.chargesPatronales, est_patronale: true, ordre: 300,
+    base: calc.salaireBrutSocial, taux: calc.detail.tauxContributionEmployeur * 100,
+    montant: calc.contributionEmployeur, est_patronale: true, ordre: 300,
+  });
+  lignes.push({
+    code: 'CHARGES_PATRONALES_AUTRES',
+    libelle: 'CNPS pat. + FDFP + Apprentissage + CMU',
+    type: 'cotisation_patronale',
+    base: calc.salaireBrutSocial, taux: null,
+    montant: calc.chargesPatronales - calc.contributionEmployeur,
+    est_patronale: true, ordre: 310,
   });
 
   lignes.sort((a, b) => (a.ordre || 100) - (b.ordre || 100));
@@ -434,12 +482,16 @@ const calculerBulletin = ({ employe, rubriques = [], parametres_entreprise = {} 
     brut_total: brut,
     total_gains: round2(totalGains),
     total_cotisations_salariales: calc.cotisationsSalariales,
-    salaire_imposable: calc.detail.baseImpotsISetCN,
-    abattement_frais_pro: round2((calc.salaireBrutSocial - calc.cotisationsSalariales) * 0.20),
+    salaire_imposable: calc.baseImposableITS,
+    abattement_frais_pro: 0,           // SUPPRIMÉ par la réforme 2024
     total_impots: calc.impotsTotaux,
-    its: calc.montantIS,           // conservé pour compat ascendante (alias = IS)
-    cn: calc.montantCN,
-    igr: calc.montantIGR,
+    // Réforme 2024 : un seul impôt ITS unique. Champs historiques
+    // conservés pour rétrocompat affichage (its = IS+CN+IGR fusionnés)
+    its: calc.itsNet,
+    its_brut: calc.itsBrut,
+    reduction_charges_famille: calc.reductionChargesFamille,
+    cn: 0,
+    igr: 0,
     total_retenues: round2(totalRetenues),
     net_a_payer: netAPayer,
     total_cotisations_patronales: calc.chargesPatronales,
@@ -452,10 +504,11 @@ module.exports = {
   PARAMS_CI,
   calculerParts,
   calculerBulletin,
-  // Moteur IS+CN+IGR séparés (mai 2026)
+  // Moteur ITS unique réforme 2024 (Note DGI 00026 du 03 jan 2024)
   calculateIvoryCoastPayroll,
   appliquerBaremeProgressif,
-  igrParts,
-  BAREME_CN,
-  BAREME_IGR_DGI,
+  appliquerBaremeITS2024,
+  reductionPourParts,
+  BAREME_ITS_2024,
+  REDUCTION_CHARGES_FAMILLE,
 };
