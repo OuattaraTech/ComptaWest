@@ -6,6 +6,7 @@ const { PERMISSIONS, VISIBILITY, ALL_ROLES } = require('../utils/permissions');
 const {
   creerCategoriesDefaut, creerPlanComptableSyscohada,
   creerJournauxDefaut, creerExerciceCourant,
+  creerRubriquesPaieDefaut,
 } = require('../utils/helpers');
 const { logAudit } = require('../utils/audit');
 
@@ -64,6 +65,10 @@ const register = async (req, res) => {
     await creerPlanComptableSyscohada(entreprise.id, client);
     await creerJournauxDefaut(entreprise.id, client);
     await creerExerciceCourant(entreprise.id, client);
+    // Rubriques de paie par défaut (CGI CI à jour) — toute entreprise
+    // créée après l'application de la migration 005 a besoin d'un
+    // catalogue initial pour que le module Paie soit utilisable.
+    await creerRubriquesPaieDefaut(entreprise.id, client);
 
     await client.query('COMMIT');
 
@@ -246,6 +251,7 @@ const loginDemo = async (req, res) => {
       await creerPlanComptableSyscohada(eid, client);
       await creerJournauxDefaut(eid, client);
       await creerExerciceCourant(eid, client);
+      await creerRubriquesPaieDefaut(eid, client);
       await seederDonneesDemo(client, eid, user.id);
     } else {
       // Mode legacy : crée l'entreprise UNIQUEMENT si elle n'existe pas
@@ -257,7 +263,7 @@ const loginDemo = async (req, res) => {
       if (entRes.rows.length === 0) {
         const newEnt = await client.query(`
           INSERT INTO entreprises (nom, forme_juridique, pays, devise, regime_fiscal)
-          VALUES ('Ouattara & Associés SARL', 'SARL', 'Côte d''Ivoire', 'FCFA', 'Réel Normal')
+          VALUES ('Ouattara & Associés SARL', 'SARL', 'Côte d''Ivoire', 'FCFA', 'RNI')
           RETURNING id
         `);
         eid = newEnt.rows[0].id;
@@ -269,6 +275,7 @@ const loginDemo = async (req, res) => {
         await creerPlanComptableSyscohada(eid, client);
         await creerJournauxDefaut(eid, client);
         await creerExerciceCourant(eid, client);
+        await creerRubriquesPaieDefaut(eid, client);
       }
     }
 

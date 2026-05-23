@@ -4,6 +4,7 @@ const { body } = require('express-validator');
 const {
   creerCategoriesDefaut, creerPlanComptableSyscohada,
   creerJournauxDefaut, creerExerciceCourant,
+  creerRubriquesPaieDefaut,
 } = require('../utils/helpers');
 const { logAudit } = require('../utils/audit');
 const { ALL_ROLES, ROLES, templatePourRole, validerOverride } = require('../utils/permissions');
@@ -78,6 +79,8 @@ const createEntreprise = async (req, res) => {
     await creerPlanComptableSyscohada(entreprise.id, client);
     await creerJournauxDefaut(entreprise.id, client);
     await creerExerciceCourant(entreprise.id, client);
+    // Rubriques de paie par défaut (CGI CI à jour)
+    await creerRubriquesPaieDefaut(entreprise.id, client);
 
     await client.query('COMMIT');
     res.status(201).json({ success: true, data: entreprise });
