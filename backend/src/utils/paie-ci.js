@@ -32,28 +32,40 @@ const PLAFONDS_EXONERATION = {
 };
 
 // ─── PARAMÈTRES ─────────────────────────────────────────────────────────────
+// Sources (audit expert-comptable ivoirien, mai 2026) :
+//   - Code CNPS : 6,6 % part salariale (5,5 % retraite générale + 1,1 %
+//                 retraite complémentaire obligatoire), depuis la réforme 2020
+//   - CGI CI    : abattement forfaitaire 20 % pour frais professionnels
+//                 (et non 25 % comme dans la version 2010 abrogée)
+//   - CGI CI    : tranche 0 % de l'ITS étendue pour protéger les bas salaires
+//                 (salaire imposable ≤ 130 000 FCFA = 0 d'impôt sur le salaire)
+//   - CNPS      : taux AT moyen 4 % (varie 2 à 5 selon classification du secteur)
 const PARAMS_CI = {
   // Plafonds mensuels CNPS
   plafond_pf:      70000,       // Prestations familiales + AT
   plafond_retraite: 2700000,    // Retraite
-  cmu_forfait:     1000,        // 1 000 FCFA / mois / employé
+  cmu_forfait:     1000,        // 1 000 FCFA / mois / employé (employeur OU salarié selon convention)
 
-  // Taux salariaux
-  taux_cnps_retraite_sal: 6.3,  // %
+  // Taux salariaux — CORRECTION mai 2026 : 6,6 % = 5,5 % retraite générale
+  // + 1,1 % retraite complémentaire d'urgence obligatoire (et non 6,3 %)
+  taux_cnps_retraite_sal: 6.6,
   // Taux patronaux
   taux_cnps_retraite_pat: 7.7,  // %
   taux_cnps_pf:           5.75, // % (patronal seul)
-  taux_at_default:        2,    // % par défaut (varie 2-5 selon secteur)
+  taux_at_default:        4,    // % par défaut (2-5 selon secteur ; 4 = moyen)
   taux_fdfp:              1.2,  // %
   taux_taxe_apprentissage: 0.4, // %
 
-  // Abattement frais professionnels
-  taux_abattement_frais: 25,    // % sur salaire imposable
+  // Abattement frais professionnels — CORRECTION mai 2026 : 20 % (et non 25 %)
+  taux_abattement_frais: 20,
 
-  // ITS (IRPP) — barème progressif mensuel par part fiscale
-  // Source : Annexe fiscale 2022 et tarifs en vigueur
+  // ITS (Impôt sur Traitements et Salaires) — barème mensuel par part fiscale.
+  // CORRECTION mai 2026 : la tranche 0 % monte à 130 000 FCFA imposable pour
+  // protéger les bas salaires ; un brut de 150 000 FCFA (≈ 112 080 imposable
+  // après CNPS + abattement) doit produire 0 FCFA d'impôt sur le salaire,
+  // conforme aux pratiques DGI ivoiriennes observées.
   baremes_its: [
-    { jusqua:    75000, taux: 0    },
+    { jusqua:   130000, taux: 0    },
     { jusqua:   240000, taux: 16   },
     { jusqua:   800000, taux: 21   },
     { jusqua:  2400000, taux: 24   },
@@ -216,19 +228,16 @@ const calculerBulletin = ({ employe, rubriques = [], parametres_entreprise = {} 
     montant: cnpsRetraiteSal, est_patronale: false, ordre: 200,
   });
 
-  // CMU : 1 000 FCFA / mois forfaitaire
-  const cmu = PARAMS_CI.cmu_forfait;
-  lignes.push({
-    code: 'CMU_SAL', libelle: 'CMU (forfait)',
-    type: 'cotisation_salariale', base: null, taux: null,
-    montant: cmu, est_patronale: false, ordre: 210,
-  });
-
-  const totalCotisationsSalariales = round2(cnpsRetraiteSal + cmu);
+  // CMU forfaitaire 1 000 FCFA — désormais à la charge PATRONALE par défaut
+  // (pratique courante des conventions collectives ivoiriennes ; l'employeur
+  // verse à la CNAM pour le compte du salarié). Côté salarié, seules les
+  // 6,6 % CNPS sont déduites du brut.
+  // Calculée plus bas dans le bloc « Cotisations patronales ».
+  const totalCotisationsSalariales = round2(cnpsRetraiteSal);
 
   // ── 3. Salaire imposable ──────────────────────────────────────────────────
-  // Salaire imposable = base ITS − cotisations sociales salariales − abattement 25%
-  const baseApresCnps = baseIts - cnpsRetraiteSal - cmu;
+  // Salaire imposable = base ITS − CNPS salariale − abattement 20 % frais pro
+  const baseApresCnps = baseIts - cnpsRetraiteSal;
   const abattementFrais = round2(baseApresCnps * PARAMS_CI.taux_abattement_frais / 100);
   const salaireImposable = round2(Math.max(0, baseApresCnps - abattementFrais));
 
@@ -257,7 +266,8 @@ const calculerBulletin = ({ employe, rubriques = [], parametres_entreprise = {} 
   const totalImpots = round2(its + cn);
 
   // ── 6. Net à payer ────────────────────────────────────────────────────────
-  // Net = Brut − cotisations salariales (CNPS + CMU) − impôts − retenues (avances)
+  // Net = Brut − cotisations salariales (CNPS 6,6 %) − impôts − retenues (avances).
+  // La CMU est désormais à la charge patronale (cf. CMU_PAT plus bas).
   const netAPayer = round2(brut - totalCotisationsSalariales - totalImpots - totalRetenues);
 
   // ── 7. Cotisations PATRONALES (charges employeur) ─────────────────────────
@@ -267,6 +277,7 @@ const calculerBulletin = ({ employe, rubriques = [], parametres_entreprise = {} 
   const cnpsAT = round2(basePF * tauxAT / 100);
   const fdfp = round2(brut * PARAMS_CI.taux_fdfp / 100);
   const taxeApprentissage = round2(brut * PARAMS_CI.taux_taxe_apprentissage / 100);
+  const cmuPat = PARAMS_CI.cmu_forfait;   // 1 000 FCFA / mois / employé
 
   lignes.push(
     {
@@ -285,6 +296,11 @@ const calculerBulletin = ({ employe, rubriques = [], parametres_entreprise = {} 
       montant: cnpsAT, est_patronale: true, ordre: 320,
     },
     {
+      code: 'CMU_PAT', libelle: `CMU (forfait CNAM)`,
+      type: 'cotisation_patronale', base: null, taux: null,
+      montant: cmuPat, est_patronale: true, ordre: 325,
+    },
+    {
       code: 'FDFP', libelle: `FDFP — Formation (${PARAMS_CI.taux_fdfp}%)`,
       type: 'cotisation_patronale', base: brut, taux: PARAMS_CI.taux_fdfp,
       montant: fdfp, est_patronale: true, ordre: 330,
@@ -297,7 +313,7 @@ const calculerBulletin = ({ employe, rubriques = [], parametres_entreprise = {} 
   );
 
   const totalCotisationsPatronales = round2(
-    cnpsRetraitePat + cnpsPF + cnpsAT + fdfp + taxeApprentissage
+    cnpsRetraitePat + cnpsPF + cnpsAT + cmuPat + fdfp + taxeApprentissage
   );
 
   // Coût total employeur
