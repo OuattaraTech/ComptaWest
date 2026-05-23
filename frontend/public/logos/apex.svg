@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Favicon ApeX : pictogramme "A montagne" sur fond émeraude arrondi.
+     Vectoriel pour rester net à toutes les tailles (16x16 ↔ 512x512).
+     Couleurs : #0F8A6E (vert marque) + #A8E640 (vert sommet) + blanc. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#0F8A6E"/>
+  <!-- Sommet de la montagne (triangle vert clair) -->
+  <path d="M32 13 L40 28 L24 28 Z" fill="#A8E640"/>
+  <!-- Base de la montagne (V blanc avec encoche centrale) -->
+  <path d="M32 22 L53 51 H42 L38 44 H26 L22 51 H11 Z" fill="white"/>
+</svg>
