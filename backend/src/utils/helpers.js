@@ -85,11 +85,15 @@ const creerCategoriesDefaut = async (entrepriseId, client) => {
 
 /**
  * Crée les rubriques de paie par défaut pour une nouvelle entreprise.
- * Reprend la même liste que la migration 005 + 024 (corrections CI) :
+ * Reprend la même liste que la migration 005 + 024 + alignée sur la
+ * réforme ITS 2024 (Note DGI 00026/MFB du 03 jan 2024) :
  *   - HS_* exonérées d'ITS (Code CGI CI art. 116)
- *   - IND_LOGEMENT soumis aux deux (ITS + CNPS)
+ *   - IND_LOGEMENT soumis aux deux (ITS + CNPS) — pratique 2024
  *   - PRIME_TRANSPORT exonéré sous 30 000 (plafond géré côté moteur)
  *   - Avantages en nature en mode forfait DGI
+ *
+ * Depuis la réforme 2024, l'ITS est un impôt UNIQUE (fusion IS+CN+IGR).
+ * Le champ `imposable_its` désigne donc l'unique imposition désormais.
  *
  * La migration 005 ne traite que les entreprises existantes au moment
  * de son application (CROSS JOIN), donc TOUTE entreprise créée après

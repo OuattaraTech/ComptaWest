@@ -412,7 +412,7 @@ const PLAN_COMPTABLE = [
   ['4455', 'État, TVA récupérable sur factures non parvenues', 4, 'ACTIF', false],
   ['446', 'État, autres taxes sur le chiffre d\'affaires', 4, 'PASSIF', false],
   ['447', 'État, impôts retenus à la source', 4, 'PASSIF', false],
-  ['4471', 'Impôts sur salaires (ITS, IGR)', 4, 'PASSIF', false],
+  ['4471', 'ITS — Impôt sur Traitements et Salaires (réforme 2024)', 4, 'PASSIF', false],
   ['4472', 'Impôts sur revenus des valeurs mobilières (IRVM)', 4, 'PASSIF', false],
   ['4473', 'Autres impôts retenus à la source', 4, 'PASSIF', false],
   ['448', 'État, charges à payer et produits à recevoir', 4, 'PASSIF', false],

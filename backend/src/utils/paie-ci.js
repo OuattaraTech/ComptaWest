@@ -1,17 +1,22 @@
 /**
  * Moteur de calcul de paie — Côte d'Ivoire
  * ============================================================================
- * Implémente les règles 2024 du Code Général des Impôts (CGI CI) et du
- * Code de prévoyance sociale CNPS.
+ * Implémente le régime ITS UNIQUE issu de l'ordonnance n° 2023-719 du
+ * 13 septembre 2023, mise en application au 1er janvier 2024.
  *
- * Réforme 2022 : suppression de l'ancien duo IS+IGR pour les salariés,
- * remplacé par un IRPP unifié à barème progressif (toujours appelé
- * couramment ITS = Impôts sur Traitements et Salaires) — plus une
- * Contribution Nationale (CN) progressive sur les revenus élevés.
+ * Source officielle : Note DGI N° 00026/MFB/DGI/DLCD-SDL du 03 jan 2024
+ * (fichier de référence à la racine du repo).
  *
- * Sources :
- * - Annexes fiscales CI 2022, 2023, 2024
- * - Code CNPS art. 26 et suivants
+ * Spécificités de la réforme 2024 :
+ *   - FUSION des 3 anciens impôts cédulaires (IS + CN + IGR) en un
+ *     prélèvement unique appelé « ITS » (barème à 6 tranches).
+ *   - SUPPRESSION de l'abattement forfaitaire 20 % frais professionnels.
+ *   - SUPPRESSION du quotient familial — remplacé par une réduction
+ *     forfaitaire mensuelle indexée sur le nombre de parts.
+ *   - Contribution Employeur : 2,8 % (local) / 12 % (expatrié).
+ *
+ * Code CNPS : taux salarial 6,6 % inchangé (5,5 % retraite générale +
+ * 1,1 % retraite complémentaire), pas de plafond appliqué par défaut.
  * ============================================================================
  */
 
@@ -116,7 +121,7 @@ function appliquerBaremeProgressif(base, bareme) {
 }
 
 /**
- * Calcul de paie Côte d'Ivoire selon le modèle IS + CN + IGR séparés.
+ * Calcul de paie Côte d'Ivoire — régime ITS unique réforme 2024.
  *
  * @param {object} input
  * @param {number} input.salaireDeBase       — Salaire brut de base mensuel
@@ -248,56 +253,34 @@ const PLAFONDS_EXONERATION = {
 };
 
 // ─── PARAMÈTRES ─────────────────────────────────────────────────────────────
-// Sources (audit expert-comptable ivoirien, mai 2026) :
-//   - Code CNPS : 6,6 % part salariale (5,5 % retraite générale + 1,1 %
-//                 retraite complémentaire obligatoire), depuis la réforme 2020
-//   - CGI CI    : abattement forfaitaire 20 % pour frais professionnels
-//                 (et non 25 % comme dans la version 2010 abrogée)
-//   - CGI CI    : tranche 0 % de l'ITS étendue pour protéger les bas salaires
-//                 (salaire imposable ≤ 130 000 FCFA = 0 d'impôt sur le salaire)
-//   - CNPS      : taux AT moyen 4 % (varie 2 à 5 selon classification du secteur)
+// Sources :
+//   - Note DGI N° 00026/MFB/DGI/DLCD-SDL du 03 janvier 2024 (réforme ITS)
+//   - Code CNPS : 6,6 % salariale (5,5 % retraite + 1,1 % complémentaire)
+//   - Code CNPS : taux AT 2-5 % selon classification du secteur (4 % moyen)
+//
+// NB : Les anciens barèmes baremes_its / baremes_cn et l'abattement
+// taux_abattement_frais ont été RETIRÉS de cet objet — ils ne sont
+// plus utilisés depuis la réforme 2024. Le barème actuel est codé dans
+// BAREME_ITS_2024 (au-dessus). Si vous trouvez un appel à ces clés dans
+// du code legacy, c'est qu'il faut le migrer vers BAREME_ITS_2024 +
+// REDUCTION_CHARGES_FAMILLE.
 const PARAMS_CI = {
   // Plafonds mensuels CNPS
   plafond_pf:      70000,       // Prestations familiales + AT
-  plafond_retraite: 2700000,    // Retraite
-  cmu_forfait:     1000,        // 1 000 FCFA / mois / employé (employeur OU salarié selon convention)
+  plafond_retraite: 2700000,    // Retraite (réservé pour usage futur)
+  cmu_forfait:     1000,        // 1 000 FCFA / mois / employé (charge patronale)
 
-  // Taux salariaux — CORRECTION mai 2026 : 6,6 % = 5,5 % retraite générale
-  // + 1,1 % retraite complémentaire d'urgence obligatoire (et non 6,3 %)
-  taux_cnps_retraite_sal: 6.6,
-  // Taux patronaux
-  taux_cnps_retraite_pat: 7.7,  // %
-  taux_cnps_pf:           5.75, // % (patronal seul)
-  taux_at_default:        4,    // % par défaut (2-5 selon secteur ; 4 = moyen)
-  taux_fdfp:              1.2,  // %
-  taux_taxe_apprentissage: 0.4, // %
+  // Taux salariaux
+  taux_cnps_retraite_sal: 6.6,  // 5,5 % retraite + 1,1 % complémentaire
+  // Taux patronaux CNPS
+  taux_cnps_retraite_pat: 7.7,
+  taux_cnps_pf:           5.75, // Patronal seul
+  taux_at_default:        4,    // 2-5 % selon secteur, 4 % = moyenne
+  // Taxes parafiscales
+  taux_fdfp:              1.2,
+  taux_taxe_apprentissage: 0.4,
 
-  // Abattement frais professionnels — CORRECTION mai 2026 : 20 % (et non 25 %)
-  taux_abattement_frais: 20,
-
-  // ITS (Impôt sur Traitements et Salaires) — barème mensuel par part fiscale.
-  // CORRECTION mai 2026 : la tranche 0 % monte à 130 000 FCFA imposable pour
-  // protéger les bas salaires ; un brut de 150 000 FCFA (≈ 112 080 imposable
-  // après CNPS + abattement) doit produire 0 FCFA d'impôt sur le salaire,
-  // conforme aux pratiques DGI ivoiriennes observées.
-  baremes_its: [
-    { jusqua:   130000, taux: 0    },
-    { jusqua:   240000, taux: 16   },
-    { jusqua:   800000, taux: 21   },
-    { jusqua:  2400000, taux: 24   },
-    { jusqua: Infinity, taux: 32   },
-  ],
-
-  // Contribution Nationale (CN) — applicable sur le salaire imposable total
-  // (pas divisé par parts) selon les annexes fiscales
-  baremes_cn: [
-    { jusqua:   600000, taux: 0    },
-    { jusqua:  1560000, taux: 1.5  },
-    { jusqua:  2400000, taux: 5    },
-    { jusqua: Infinity, taux: 10   },
-  ],
-
-  // Plafond des parts fiscales : max 5 (couple + 5 enfants = 4,5)
+  // Plafond des parts fiscales (couple + 5 enfants = 4,5)
   max_parts: 5,
 
   // Plafond d'enfants à charge (CI : 6 enfants max comptés)
@@ -324,24 +307,6 @@ const calculerParts = ({ situation_matrimoniale, nb_conjoints = 0, nb_enfants_ch
 };
 
 /**
- * Applique un barème progressif par tranches sur un montant donné.
- * Le barème est une liste d'objets { jusqua, taux }.
- */
-const appliquerBareme = (montant, bareme) => {
-  if (montant <= 0) return 0;
-  let impot = 0;
-  let plancher = 0;
-  for (const tranche of bareme) {
-    const plafond = tranche.jusqua;
-    const baseTranche = Math.max(0, Math.min(montant, plafond) - plancher);
-    impot += baseTranche * (tranche.taux / 100);
-    if (montant <= plafond) break;
-    plancher = plafond;
-  }
-  return impot;
-};
-
-/**
  * Calcule un bulletin de paie complet pour un employé sur un mois donné.
  *
  * @param {Object} input
@@ -357,7 +322,7 @@ const calculerBulletin = ({ employe, rubriques = [], parametres_entreprise = {} 
   const salaireBase = parseFloat(employe.salaire_base) || 0;
   const nbParts = calculerParts(employe);
 
-  // ── 1. DÉCOMPOSITION des rubriques pour le moteur IS+CN+IGR ───────────────
+  // ── 1. DÉCOMPOSITION des rubriques pour le moteur ITS 2024 ───────────────
   // Le nouveau moteur attend 4 entrées agrégées :
   //   - primesImposables   = somme des gains imposables (hors logement et transport)
   //   - indemniteLogement  = IND_LOGEMENT (codé séparément car règle DGI distincte)
@@ -402,7 +367,7 @@ const calculerBulletin = ({ employe, rubriques = [], parametres_entreprise = {} 
     }
   }
 
-  // ── 2. APPEL DU MOTEUR IS + CN + IGR ──────────────────────────────────────
+  // ── 2. APPEL DU MOTEUR ITS UNIQUE (réforme 2024) ──────────────────────────
   const calc = calculateIvoryCoastPayroll({
     salaireDeBase: salaireBase,
     primesImposables: round2(primesImposables),
@@ -419,7 +384,8 @@ const calculerBulletin = ({ employe, rubriques = [], parametres_entreprise = {} 
   // ── 3. RECONSTITUTION DES LIGNES BULLETIN (compatibilité PDF + BDD) ──────
   // L'ancien moteur produisait 5 lignes cotisations (CNPS retraite, CMU,
   // ITS, CN puis patronales détaillées). Le nouveau moteur produit
-  // CNPS sal + IS + CN + IGR côté salarié + charges patronales globales.
+  // CNPS sal + ITS brut + réduction + ITS net côté salarié, charges
+  // patronales ventilées (Contribution Employeur + CNPS pat + autres).
   // Lignes côté salarié — régime ITS unique 2024
   lignes.push({
     code: 'CNPS_SAL', libelle: 'CNPS salariale (6,6 %)',
