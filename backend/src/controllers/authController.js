@@ -304,75 +304,157 @@ const loginDemo = async (req, res) => {
   }
 };
 
-// Pré-remplissage des données démo : 3 clients, 4 factures variées,
-// 3 dépenses. Volontairement modeste pour rester lisible dès l'arrivée
-// sur le dashboard. Pas d'employés ni d'écritures complexes — un premier
-// clic dans les modules les ajoutera et illustrera bien la valeur.
+// Pré-remplissage des données démo : enrichi mai 2026 pour qu'un visiteur
+// arrivant sur la démo trouve immédiatement du contenu réaliste dans
+// chaque module (dashboard, clients, factures, dépenses, trésorerie,
+// produits, employés, immobilisations, fournisseurs). Toutes les INSERT
+// sont enveloppées d'un try/catch pour skip silencieusement les modules
+// dont la migration n'est pas appliquée (ex : fournisseurs sans migration 008).
 async function seederDonneesDemo(client, entrepriseId, userId) {
-  // 3 clients représentatifs du marché CI
+  // ─── ABONNEMENT CABINET (palier le plus haut, débloque tous les modules)
+  try {
+    await client.query(`
+      INSERT INTO abonnements (entreprise_id, palier, statut, periodicite, date_debut, date_fin, prix_mensuel_fcfa, notes_commerciales)
+      VALUES ($1, 'cabinet', 'actif', 'annuel', CURRENT_DATE, CURRENT_DATE + INTERVAL '365 days', 60000, 'Compte démo — palier Cabinet débloqué pour explorer tous les modules')
+    `, [entrepriseId]);
+  } catch (err) { if (err.code !== '42P01' && err.code !== '23505') throw err; }
+
+  // ─── 5 CLIENTS REPRÉSENTATIFS
   const clientsRes = await client.query(`
     INSERT INTO clients (entreprise_id, nom, email, telephone, ville, pays, code, actif)
     VALUES
-      ($1, 'Banque Atlantique CI', 'contact@bact.ci', '+225 27 20 24 16 00', 'Abidjan', 'Côte d''Ivoire', 'CLI-001', true),
-      ($1, 'GIE Femmes du Sahel',  'gie@example.ci',  '+225 01 66 77 88',    'Korhogo', 'Côte d''Ivoire', 'CLI-002', true),
-      ($1, 'SARL Logitrans',       'contact@logi.ci', '+225 07 12 34 56 78', 'San-Pedro','Côte d''Ivoire', 'CLI-003', true)
+      ($1, 'Banque Atlantique CI',  'contact@bact.ci',     '+225 27 20 24 16 00', 'Abidjan',  'Côte d''Ivoire', 'CLI-001', true),
+      ($1, 'GIE Femmes du Sahel',   'gie@example.ci',      '+225 01 66 77 88',    'Korhogo',  'Côte d''Ivoire', 'CLI-002', true),
+      ($1, 'SARL Logitrans',        'contact@logi.ci',     '+225 07 12 34 56 78', 'San-Pedro','Côte d''Ivoire', 'CLI-003', true),
+      ($1, 'NSIA Assurances',       'compta@nsia.ci',      '+225 27 20 31 10 00', 'Abidjan',  'Côte d''Ivoire', 'CLI-004', true),
+      ($1, 'Coopérative Cacao Sud', 'cacao@coop-sud.ci',   '+225 07 88 99 10 11', 'Daloa',    'Côte d''Ivoire', 'CLI-005', true)
     RETURNING id
   `, [entrepriseId]);
   const cliIds = clientsRes.rows.map(r => r.id);
 
-  // 4 factures variées : 1 brouillon, 1 envoyée, 1 payée, 1 en retard
-  const dates = [
-    new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10),  // -30j
-    new Date(Date.now() - 15 * 86400000).toISOString().slice(0, 10),  // -15j
-    new Date(Date.now() -  5 * 86400000).toISOString().slice(0, 10),  // -5j
-    new Date().toISOString().slice(0, 10),                             // aujourd'hui
-  ];
+  // ─── 8 FACTURES + DEVIS + AVOIR : couvre tout le cycle de vie commercial
+  const j = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
   const factDefs = [
-    { cli: cliIds[0], statut: 'payee',     date: dates[0], desc: 'Audit comptable Q1 2026', qte: 1, pu: 1200000 },
-    { cli: cliIds[1], statut: 'envoyee',   date: dates[1], desc: 'Formation SYSCOHADA',     qte: 2, pu: 350000  },
-    { cli: cliIds[2], statut: 'retard',    date: dates[2], desc: 'Conseil fiscal',           qte: 1, pu: 750000  },
-    { cli: cliIds[0], statut: 'brouillon', date: dates[3], desc: 'Mission Q2 2026',          qte: 1, pu: 850000  },
+    { type: 'facture', cli: cliIds[0], statut: 'payee',     date: j(-60), desc: 'Audit comptable Q1 2026',            qte: 1, pu: 1200000 },
+    { type: 'facture', cli: cliIds[1], statut: 'payee',     date: j(-45), desc: 'Formation SYSCOHADA 2 jours',         qte: 2, pu: 350000  },
+    { type: 'facture', cli: cliIds[3], statut: 'envoyee',   date: j(-15), desc: 'Mission conseil fiscal annuel',       qte: 1, pu: 1800000 },
+    { type: 'facture', cli: cliIds[2], statut: 'retard',    date: j(-8),  desc: 'Honoraires conseil mensuel',          qte: 1, pu: 450000  },
+    { type: 'facture', cli: cliIds[4], statut: 'envoyee',   date: j(-3),  desc: 'Diagnostic comptable + recommandations', qte: 1, pu: 950000 },
+    { type: 'facture', cli: cliIds[0], statut: 'brouillon', date: j(0),   desc: 'Mission Q2 2026 (proposition)',       qte: 1, pu: 850000  },
+    { type: 'devis',   cli: cliIds[1], statut: 'brouillon', date: j(-2),  desc: 'Refonte plan comptable SYSCOHADA',    qte: 1, pu: 1500000 },
+    { type: 'devis',   cli: cliIds[2], statut: 'brouillon', date: j(-1),  desc: 'Audit immobilisations',               qte: 1, pu: 680000  },
   ];
-  for (let i = 0; i < factDefs.length; i++) {
-    const f = factDefs[i];
+  const cptr = { facture: 0, devis: 0 };
+  for (const f of factDefs) {
+    cptr[f.type]++;
     const ht = f.qte * f.pu;
     const tva = ht * 0.18;
     const ttc = ht + tva;
     const year = new Date(f.date).getFullYear();
-    const numero = `F-${year}-${String(i + 1).padStart(3, '0')}`;
+    const prefix = f.type === 'devis' ? 'D' : 'F';
+    const numero = `${prefix}-${year}-${String(cptr[f.type]).padStart(3, '0')}`;
     const factRes = await client.query(`
       INSERT INTO factures (entreprise_id, client_id, cree_par, numero, type, statut,
-        date_emission, sous_total, taux_tva, montant_tva, total_ttc, montant_paye, conditions_paiement)
-      VALUES ($1, $2, $3, $4, 'facture', $5, $6, $7, 18, $8, $9, $10, 'Paiement à 30 jours')
+        date_emission, date_echeance, sous_total, taux_tva, montant_tva, total_ttc, montant_paye, conditions_paiement)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 18, $10, $11, $12, 'Paiement à 30 jours')
       RETURNING id
-    `, [entrepriseId, f.cli, userId, numero, f.statut, f.date,
+    `, [entrepriseId, f.cli, userId, numero, f.type, f.statut, f.date,
+        new Date(new Date(f.date).getTime() + 30 * 86400000).toISOString().slice(0, 10),
         ht, tva, ttc, f.statut === 'payee' ? ttc : 0]);
     await client.query(`
       INSERT INTO lignes_facture (facture_id, description, quantite, prix_unitaire, total)
       VALUES ($1, $2, $3, $4, $5)
     `, [factRes.rows[0].id, f.desc, f.qte, f.pu, ht]);
+
+    // Pour les factures payées, on ajoute un paiement enregistré
+    if (f.statut === 'payee') {
+      try {
+        await client.query(`
+          INSERT INTO paiements (facture_id, montant, date_paiement, mode_paiement, reference)
+          VALUES ($1, $2, $3, 'virement', $4)
+        `, [factRes.rows[0].id, ttc, f.date, `VIR-${numero}`]);
+      } catch (err) { if (err.code !== '42P01') throw err; }
+    }
   }
 
-  // 3 dépenses courantes
+  // ─── 6 DÉPENSES VARIÉES sur les 60 derniers jours
   const catRes = await client.query(
-    `SELECT id, nom FROM categories_depenses WHERE entreprise_id = $1 LIMIT 5`,
+    `SELECT id, nom FROM categories_depenses WHERE entreprise_id = $1`,
     [entrepriseId]
   );
   const catMap = Object.fromEntries(catRes.rows.map(c => [c.nom, c.id]));
+  const findCat = (...names) => names.map(n => catMap[n]).find(Boolean) || Object.values(catMap)[0];
   const depDefs = [
-    { desc: 'Loyer bureau Cocody', cat: 'Loyers et charges',   ht: 250000 },
-    { desc: 'Facture CIE',         cat: 'Services extérieurs', ht: 45000  },
-    { desc: 'Carburant véhicule',  cat: 'Carburants',          ht: 35000  },
+    { desc: 'Loyer bureau Cocody (Mai)',  cat: findCat('Loyers et charges', 'Charges externes'), ht: 250000, date: j(-25) },
+    { desc: 'Facture CIE — Avril',         cat: findCat('Services extérieurs', 'Charges externes'), ht: 45000,  date: j(-20) },
+    { desc: 'Carburant véhicule société',  cat: findCat('Carburants', 'Charges externes'),       ht: 35000,  date: j(-12) },
+    { desc: 'Abonnement internet ORANGE',  cat: findCat('Services extérieurs', 'Charges externes'), ht: 50000, date: j(-10) },
+    { desc: 'Fournitures bureau',          cat: findCat('Achats fournitures', 'Achats marchandises'), ht: 75000, date: j(-7) },
+    { desc: 'Mission Yamoussoukro',        cat: findCat('Frais de déplacement', 'Charges externes'), ht: 120000, date: j(-3) },
   ];
   for (const d of depDefs) {
-    const catId = catMap[d.cat] || Object.values(catMap)[0] || null;
-    if (!catId) continue;
+    if (!d.cat) continue;
     await client.query(`
       INSERT INTO depenses (entreprise_id, categorie_id, description, montant_ht, taux_tva,
         montant_tva, montant_ttc, date_depense, mode_paiement)
-      VALUES ($1, $2, $3, $4, 18, $5, $6, NOW(), 'virement')
-    `, [entrepriseId, catId, d.desc, d.ht, d.ht * 0.18, d.ht * 1.18]);
+      VALUES ($1, $2, $3, $4, 18, $5, $6, $7, 'virement')
+    `, [entrepriseId, d.cat, d.desc, d.ht, d.ht * 0.18, d.ht * 1.18, d.date]);
   }
+
+  // ─── 3 FOURNISSEURS (si migration 008 appliquée)
+  try {
+    await client.query(`
+      INSERT INTO fournisseurs (entreprise_id, nom, email, telephone, ville, code, actif)
+      VALUES
+        ($1, 'SCB Côte d''Ivoire',        'compta@scb.ci',       '+225 27 20 30 00 00', 'Abidjan',     'FOU-001', true),
+        ($1, 'Imprimerie Plateau',         'contact@imp.ci',      '+225 07 11 22 33 44', 'Abidjan',     'FOU-002', true),
+        ($1, 'PETRO IVOIRE Yopougon',     'station@petro.ci',    '+225 27 21 50 00 00', 'Abidjan',     'FOU-003', true)
+    `, [entrepriseId]);
+  } catch (err) { if (err.code !== '42P01' && err.code !== '23505') throw err; }
+
+  // ─── 4 PRODUITS / SERVICES (si migration 007 appliquée)
+  try {
+    await client.query(`
+      INSERT INTO produits (entreprise_id, code, libelle, description, type, prix_vente_ht, prix_achat_ht, taux_tva, unite, stock_actuel, seuil_alerte, actif)
+      VALUES
+        ($1, 'SRV-001', 'Mission d''audit comptable',  'Audit annuel des comptes selon SYSCOHADA',                  'service', 1500000, 0,      18, 'forfait', 0,   0, true),
+        ($1, 'SRV-002', 'Formation SYSCOHADA',          'Formation 2 jours pour équipes comptables',                 'service', 350000,  0,      18, 'jour',    0,   0, true),
+        ($1, 'PRD-001', 'Plan comptable papier',        'Recueil imprimé du plan comptable SYSCOHADA',               'produit', 12000,   7500,   18, 'unité',   25,  5, true),
+        ($1, 'PRD-002', 'Logiciel de paie (licence)',  'Licence annuelle module paie standalone',                   'produit', 240000,  150000, 18, 'licence', 8,   2, true)
+    `, [entrepriseId]);
+  } catch (err) { if (err.code !== '42P01' && err.code !== '23505') throw err; }
+
+  // ─── 3 EMPLOYÉS pour le module paie (si migration 005 appliquée)
+  try {
+    await client.query(`
+      INSERT INTO employes (entreprise_id, matricule, nom, prenoms, sexe, date_naissance, situation_matrimoniale, nb_enfants_charge, telephone, email, poste, departement, date_embauche, type_contrat, salaire_base, mode_paiement)
+      VALUES
+        ($1, 'EMP-001', 'KOUADIO', 'Marc',     'M', '1985-03-15', 'marie',      2, '+225 07 11 22 33 44', 'marc.k@apex.local',   'Comptable senior',  'Comptabilité', CURRENT_DATE - INTERVAL '3 years',  'CDI', 450000, 'virement'),
+        ($1, 'EMP-002', 'YAO',     'Sandrine', 'F', '1990-07-22', 'celibataire',1, '+225 05 66 77 88 99', 'sandrine.y@apex.local','Assistante RH',     'Admin',        CURRENT_DATE - INTERVAL '18 months','CDI', 280000, 'virement'),
+        ($1, 'EMP-003', 'TRAORE',  'Issouf',   'M', '1988-11-09', 'marie',      3, '+225 01 22 33 44 55', 'issouf.t@apex.local', 'Coursier',          'Logistique',   CURRENT_DATE - INTERVAL '8 months', 'CDD', 180000, 'cash')
+    `, [entrepriseId]);
+  } catch (err) { if (err.code !== '42P01' && err.code !== '23505') throw err; }
+
+  // ─── 2 IMMOBILISATIONS (si migration 006 appliquée)
+  try {
+    await client.query(`
+      INSERT INTO immobilisations (entreprise_id, numero_inventaire, libelle, description, date_acquisition, date_mise_en_service, valeur_acquisition, amortissable, duree_annees, methode, statut, compte_actif, compte_amortissement, compte_dotation, cree_par)
+      VALUES
+        ($1, 'IMM-2024-001', 'Véhicule Toyota Hilux',    'Pick-up pour missions terrain',  CURRENT_DATE - INTERVAL '14 months', CURRENT_DATE - INTERVAL '14 months', 18500000, true, 5, 'lineaire', 'en_service', '244500', '284500', '681120', $2),
+        ($1, 'IMM-2025-001', 'Parc informatique (5 PC)', 'Renouvellement matériel équipe', CURRENT_DATE - INTERVAL '4 months',  CURRENT_DATE - INTERVAL '4 months',  3200000,  true, 3, 'lineaire', 'en_service', '244200', '284200', '681120', $2)
+    `, [entrepriseId, userId]);
+  } catch (err) { if (err.code !== '42P01' && err.code !== '23505') throw err; }
+
+  // ─── 3 COMPTES DE TRÉSORERIE (si migration 004 appliquée)
+  try {
+    await client.query(`
+      INSERT INTO comptes_tresorerie (entreprise_id, nom, type, operateur, numero_compte, titulaire, solde_initial, devise, compte_pc_numero, par_defaut, actif)
+      VALUES
+        ($1, 'Banque Atlantique - Compte courant',  'banque',       'Banque Atlantique CI', 'CI008 01001 00000 000001', 'SARL Démo', 8500000, 'XOF', '521100', true,  true),
+        ($1, 'Wave Business',                       'mobile_money', 'Wave',                 '+225 01 02 03 04 05',      'SARL Démo', 450000,  'XOF', '521300', false, true),
+        ($1, 'Caisse principale',                   'caisse',       NULL,                   NULL,                       NULL,        250000,  'XOF', '571000', false, true)
+    `, [entrepriseId]);
+  } catch (err) { if (err.code !== '42P01' && err.code !== '23505') throw err; }
 }
 
 // Nettoyage des comptes démo expirés. Appelé toutes les heures par le
