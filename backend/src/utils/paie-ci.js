@@ -32,7 +32,11 @@ const round0 = (n) => Math.round(parseFloat(n) || 0);
 //   - Barème IGR = grille mensuelle CI ancien régime, exonération bas
 //     salaire garantie (premier seuil à 25 000 / part)
 
-const PLAFOND_CNPS_SAL_MENSUEL = 70_000;     // FCFA — spec utilisateur
+// Spec utilisateur révisée (juin 2026) : pas de plafond sur la CNPS
+// salariale. Pour 450 000 brut → 29 700 de CNPS (= 450 000 × 6,6 %).
+// Si tu veux réintroduire un plafond, modifie PLAFOND_CNPS_SAL_MENSUEL
+// ci-dessous (mettre Infinity = pas de plafond).
+const PLAFOND_CNPS_SAL_MENSUEL = Infinity;
 const TAUX_CNPS_SAL            = 0.066;      // 5,5 % retraite + 1,1 % complém.
 const ABATTEMENT_FRAIS_PRO     = 0.20;       // 20 % pour IS et CN
 const TAUX_IS                  = 0.012;      // 1,2 % flat
@@ -47,18 +51,33 @@ const BAREME_CN = [
   { plafond: Infinity, taux: 0.100 },
 ];
 
-// Barème IGR — mensuel, par tranches cumulatives, appliqué au quotient
-// familial puis multiplié par le nombre de parts. Conçu pour exonérer
-// totalement les bas salaires (Q < 25 000 → IGR = 0).
-const BAREME_IGR = [
-  { plafond:  25_000, taux: 0.00 },
-  { plafond:  50_000, taux: 0.10 },
-  { plafond: 100_000, taux: 0.15 },
-  { plafond: 200_000, taux: 0.20 },
-  { plafond: 400_000, taux: 0.25 },
-  { plafond: 800_000, taux: 0.35 },
-  { plafond: Infinity, taux: 0.45 },
+// Barème IGR officiel DGI CI 2024 — formule mensuelle N × Q × T - N × K
+// où N = nb parts, Q = quotient familial (base IGR / parts), T = taux
+// de la tranche du quotient, K = constante de décote de la tranche.
+// Cette méthode officielle évite l'erreur des tranches cumulatives
+// classiques et applique automatiquement la progressivité avec décote.
+// Source : Code Général des Impôts CI, annexe fiscale.
+const BAREME_IGR_DGI = [
+  { plafond:  25_000, taux: 0.00, K:       0 },
+  { plafond:  45_583, taux: 0.10, K:   2_500 },
+  { plafond:  81_583, taux: 0.15, K:   4_779 },
+  { plafond: 126_583, taux: 0.20, K:   8_858 },
+  { plafond: 220_333, taux: 0.25, K:  15_187 },
+  { plafond: 389_083, taux: 0.35, K:  37_220 },
+  { plafond: 842_166, taux: 0.45, K:  76_128 },
+  { plafond: Infinity, taux: 0.60, K: 202_478 },
 ];
+
+// Helper pour la formule officielle DGI : N × Q × T - N × K, où K et T
+// dépendent de la tranche dans laquelle Q tombe.
+function igrParts(quotient, nbParts) {
+  for (const tranche of BAREME_IGR_DGI) {
+    if (quotient <= tranche.plafond) {
+      return Math.max(0, nbParts * quotient * tranche.taux - nbParts * tranche.K);
+    }
+  }
+  return 0;
+}
 
 /**
  * Applique un barème par tranches cumulatives.
@@ -138,8 +157,11 @@ function calculateIvoryCoastPayroll({
   );
   const parts = Math.max(1, parseFloat(partsFiscales) || 1);
   const quotient = baseIGRBrute / parts;
-  const igrParPart = appliquerBaremeProgressif(quotient, BAREME_IGR);
-  const montantIGR = igrParPart * parts;
+  // Formule officielle DGI CI : N × Q × T - N × K (avec décote K par tranche).
+  // Plus précise que les tranches cumulatives classiques et conforme à
+  // l'usage administratif fiscal ivoirien.
+  const montantIGR = igrParts(quotient, parts);
+  const igrParPart = parts > 0 ? montantIGR / parts : 0;
 
   const impotsTotaux = montantIS + montantCN + montantIGR;
 
@@ -430,9 +452,10 @@ module.exports = {
   PARAMS_CI,
   calculerParts,
   calculerBulletin,
-  // Nouveau moteur IS+CN+IGR séparés (mai 2026, voir docstring en haut du fichier)
+  // Moteur IS+CN+IGR séparés (mai 2026)
   calculateIvoryCoastPayroll,
   appliquerBaremeProgressif,
+  igrParts,
   BAREME_CN,
-  BAREME_IGR,
+  BAREME_IGR_DGI,
 };
