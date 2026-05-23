@@ -299,203 +299,129 @@ const appliquerBareme = (montant, bareme) => {
  */
 const calculerBulletin = ({ employe, rubriques = [], parametres_entreprise = {} }) => {
   const salaireBase = parseFloat(employe.salaire_base) || 0;
-  const tauxAT = parseFloat(employe.taux_at_personnel)
-    || parseFloat(parametres_entreprise.taux_at)
-    || PARAMS_CI.taux_at_default;
-
   const nbParts = calculerParts(employe);
 
-  // ── 1. Brut & assiettes ──────────────────────────────────────────────────
-  // Le brut est la somme de toutes les rubriques de type 'gain'.
-  // L'assiette ITS exclut les gains marqués imposable_its=false.
-  // L'assiette CNPS exclut ceux marqués cotisable_cnps=false.
-  const lignes = [];
-  let brut = 0;
-  let baseIts = 0;
-  let baseCnps = 0;
-
-  // Salaire de base — toujours présent
-  lignes.push({
-    code: 'SALAIRE_BASE',
-    libelle: 'Salaire de base',
-    type: 'gain',
-    base: null,
-    taux: null,
-    montant: salaireBase,
-    est_patronale: false,
-    ordre: 10,
-  });
-  brut += salaireBase;
-  baseIts += salaireBase;
-  baseCnps += salaireBase;
-
-  // Autres rubriques (primes, HS, indemnités, avances, retenues)
-  let totalGains = 0;
+  // ── 1. DÉCOMPOSITION des rubriques pour le moteur IS+CN+IGR ───────────────
+  // Le nouveau moteur attend 4 entrées agrégées :
+  //   - primesImposables   = somme des gains imposables (hors logement et transport)
+  //   - indemniteLogement  = IND_LOGEMENT (codé séparément car règle DGI distincte)
+  //   - primeTransport     = PRIME_TRANSPORT (plafond 30 000 géré dans le moteur)
+  // Tout le reste (avantages en nature info, surplus exceptionnels) est
+  // mappé sur primesImposables. Retenues séparées (avances, prêts).
+  let primesImposables = 0;
+  let indemniteLogement = 0;
+  let primeTransport = 0;
   let totalRetenues = 0;
+  let totalGains = 0;
+
+  const lignes = [{
+    code: 'SALAIRE_BASE', libelle: 'Salaire de base', type: 'gain',
+    base: null, taux: null, montant: salaireBase,
+    est_patronale: false, ordre: 10,
+  }];
+
   for (const r of rubriques) {
     const montant = round2(r.montant);
     if (montant === 0) continue;
     lignes.push({
-      code: r.code,
-      libelle: r.libelle,
-      type: r.type,
-      base: r.base ?? null,
-      taux: r.taux ?? null,
-      montant,
-      est_patronale: !!r.est_patronale,
-      ordre: r.ordre ?? 100,
+      code: r.code, libelle: r.libelle, type: r.type,
+      base: r.base ?? null, taux: r.taux ?? null,
+      montant, est_patronale: !!r.est_patronale, ordre: r.ordre ?? 100,
     });
-    if (r.type === 'gain') {
-      brut += montant;
-      totalGains += montant;
-
-      // Plafonds d'exonération CI : si une rubrique normalement exonérée
-      // dépasse son seuil légal, le SURPLUS bascule dans les assiettes ITS
-      // et CNPS (cf. CGI ivoirien art. 116 et code CNPS).
-      // Cas connus :
-      //   - PRIME_TRANSPORT : exonérée jusqu'à 30 000 FCFA/mois.
-      // Le mécanisme est centralisé dans PLAFONDS_EXONERATION pour qu'on
-      // puisse en ajouter d'autres (panier, salissure, etc.) sans toucher
-      // au reste du moteur.
-      const plafond = PLAFONDS_EXONERATION[r.code];
-      if (plafond !== undefined && r.imposable_its === false && r.cotisable_cnps === false && montant > plafond) {
-        const surplus = round2(montant - plafond);
-        baseIts  += surplus;
-        baseCnps += surplus;
-      } else {
-        if (r.imposable_its !== false) baseIts += montant;
-        if (r.cotisable_cnps !== false) baseCnps += montant;
+    if (r.type === 'gain' || r.type === 'info') {
+      totalGains += (r.type === 'gain' ? montant : 0);
+      if (r.code === 'IND_LOGEMENT') {
+        indemniteLogement += montant;
+      } else if (r.code === 'PRIME_TRANSPORT') {
+        primeTransport += montant;
+      } else if (r.imposable_its !== false || r.type === 'info') {
+        // Tout gain marqué imposable_its ≠ false va dans la base imposable
+        primesImposables += montant;
       }
+      // Les gains 100 % exonérés (imposable_its=false ET cotisable_cnps=false
+      // hors transport) sont versés au salarié mais hors assiette — ils ne
+      // sont pas comptés ici ; ajoutés directement au brut versé plus bas.
     } else if (r.type === 'retenue') {
       totalRetenues += montant;
     }
-    // Les cotisations patronales et infos n'affectent ni brut ni base
   }
 
-  brut = round2(brut);
-  baseIts = round2(baseIts);
-  baseCnps = round2(baseCnps);
-
-  // ── 2. Cotisations sociales SALARIALES ───────────────────────────────────
-  // CNPS retraite : 6,3 % sur brut plafonné à 2 700 000
-  const baseRetraite = Math.min(baseCnps, PARAMS_CI.plafond_retraite);
-  const cnpsRetraiteSal = round2(baseRetraite * PARAMS_CI.taux_cnps_retraite_sal / 100);
-  lignes.push({
-    code: 'CNPS_RETRAITE_SAL',
-    libelle: `CNPS Retraite (${PARAMS_CI.taux_cnps_retraite_sal}%)`,
-    type: 'cotisation_salariale',
-    base: baseRetraite, taux: PARAMS_CI.taux_cnps_retraite_sal,
-    montant: cnpsRetraiteSal, est_patronale: false, ordre: 200,
+  // ── 2. APPEL DU MOTEUR IS + CN + IGR ──────────────────────────────────────
+  const calc = calculateIvoryCoastPayroll({
+    salaireDeBase: salaireBase,
+    primesImposables: round2(primesImposables),
+    indemniteLogement: round2(indemniteLogement),
+    primeTransport: round2(primeTransport),
+    partsFiscales: nbParts,
   });
 
-  // CMU forfaitaire 1 000 FCFA — désormais à la charge PATRONALE par défaut
-  // (pratique courante des conventions collectives ivoiriennes ; l'employeur
-  // verse à la CNAM pour le compte du salarié). Côté salarié, seules les
-  // 6,6 % CNPS sont déduites du brut.
-  // Calculée plus bas dans le bloc « Cotisations patronales ».
-  const totalCotisationsSalariales = round2(cnpsRetraiteSal);
+  // Brut total versé = salaire + TOUTES les primes (y compris transport
+  // intégral et exonérations) — c'est le « brut versé » qui sert de base
+  // au calcul du net à payer.
+  const brut = round2(salaireBase + primesImposables + indemniteLogement + primeTransport);
 
-  // ── 3. Salaire imposable ──────────────────────────────────────────────────
-  // Salaire imposable = base ITS − CNPS salariale − abattement 20 % frais pro
-  const baseApresCnps = baseIts - cnpsRetraiteSal;
-  const abattementFrais = round2(baseApresCnps * PARAMS_CI.taux_abattement_frais / 100);
-  const salaireImposable = round2(Math.max(0, baseApresCnps - abattementFrais));
-
-  // ── 4. ITS (IRPP) avec quotient familial ──────────────────────────────────
-  // Calcul : (Salaire imposable / parts) → barème → × parts
-  const itsParPart = appliquerBareme(salaireImposable / nbParts, PARAMS_CI.baremes_its);
-  const its = round2(itsParPart * nbParts);
-  if (its > 0) {
+  // ── 3. RECONSTITUTION DES LIGNES BULLETIN (compatibilité PDF + BDD) ──────
+  // L'ancien moteur produisait 5 lignes cotisations (CNPS retraite, CMU,
+  // ITS, CN puis patronales détaillées). Le nouveau moteur produit
+  // CNPS sal + IS + CN + IGR côté salarié + charges patronales globales.
+  lignes.push({
+    code: 'CNPS_SAL', libelle: 'CNPS salariale (6,6 % plafonné)',
+    type: 'cotisation_salariale',
+    base: calc.detail.baseCotisableCnps, taux: 6.6,
+    montant: calc.cotisationsSalariales, est_patronale: false, ordre: 200,
+  });
+  if (calc.montantIS > 0) {
     lignes.push({
-      code: 'ITS', libelle: 'ITS (IRPP)',
-      type: 'cotisation_salariale', base: salaireImposable, taux: null,
-      montant: its, est_patronale: false, ordre: 220,
+      code: 'IS', libelle: 'IS — Impôt sur le Salaire (1,2 %)',
+      type: 'cotisation_salariale',
+      base: calc.detail.baseImpotsISetCN, taux: 1.2,
+      montant: calc.montantIS, est_patronale: false, ordre: 210,
     });
   }
-
-  // ── 5. Contribution Nationale (CN) ────────────────────────────────────────
-  const cn = round2(appliquerBareme(salaireImposable, PARAMS_CI.baremes_cn));
-  if (cn > 0) {
+  if (calc.montantCN > 0) {
     lignes.push({
-      code: 'CN', libelle: 'Contribution Nationale',
-      type: 'cotisation_salariale', base: salaireImposable, taux: null,
-      montant: cn, est_patronale: false, ordre: 230,
+      code: 'CN', libelle: 'CN — Contribution Nationale',
+      type: 'cotisation_salariale',
+      base: calc.detail.baseImpotsISetCN, taux: null,
+      montant: calc.montantCN, est_patronale: false, ordre: 220,
     });
   }
+  if (calc.montantIGR > 0) {
+    lignes.push({
+      code: 'IGR', libelle: 'IGR — Impôt Général sur le Revenu',
+      type: 'cotisation_salariale',
+      base: calc.detail.baseIGRBrute, taux: null,
+      montant: calc.montantIGR, est_patronale: false, ordre: 230,
+    });
+  }
+  lignes.push({
+    code: 'CHARGES_PATRONALES', libelle: 'Charges patronales (16,3 % flat)',
+    type: 'cotisation_patronale',
+    base: calc.salaireBrutSocial, taux: 16.3,
+    montant: calc.chargesPatronales, est_patronale: true, ordre: 300,
+  });
 
-  const totalImpots = round2(its + cn);
-
-  // ── 6. Net à payer ────────────────────────────────────────────────────────
-  // Net = Brut − cotisations salariales (CNPS 6,6 %) − impôts − retenues (avances).
-  // La CMU est désormais à la charge patronale (cf. CMU_PAT plus bas).
-  const netAPayer = round2(brut - totalCotisationsSalariales - totalImpots - totalRetenues);
-
-  // ── 7. Cotisations PATRONALES (charges employeur) ─────────────────────────
-  const basePF = Math.min(baseCnps, PARAMS_CI.plafond_pf);
-  const cnpsRetraitePat = round2(baseRetraite * PARAMS_CI.taux_cnps_retraite_pat / 100);
-  const cnpsPF = round2(basePF * PARAMS_CI.taux_cnps_pf / 100);
-  const cnpsAT = round2(basePF * tauxAT / 100);
-  const fdfp = round2(brut * PARAMS_CI.taux_fdfp / 100);
-  const taxeApprentissage = round2(brut * PARAMS_CI.taux_taxe_apprentissage / 100);
-  const cmuPat = PARAMS_CI.cmu_forfait;   // 1 000 FCFA / mois / employé
-
-  lignes.push(
-    {
-      code: 'CNPS_RETRAITE_PAT', libelle: `CNPS Retraite patronale (${PARAMS_CI.taux_cnps_retraite_pat}%)`,
-      type: 'cotisation_patronale', base: baseRetraite, taux: PARAMS_CI.taux_cnps_retraite_pat,
-      montant: cnpsRetraitePat, est_patronale: true, ordre: 300,
-    },
-    {
-      code: 'CNPS_PF', libelle: `Prestations familiales (${PARAMS_CI.taux_cnps_pf}%)`,
-      type: 'cotisation_patronale', base: basePF, taux: PARAMS_CI.taux_cnps_pf,
-      montant: cnpsPF, est_patronale: true, ordre: 310,
-    },
-    {
-      code: 'CNPS_AT', libelle: `Accident du travail (${tauxAT}%)`,
-      type: 'cotisation_patronale', base: basePF, taux: tauxAT,
-      montant: cnpsAT, est_patronale: true, ordre: 320,
-    },
-    {
-      code: 'CMU_PAT', libelle: `CMU (forfait CNAM)`,
-      type: 'cotisation_patronale', base: null, taux: null,
-      montant: cmuPat, est_patronale: true, ordre: 325,
-    },
-    {
-      code: 'FDFP', libelle: `FDFP — Formation (${PARAMS_CI.taux_fdfp}%)`,
-      type: 'cotisation_patronale', base: brut, taux: PARAMS_CI.taux_fdfp,
-      montant: fdfp, est_patronale: true, ordre: 330,
-    },
-    {
-      code: 'TAXE_APPRENTISSAGE', libelle: `Taxe d'apprentissage (${PARAMS_CI.taux_taxe_apprentissage}%)`,
-      type: 'cotisation_patronale', base: brut, taux: PARAMS_CI.taux_taxe_apprentissage,
-      montant: taxeApprentissage, est_patronale: true, ordre: 340,
-    },
-  );
-
-  const totalCotisationsPatronales = round2(
-    cnpsRetraitePat + cnpsPF + cnpsAT + cmuPat + fdfp + taxeApprentissage
-  );
-
-  // Coût total employeur
-  const coutTotalEmployeur = round2(brut + totalCotisationsPatronales);
-
-  // Tri des lignes par ordre
   lignes.sort((a, b) => (a.ordre || 100) - (b.ordre || 100));
+
+  // Recalcul du net avec retenues (le moteur n'en tient pas compte, c'est
+  // au wrapper de les déduire pour ne pas casser la sémantique).
+  const netAPayer = round2(calc.netAPayer - totalRetenues);
 
   return {
     nb_parts: nbParts,
     brut_total: brut,
     total_gains: round2(totalGains),
-    total_cotisations_salariales: totalCotisationsSalariales,
-    salaire_imposable: salaireImposable,
-    abattement_frais_pro: abattementFrais,
-    total_impots: totalImpots,
-    its,
-    cn,
+    total_cotisations_salariales: calc.cotisationsSalariales,
+    salaire_imposable: calc.detail.baseImpotsISetCN,
+    abattement_frais_pro: round2((calc.salaireBrutSocial - calc.cotisationsSalariales) * 0.20),
+    total_impots: calc.impotsTotaux,
+    its: calc.montantIS,           // conservé pour compat ascendante (alias = IS)
+    cn: calc.montantCN,
+    igr: calc.montantIGR,
     total_retenues: round2(totalRetenues),
     net_a_payer: netAPayer,
-    total_cotisations_patronales: totalCotisationsPatronales,
-    cout_total_employeur: coutTotalEmployeur,
+    total_cotisations_patronales: calc.chargesPatronales,
+    cout_total_employeur: round2(brut + calc.chargesPatronales),
     lignes,
   };
 };
