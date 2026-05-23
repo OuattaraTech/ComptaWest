@@ -193,21 +193,27 @@ CROSS JOIN (VALUES
   ('SURSALAIRE',       'Sursalaire',                'gain',    TRUE,  TRUE,  'fixe',       0,    NULL,           '661',  20),
   ('PRIME_ANCIENNETE', 'Prime d''ancienneté',       'gain',    TRUE,  TRUE,  'pourcentage', 0,   'salaire_base', '661',  30),
   ('PRIME_RENDEMENT',  'Prime de rendement',        'gain',    TRUE,  TRUE,  'fixe',       0,    NULL,           '661',  40),
-  ('HS_15',            'Heures sup 15%',            'gain',    TRUE,  TRUE,  'variable',   1.15, 'horaire',      '661',  50),
-  ('HS_50',            'Heures sup 50%',            'gain',    TRUE,  TRUE,  'variable',   1.5,  'horaire',      '661',  51),
-  ('HS_75',            'Heures sup 75% (nuit)',     'gain',    TRUE,  TRUE,  'variable',   1.75, 'horaire',      '661',  52),
-  ('HS_100',           'Heures sup 100% (dimanche/férié)', 'gain', TRUE, TRUE, 'variable',  2.0,  'horaire',      '661',  53),
-  ('IND_LOGEMENT',     'Indemnité de logement',     'gain',    TRUE,  FALSE, 'fixe',       0,    NULL,           '661',  60),
-  -- Gains NON imposables (selon CGI CI)
-  ('PRIME_TRANSPORT',  'Prime de transport (non imposable jusqu''à 30 000)', 'gain', FALSE, FALSE, 'fixe', 30000, NULL, '661', 70),
+  -- Heures sup : exonérées d'ITS en CI (art. 116 CGI CI), restent
+  -- soumises CNPS. Confirmé par audit fiscal mai 2026.
+  ('HS_15',            'Heures sup 15%',            'gain',    FALSE, TRUE,  'variable',   1.15, 'horaire',      '661',  50),
+  ('HS_50',            'Heures sup 50%',            'gain',    FALSE, TRUE,  'variable',   1.5,  'horaire',      '661',  51),
+  ('HS_75',            'Heures sup 75% (nuit)',     'gain',    FALSE, TRUE,  'variable',   1.75, 'horaire',      '661',  52),
+  ('HS_100',           'Heures sup 100% (dimanche/férié)', 'gain', FALSE, TRUE, 'variable',  2.0,  'horaire',      '661',  53),
+  -- Indemnité logement en espèces : soumise ITS ET CNPS (CGI CI).
+  ('IND_LOGEMENT',     'Indemnité de logement',     'gain',    TRUE,  TRUE,  'fixe',       0,    NULL,           '661',  60),
+  -- Prime transport : exonération limitée à 30 000 FCFA/mois — le plafond
+  -- est appliqué côté moteur de calcul (utils/paie-ci.js). Le surplus
+  -- éventuel est ajouté aux assiettes ITS et CNPS automatiquement.
+  ('PRIME_TRANSPORT',  'Prime de transport (exonérée jusqu''à 30 000 FCFA/mois)', 'gain', FALSE, FALSE, 'fixe', 30000, NULL, '661', 70),
   ('IND_FRAIS_PRO',    'Indemnité frais professionnels', 'gain', FALSE, FALSE, 'fixe',     0,    NULL,           '661',  71),
   -- Retenues (avances, prêts)
   ('AVANCE',           'Avance sur salaire',        'retenue', FALSE, FALSE, 'fixe',       0,    NULL,           '425',  80),
   ('PRET_EMPLOYEUR',   'Remboursement prêt',        'retenue', FALSE, FALSE, 'fixe',       0,    NULL,           '425',  81),
   ('SAISIE',           'Saisie arrêt',              'retenue', FALSE, FALSE, 'fixe',       0,    NULL,           '425',  82),
-  -- Avantages en nature (informatifs)
-  ('AVN_LOGEMENT',     'Avantage logement (info)',  'info',    TRUE,  TRUE,  'fixe',       0,    NULL,           NULL,   90),
-  ('AVN_VOITURE',      'Avantage voiture (info)',   'info',    TRUE,  TRUE,  'fixe',       0,    NULL,           NULL,   91)
+  -- Avantages en nature : la base à saisir DOIT être le forfait DGI,
+  -- pas la valeur réelle. Voir migration 024 et UI Paramètres → Paie.
+  ('AVN_LOGEMENT',     'Avantage logement — saisir le forfait DGI', 'info', TRUE, TRUE, 'fixe', 0, NULL, NULL, 90),
+  ('AVN_VOITURE',      'Avantage voiture — saisir le forfait DGI',  'info', TRUE, TRUE, 'fixe', 0, NULL, NULL, 91)
 ) AS r(code, libelle, type, imposable_its, cotisable_cnps, nature, valeur_defaut, base_calcul, compte_pc_numero, ordre)
 WHERE NOT EXISTS (
   SELECT 1 FROM rubriques_paie rp WHERE rp.entreprise_id = e.id AND rp.code = r.code

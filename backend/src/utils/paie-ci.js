@@ -18,6 +18,19 @@
 const round2 = (n) => Math.round((parseFloat(n) || 0) * 100) / 100;
 const round0 = (n) => Math.round(parseFloat(n) || 0);
 
+// ─── PLAFONDS D'EXONÉRATION ─────────────────────────────────────────────────
+// Pour les rubriques marquées « non imposables / non cotisables » par défaut
+// (imposable_its=FALSE + cotisable_cnps=FALSE), le CGI ivoirien fixe souvent
+// un seuil au-delà duquel le surplus retombe dans le salaire imposable.
+// Le moteur de calcul vérifie ces seuils et bascule automatiquement le
+// surplus dans les assiettes ITS + CNPS.
+//
+// Sources : art. 116 CGI CI + Code CNPS (révisé 2024).
+const PLAFONDS_EXONERATION = {
+  PRIME_TRANSPORT: 30000,   // 30 000 FCFA / mois exonérés (CGI CI)
+  // À étendre selon les besoins : panier, salissure, outillage…
+};
+
 // ─── PARAMÈTRES ─────────────────────────────────────────────────────────────
 const PARAMS_CI = {
   // Plafonds mensuels CNPS
@@ -163,8 +176,24 @@ const calculerBulletin = ({ employe, rubriques = [], parametres_entreprise = {} 
     if (r.type === 'gain') {
       brut += montant;
       totalGains += montant;
-      if (r.imposable_its !== false) baseIts += montant;
-      if (r.cotisable_cnps !== false) baseCnps += montant;
+
+      // Plafonds d'exonération CI : si une rubrique normalement exonérée
+      // dépasse son seuil légal, le SURPLUS bascule dans les assiettes ITS
+      // et CNPS (cf. CGI ivoirien art. 116 et code CNPS).
+      // Cas connus :
+      //   - PRIME_TRANSPORT : exonérée jusqu'à 30 000 FCFA/mois.
+      // Le mécanisme est centralisé dans PLAFONDS_EXONERATION pour qu'on
+      // puisse en ajouter d'autres (panier, salissure, etc.) sans toucher
+      // au reste du moteur.
+      const plafond = PLAFONDS_EXONERATION[r.code];
+      if (plafond !== undefined && r.imposable_its === false && r.cotisable_cnps === false && montant > plafond) {
+        const surplus = round2(montant - plafond);
+        baseIts  += surplus;
+        baseCnps += surplus;
+      } else {
+        if (r.imposable_its !== false) baseIts += montant;
+        if (r.cotisable_cnps !== false) baseCnps += montant;
+      }
     } else if (r.type === 'retenue') {
       totalRetenues += montant;
     }
