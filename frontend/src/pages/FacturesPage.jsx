@@ -30,7 +30,24 @@ const emptyForm = {
   date_echeance: '', taux_tva: 18, notes: '', conditions_paiement: 'Paiement à 30 jours',
   lignes: [{ ...emptyLigne }],
   facture_origine_id: '',
+  // Motif d'exemption FNE (FAQ DGI Q#6/#7/#19). Chaîne vide = soumise
+  // à FNE (cas standard) ; valeur = facture dispensée avec son motif.
+  fne_exempt_motif: '',
 };
+
+// Motifs d'exemption FNE conformes à la FAQ DGI (Q#6, #7, #19).
+// Code interne court (snake_case) + libellé i18n.
+const MOTIFS_EXEMPTION_FNE = [
+  { code: 'loyer_immeuble_nu',     labelKey: 'factures.fne_motif_loyer_nu' },
+  { code: 'billet_avion',          labelKey: 'factures.fne_motif_billet_avion' },
+  { code: 'pharmacie',             labelKey: 'factures.fne_motif_pharmacie' },
+  { code: 'banque_assurance',      labelKey: 'factures.fne_motif_banque' },
+  { code: 'service_public',        labelKey: 'factures.fne_motif_service_public' },
+  { code: 'compagnie_aerienne',    labelKey: 'factures.fne_motif_compagnie_aerienne' },
+  { code: 'concession_petroliere', labelKey: 'factures.fne_motif_concession_petroliere' },
+  { code: 'la_poste',              labelKey: 'factures.fne_motif_la_poste' },
+  { code: 'autre',                 labelKey: 'factures.fne_motif_autre' },
+];
 
 export default function FacturesPage() {
   const { t } = useTranslation();
@@ -172,6 +189,7 @@ export default function FacturesPage() {
         notes: f.notes || '',
         conditions_paiement: f.conditions_paiement || 'Paiement à 30 jours',
         facture_origine_id: f.facture_origine_id || '',
+        fne_exempt_motif: f.fne_exempt_motif || '',
         lignes: (f.lignes && f.lignes.length ? f.lignes : [emptyLigne]).map(l => ({
           description: l.description || '',
           quantite: parseFloat(l.quantite) || 1,
@@ -781,6 +799,60 @@ export default function FacturesPage() {
               </div>
               <Input label={t('common.notes')} value={form.notes} onChange={set('notes')} />
             </div>
+
+            {/* Régime FNE — exemption optionnelle (FAQ DGI Q#6/#7/#19)
+                Affichée uniquement pour les factures (pas devis/proforma/avoir
+                qui ont leur propre traitement). Permet à l'utilisateur de
+                marquer la facture comme hors FNE quand elle relève d'un
+                cas dispensé (loyer immeuble nu, billet d'avion, secteur
+                exonéré…). Cochée → select de motif obligatoire. */}
+            {form.type === 'facture' && (
+              <div style={{
+                background: form.fne_exempt_motif ? '#F59E0B10' : `${C.accent}05`,
+                border: `1px solid ${form.fne_exempt_motif ? '#F59E0B66' : C.border}`,
+                borderRadius: 10, padding: '12px 14px',
+              }}>
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                  fontSize: 12.5, color: C.text,
+                }}>
+                  <input type="checkbox"
+                    checked={!!form.fne_exempt_motif}
+                    onChange={e => setForm(f => ({
+                      ...f,
+                      fne_exempt_motif: e.target.checked ? 'loyer_immeuble_nu' : '',
+                    }))}
+                    style={{ width: 16, height: 16, accentColor: '#F59E0B', cursor: 'pointer' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, marginBottom: 1 }}>
+                      {t('factures.fne_exempt_label')}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted }}>
+                      {t('factures.fne_exempt_help')}
+                    </div>
+                  </div>
+                </label>
+                {form.fne_exempt_motif && (
+                  <div style={{ marginTop: 10, paddingLeft: 26 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: C.sub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      {t('factures.fne_motif_label')}
+                    </label>
+                    <select value={form.fne_exempt_motif}
+                      onChange={set('fne_exempt_motif')}
+                      style={{
+                        marginTop: 4, width: '100%', background: C.input,
+                        border: `1.5px solid ${C.border}`, borderRadius: 9,
+                        padding: '8px 12px', color: C.text, fontSize: 12,
+                        outline: 'none', fontFamily: 'inherit',
+                      }}>
+                      {MOTIFS_EXEMPTION_FNE.map(m => (
+                        <option key={m.code} value={m.code}>{t(m.labelKey)}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Brouillon vs validation */}
             <div style={{ fontSize: 11, color: C.muted, padding: '8px 12px', background: `${C.accent}08`, border: `1px solid ${C.border}`, borderRadius: 8, lineHeight: 1.5 }}>

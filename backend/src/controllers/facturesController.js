@@ -129,6 +129,7 @@ const createFacture = async (req, res) => {
       client_id, type = 'facture', date_emission, date_echeance,
       lignes = [], taux_tva = 18, notes, conditions_paiement,
       valider_immediatement = false, facture_origine_id = null,
+      fne_exempt_motif = null,
     } = req.body;
 
     // Avoir : la référence à la facture d'origine est obligatoire (SYSCOHADA)
@@ -192,22 +193,33 @@ const createFacture = async (req, res) => {
     // Devis et proforma démarrent leur cycle de vie commercial à "en_attente"
     const devisStatut = (type === 'devis' || type === 'proforma') ? 'en_attente' : null;
 
-    const factureRes = await client.query(
-      `INSERT INTO factures (entreprise_id, client_id, cree_par, numero, type, statut,
-        date_emission, date_echeance, sous_total, taux_tva, montant_tva, total_ttc, notes, conditions_paiement, facture_origine_id, devis_statut)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
-      [
-        eid, client_id, req.user.id, numero, type, statutInitial,
-        date_emission || new Date().toISOString().split('T')[0],
-        date_echeance || null,
-        Math.round(sous_total * 100) / 100, tvaNorm,
-        Math.round(montant_tva * 100) / 100,
-        Math.round(total_ttc * 100) / 100,
-        notes || null, conditions_paiement || 'Paiement à 30 jours',
-        facture_origine_id || null,
-        devisStatut,
-      ]
-    );
+    // INSERT enrichi avec fne_exempt_motif (migration 027). Fallback
+    // sans la colonne si la migration n'est pas appliquée — on tente
+    // l'INSERT, retry sans la colonne si erreur 42703.
+    const insertSql = (avecExempt) => `
+      INSERT INTO factures (entreprise_id, client_id, cree_par, numero, type, statut,
+        date_emission, date_echeance, sous_total, taux_tva, montant_tva, total_ttc,
+        notes, conditions_paiement, facture_origine_id, devis_statut
+        ${avecExempt ? ', fne_exempt_motif' : ''})
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16${avecExempt ? ',$17' : ''}) RETURNING *`;
+    const baseParams = [
+      eid, client_id, req.user.id, numero, type, statutInitial,
+      date_emission || new Date().toISOString().split('T')[0],
+      date_echeance || null,
+      Math.round(sous_total * 100) / 100, tvaNorm,
+      Math.round(montant_tva * 100) / 100,
+      Math.round(total_ttc * 100) / 100,
+      notes || null, conditions_paiement || 'Paiement à 30 jours',
+      facture_origine_id || null,
+      devisStatut,
+    ];
+    let factureRes;
+    try {
+      factureRes = await client.query(insertSql(true), [...baseParams, fne_exempt_motif || null]);
+    } catch (err) {
+      if (err.code === '42703') factureRes = await client.query(insertSql(false), baseParams);
+      else throw err;
+    }
     const facture = factureRes.rows[0];
 
     const lignesAvecProduit = [];
@@ -284,7 +296,7 @@ const updateFacture = async (req, res) => {
     const {
       client_id, type = 'facture', date_emission, date_echeance,
       lignes = [], taux_tva = 18, notes, conditions_paiement,
-      facture_origine_id = null,
+      facture_origine_id = null, fne_exempt_motif = null,
     } = req.body;
 
     const factureRes = await client.query(
@@ -364,26 +376,35 @@ const updateFacture = async (req, res) => {
       nouveauNumero = `${prefix}-${nouvelleAnnee}-${String(parseInt(countRes.rows[0].count) + 1).padStart(3, '0')}`;
     }
 
-    const updateRes = await client.query(
-      `UPDATE factures
+    // UPDATE enrichi avec fne_exempt_motif (migration 027) ; fallback
+    // sans la colonne pour la rétrocompat.
+    const updateSql = (avecExempt) => `
+      UPDATE factures
          SET client_id=$1, type=$2, numero=$3, date_emission=$4, date_echeance=$5,
              sous_total=$6, taux_tva=$7, montant_tva=$8, total_ttc=$9,
              notes=$10, conditions_paiement=$11, facture_origine_id=$12,
+             ${avecExempt ? 'fne_exempt_motif=$15,' : ''}
              updated_at=NOW()
        WHERE id=$13 AND entreprise_id=$14
-       RETURNING *`,
-      [
-        client_id, type, nouveauNumero,
-        nouvelleDateEmission,
-        date_echeance || null,
-        Math.round(sous_total * 100) / 100, tvaNorm,
-        Math.round(montant_tva * 100) / 100,
-        Math.round(total_ttc * 100) / 100,
-        notes || null, conditions_paiement || 'Paiement à 30 jours',
-        facture_origine_id || null,
-        id, eid,
-      ]
-    );
+       RETURNING *`;
+    const updateParams = [
+      client_id, type, nouveauNumero,
+      nouvelleDateEmission,
+      date_echeance || null,
+      Math.round(sous_total * 100) / 100, tvaNorm,
+      Math.round(montant_tva * 100) / 100,
+      Math.round(total_ttc * 100) / 100,
+      notes || null, conditions_paiement || 'Paiement à 30 jours',
+      facture_origine_id || null,
+      id, eid,
+    ];
+    let updateRes;
+    try {
+      updateRes = await client.query(updateSql(true), [...updateParams, fne_exempt_motif || null]);
+    } catch (err) {
+      if (err.code === '42703') updateRes = await client.query(updateSql(false), updateParams);
+      else throw err;
+    }
     const facture = updateRes.rows[0];
 
     // Brouillon = pas d'écriture comptable ni de mouvement de stock à annuler :

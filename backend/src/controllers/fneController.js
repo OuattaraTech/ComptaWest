@@ -41,18 +41,26 @@ async function executerCertification(client, { factureId, entrepriseId, userId }
   // On déduit le moyen de paiement depuis le dernier encaissement (table
   // paiements_facture) si présent, sinon « deferred » (à terme) par défaut.
   // Le taux de change n'est pas géré dans cette version (factures XOF only).
-  const fact = await client.query(
-    `SELECT id, numero, date_emission AS date_facture,
-            sous_total AS total_ht, montant_tva AS total_tva,
-            total_ttc, devise, statut, client_id, taux_tva,
-            (SELECT mode_paiement FROM paiements
-              WHERE facture_id = factures.id
-              ORDER BY date_paiement DESC LIMIT 1) AS mode_paiement
-       FROM factures
-      WHERE id = $1 AND entreprise_id = $2
-      FOR UPDATE`,
-    [factureId, entrepriseId]
-  );
+  // SELECT enrichi avec fne_exempt_motif (migration 027) ; fallback
+  // sans la colonne si la migration n'est pas encore appliquée en prod.
+  const buildSql = (avecExempt) => `
+    SELECT id, numero, date_emission AS date_facture,
+           sous_total AS total_ht, montant_tva AS total_tva,
+           total_ttc, devise, statut, client_id, taux_tva,
+           ${avecExempt ? 'fne_exempt_motif,' : ''}
+           (SELECT mode_paiement FROM paiements
+             WHERE facture_id = factures.id
+             ORDER BY date_paiement DESC LIMIT 1) AS mode_paiement
+      FROM factures
+     WHERE id = $1 AND entreprise_id = $2
+     FOR UPDATE`;
+  let fact;
+  try {
+    fact = await client.query(buildSql(true), [factureId, entrepriseId]);
+  } catch (err) {
+    if (err.code === '42703') fact = await client.query(buildSql(false), [factureId, entrepriseId]);
+    else throw err;
+  }
   if (fact.rows.length === 0) {
     const err = new Error('Facture introuvable');
     err.code = 'FACTURE_INTROUVABLE';
@@ -64,6 +72,19 @@ async function executerCertification(client, { factureId, entrepriseId, userId }
     const err = new Error('Seules les factures émises (non brouillon) peuvent être certifiées DGI');
     err.code = 'FACTURE_BROUILLON';
     throw err;
+  }
+
+  // Facture explicitement exemptée FNE (FAQ DGI Q#6/#7/#19) : loyer
+  // immeuble nu, billet d'avion, secteur dispensé, etc. On retourne un
+  // statut « dispensée » plutôt que de tenter la certification — le PDF
+  // affichera l'encart d'exemption au lieu du sticker.
+  if (facture.fne_exempt_motif) {
+    return {
+      deja_certifiee: false,
+      dispensee: true,
+      motif: facture.fne_exempt_motif,
+      certification: null,
+    };
   }
 
   const exist = await client.query(

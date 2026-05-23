@@ -70,10 +70,15 @@ const montantEnLettres = (n) => {
   return parts.join(' ').trim();
 };
 
-// Mention TVA légale selon le régime fiscal (UEMOA / CGI)
+// Mention TVA légale selon le régime fiscal (UEMOA / CGI). Le cas
+// « exonéré » (taux 0 ou régime « Exonéré ») renvoie une mention
+// renforcée conforme FAQ DGI Q#31 : il faut conserver le justificatif
+// de l'exemption pour produire en cas de contrôle.
 const mentionTVA = (regime, tauxTva) => {
   if (parseFloat(tauxTva) === 0 || regime === 'Exonéré') {
-    return 'TVA non applicable — opération exonérée selon le Code Général des Impôts';
+    return 'TVA non applicable — opération exonérée selon le CGI CI. '
+         + 'Le justificatif officiel d\'exonération doit être conservé '
+         + 'et produit en cas de contrôle fiscal.';
   }
   if (regime === 'RSI' || regime === 'BIC') {
     return 'TVA acquittée d\'après les encaissements';
@@ -205,7 +210,29 @@ const buildFactureDoc = (facture, lignes, opts = {}) => {
   // ── Sticker FNE (DGI) — en haut à droite. Trois éléments réglementaires :
   // logo « FNE » + QR vers la page DGI de vérification + numéro fiscal unique.
   // Si la facture n'a pas été certifiée, le bloc est masqué.
-  const stickerFne = qrFne && facture.fne_numero ? {
+  // Si la facture est explicitement dispensée FNE (loyer, billet d'avion,
+  // secteur exonéré…), on remplace le sticker par un encart « DISPENSÉE FNE »
+  // qui justifie l'absence du QR code DGI (sinon le contrôleur fiscal
+  // pourrait considérer la facture comme non-conforme).
+  const stickerFne = facture.fne_exempt_motif ? {
+    width: 130,
+    stack: [
+      { text: 'DISPENSÉE FNE', fontSize: 7, bold: true, color: '#B45309',
+        alignment: 'center', margin: [0, 0, 0, 3] },
+      {
+        canvas: [{ type: 'rect', x: 0, y: 0, w: 130, h: 50,
+                   r: 8, lineColor: '#F59E0B', lineWidth: 1.5,
+                   color: '#FEF3C7' }],
+        margin: [0, 0, 0, -50],
+      },
+      { text: 'Hors obligation\nFNE', fontSize: 9, bold: true, color: '#92400E',
+        alignment: 'center', margin: [0, 8, 0, 0] },
+      { text: `Motif : ${facture.fne_exempt_motif.replace(/_/g, ' ')}`,
+        fontSize: 7, color: '#78350F', alignment: 'center', margin: [0, 18, 0, 0] },
+      { text: 'Art. 145 LPF · FAQ DGI', fontSize: 6, color: GRIS,
+        italics: true, alignment: 'center', margin: [0, 4, 0, 0] },
+    ],
+  } : (qrFne && facture.fne_numero ? {
     width: 120,
     stack: [
       { text: 'CERTIFIÉE FNE', fontSize: 7, bold: true, color: '#0B6E58',
@@ -216,7 +243,7 @@ const buildFactureDoc = (facture, lignes, opts = {}) => {
       { text: `DGI · Côte d'Ivoire${facture.fne_mode === 'mock' ? ' (test)' : ''}`,
         fontSize: 6, color: GRIS, italics: true, alignment: 'center' },
     ],
-  } : null;
+  } : null);
 
   // ── En-tête : logo (optionnel) + identification émetteur + sticker FNE
   const headerCols = [];
@@ -865,6 +892,9 @@ const getFacturePDF = async (req, res) => {
     // (centre_fiscal, idu, banque/rib/swift) + jointure sur la
     // certification FNE pour récupérer numero_fne + qr_data (URL DGI
     // de vérification publique) à apposer en sticker sur le PDF.
+    // f.* inclut maintenant f.fne_exempt_motif (migration 027) — utilisé
+    // par buildFactureDoc pour afficher l'encart « DISPENSÉE FNE » à
+    // la place du sticker DGI quand applicable.
     const factureRes = await pool.query(`
       SELECT f.*,
         c.nom AS client_nom, c.email AS client_email, c.telephone AS client_tel,
