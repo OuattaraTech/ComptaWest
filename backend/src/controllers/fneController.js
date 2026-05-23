@@ -37,10 +37,17 @@ const MAX_TENTATIVES = 16; // ≈ 4 h de retry avant d'abandonner.
  * de gérer la mise en queue ou la réponse HTTP.
  */
 async function executerCertification(client, { factureId, entrepriseId, userId }) {
+  // NB : la table factures n'a pas de `mode_paiement` ni `taux_change`.
+  // On déduit le moyen de paiement depuis le dernier encaissement (table
+  // paiements_facture) si présent, sinon « deferred » (à terme) par défaut.
+  // Le taux de change n'est pas géré dans cette version (factures XOF only).
   const fact = await client.query(
     `SELECT id, numero, date_emission AS date_facture,
             sous_total AS total_ht, montant_tva AS total_tva,
-            total_ttc, devise, statut
+            total_ttc, devise, statut, client_id, taux_tva,
+            (SELECT mode_paiement FROM paiements
+              WHERE facture_id = factures.id
+              ORDER BY date_paiement DESC LIMIT 1) AS mode_paiement
        FROM factures
       WHERE id = $1 AND entreprise_id = $2
       FOR UPDATE`,
@@ -67,14 +74,51 @@ async function executerCertification(client, { factureId, entrepriseId, userId }
     return { deja_certifiee: true, certification: exist.rows[0] };
   }
 
+  // Données entreprise (NCC, clé API, mode, nom commercial pour
+  // pointOfSale/establishment du payload DGI)
   const ent = await client.query(
-    `SELECT id, ncc, fne_actif, fne_mode, fne_api_key, fne_certificat
+    `SELECT id, nom, ncc, fne_actif, fne_mode, fne_api_key, fne_certificat
        FROM entreprises WHERE id = $1`,
     [entrepriseId]
   );
   const entreprise = ent.rows[0];
 
-  const cert = await certifierFacture({ facture, entreprise });
+  // Lignes facture — la DGI exige au moins 1 item avec quantité, prix et TVA.
+  // En mode mock ces données ne servent à rien, mais on les charge quand même
+  // pour que la bascule mock → sandbox/prod n'oblige pas à modifier l'appel.
+  // taux_tva est au niveau facture (pas par ligne dans le schéma actuel) ;
+  // on le propage sur chaque ligne pour le mapping vers le code DGI.
+  const lignesRes = await client.query(
+    `SELECT l.description, l.quantite, l.prix_unitaire, l.unite,
+            l.remise AS remise_percent, p.code AS reference
+       FROM lignes_facture l
+       LEFT JOIN produits p ON p.id = l.produit_id
+      WHERE l.facture_id = $1
+      ORDER BY l.ordre, l.id`,
+    [factureId]
+  );
+  // On enrichit chaque ligne avec le taux TVA global de la facture
+  const lignesAvecTva = lignesRes.rows.map(l => ({
+    ...l,
+    taux_tva: facture.taux_tva,
+  }));
+
+  // Client — facultatif (B2C anonyme accepté par DGI). Si client_id pointe
+  // sur un tiers, on charge ses coordonnées pour les renseigner.
+  let clientData = null;
+  if (facture.client_id) {
+    const cliRes = await client.query(
+      'SELECT nom, email, telephone, ninea, ville, pays FROM clients WHERE id = $1',
+      [facture.client_id]
+    );
+    clientData = cliRes.rows[0] || null;
+  }
+
+  const cert = await certifierFacture({
+    facture, entreprise,
+    lignes: lignesAvecTva,
+    client: clientData,
+  });
 
   const ins = await client.query(
     `INSERT INTO factures_certifications_fne
