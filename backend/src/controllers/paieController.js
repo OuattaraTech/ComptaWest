@@ -20,7 +20,7 @@ pdfmake.addFonts({
 });
 
 const round2 = (n) => Math.round((parseFloat(n) || 0) * 100) / 100;
-const fmtMontant = (n) => Math.round(Number(n) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+const { fmtMontant, fmtDateFr, montantEnLettres } = require('../utils/format');
 
 // ─── Validations ──────────────────────────────────────────────────────────
 const employeRules = [
@@ -1066,7 +1066,7 @@ const getBulletinPDF = async (req, res) => {
                     { text: b.poste || '', fontSize: 9, color: GRIS, margin: [0,2,0,0] },
                     { text: `Matricule : ${b.matricule}`, fontSize: 8, color: NOIR, margin: [0,3,0,0] },
                     b.numero_cnps ? { text: `N° CNPS : ${b.numero_cnps}`, fontSize: 8, color: NOIR } : null,
-                    b.date_embauche ? { text: `Embauché le : ${String(b.date_embauche).slice(0,10)}`, fontSize: 8, color: GRIS } : null,
+                    b.date_embauche ? { text: `Embauché le : ${fmtDateFr(b.date_embauche, { withWeekday: true })}`, fontSize: 8, color: GRIS } : null,
                   ].filter(Boolean),
                   margin: [10, 8, 10, 8],
                   fillColor: GRIS_CLAIR,
@@ -1074,7 +1074,7 @@ const getBulletinPDF = async (req, res) => {
                 {
                   stack: [
                     { text: 'PÉRIODE & STATUT', fontSize: 8, color: GRIS, bold: true, margin: [0,0,0,4] },
-                    { text: `Du ${String(b.periode_debut).slice(0,10)} au ${String(b.periode_fin).slice(0,10)}`, fontSize: 9, color: NOIR },
+                    { text: `Du ${fmtDateFr(b.periode_debut, { withWeekday: true })} au ${fmtDateFr(b.periode_fin, { withWeekday: true })}`, fontSize: 9, color: NOIR },
                     { text: `Jours travaillés : ${b.jours_travailles}`, fontSize: 9, color: NOIR },
                     { text: `Parts fiscales : ${b.nb_parts}`, fontSize: 9, color: NOIR },
                     { text: `Statut : ${b.statut.toUpperCase()}`, fontSize: 9, color: b.statut === 'paye' ? VERT : GRIS, bold: true, margin: [0, 2, 0, 0] },
@@ -1119,6 +1119,19 @@ const getBulletinPDF = async (req, res) => {
             fillColor: () => VERT,
             hLineWidth: () => 0, vLineWidth: () => 0,
           },
+        },
+        // Mention légale du montant en toutes lettres — recommandée par le
+        // Code du travail ivoirien pour éviter toute falsification du
+        // document imprimé. Capitalisation de la première lettre.
+        {
+          text: [
+            { text: 'Arrêté le présent bulletin à la somme de : ', italics: true, color: GRIS, fontSize: 9 },
+            { text: (() => {
+              const lettres = montantEnLettres(b.net_a_payer);
+              return lettres.charAt(0).toUpperCase() + lettres.slice(1) + ' francs CFA.';
+            })(), bold: true, color: NOIR, fontSize: 9 },
+          ],
+          margin: [0, 8, 0, 0],
         },
         { text: '', margin: [0, 14, 0, 0] },
 
