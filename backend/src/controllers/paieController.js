@@ -628,6 +628,12 @@ const genererMois = async (req, res) => {
     await client.query('BEGIN');
 
     for (const employe of emps.rows) {
+      // SAVEPOINT par employé : si un INSERT échoue (contrainte BDD,
+      // calcul, etc.), on rollback uniquement ce bulletin sans casser
+      // les suivants. Sans ça, la transaction passe en aborted state
+      // dès la 1ère erreur et tous les bulletins suivants tombent en
+      // « current transaction is aborted ».
+      await client.query('SAVEPOINT sp_bulletin');
       try {
         // Bulletin déjà payé ou validé → on saute
         const existant = await client.query(
@@ -698,7 +704,11 @@ const genererMois = async (req, res) => {
 
         const lignesPourBdd = calc.lignes.map(l => ({ ...l, rubrique_id: catalogue[l.code]?.id || null }));
         await enregistrerLignes(client, bulletinId, lignesPourBdd);
+        await client.query('RELEASE SAVEPOINT sp_bulletin');
       } catch (err) {
+        await client.query('ROLLBACK TO SAVEPOINT sp_bulletin');
+        // On log dans audit_log pour pouvoir investiguer après coup
+        console.error(`[BULK_PAIE] Erreur ${employe.matricule} :`, err.message);
         erreurs.push({ employe: employe.matricule, erreur: err.message });
       }
     }

@@ -428,8 +428,9 @@ const calculerBulletin = ({ employe, rubriques = [], parametres_entreprise = {} 
     base: calc.salaireBrutSocial, taux: calc.detail.tauxContributionEmployeur * 100,
     montant: calc.contributionEmployeur, est_patronale: true, ordre: 300,
   });
+  // Code limité à 20 caractères (contrainte BDD lignes_bulletin.code varchar(20))
   lignes.push({
-    code: 'CHARGES_PATRONALES_AUTRES',
+    code: 'CHARGES_PAT_AUTRES',
     libelle: 'CNPS pat. + FDFP + Apprentissage + CMU',
     type: 'cotisation_patronale',
     base: calc.salaireBrutSocial, taux: null,
