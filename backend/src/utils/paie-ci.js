@@ -18,6 +18,166 @@
 const round2 = (n) => Math.round((parseFloat(n) || 0) * 100) / 100;
 const round0 = (n) => Math.round(parseFloat(n) || 0);
 
+// ═══════════════════════════════════════════════════════════════════════════
+// calculateIvoryCoastPayroll — moteur pur (mai 2026)
+// ═══════════════════════════════════════════════════════════════════════════
+// Implémente la spec utilisateur (architecture IS + CN + IGR séparés,
+// modèle CGI CI ancien régime). Cf. PR « refonte calcul paie » pour les
+// hypothèses arbitrées :
+//   - Plafond CNPS sal = 70 000 FCFA STRICT (spec utilisateur ; à ajuster
+//     à 2 700 000 si vous voulez le plafond retraite réel CGI)
+//   - Charges patronales = 16,3 % flat sur brut social (spec utilisateur ;
+//     pour un détail Retraite + PF + AT + FDFP + CMU, utiliser
+//     calculerBulletin() plus bas)
+//   - Barème IGR = grille mensuelle CI ancien régime, exonération bas
+//     salaire garantie (premier seuil à 25 000 / part)
+
+const PLAFOND_CNPS_SAL_MENSUEL = 70_000;     // FCFA — spec utilisateur
+const TAUX_CNPS_SAL            = 0.066;      // 5,5 % retraite + 1,1 % complém.
+const ABATTEMENT_FRAIS_PRO     = 0.20;       // 20 % pour IS et CN
+const TAUX_IS                  = 0.012;      // 1,2 % flat
+const ABATTEMENT_IGR           = 0.18;       // 18 % supplémentaire pour IGR
+const TAUX_PATRONAL_GLOBAL     = 0.163;      // 16,3 % flat sur brut social
+
+// Barème Contribution Nationale (CN) — mensuel, par tranches cumulatives
+const BAREME_CN = [
+  { plafond:  50_000, taux: 0.000 },
+  { plafond: 130_000, taux: 0.015 },
+  { plafond: 200_000, taux: 0.050 },
+  { plafond: Infinity, taux: 0.100 },
+];
+
+// Barème IGR — mensuel, par tranches cumulatives, appliqué au quotient
+// familial puis multiplié par le nombre de parts. Conçu pour exonérer
+// totalement les bas salaires (Q < 25 000 → IGR = 0).
+const BAREME_IGR = [
+  { plafond:  25_000, taux: 0.00 },
+  { plafond:  50_000, taux: 0.10 },
+  { plafond: 100_000, taux: 0.15 },
+  { plafond: 200_000, taux: 0.20 },
+  { plafond: 400_000, taux: 0.25 },
+  { plafond: 800_000, taux: 0.35 },
+  { plafond: Infinity, taux: 0.45 },
+];
+
+/**
+ * Applique un barème par tranches cumulatives.
+ * Exemple pour CN avec base 336 240 :
+ *   (50 000 × 0)  +  (80 000 × 1,5 %)  +  (70 000 × 5 %)
+ *   + (336 240 - 200 000) × 10 %
+ *   = 0 + 1 200 + 3 500 + 13 624 = 18 324
+ */
+function appliquerBaremeProgressif(base, bareme) {
+  let impot = 0;
+  let plafondPrecedent = 0;
+  for (const tranche of bareme) {
+    if (base <= plafondPrecedent) break;
+    const segment = Math.min(base, tranche.plafond) - plafondPrecedent;
+    impot += segment * tranche.taux;
+    plafondPrecedent = tranche.plafond;
+  }
+  return impot;
+}
+
+/**
+ * Calcul de paie Côte d'Ivoire selon le modèle IS + CN + IGR séparés.
+ *
+ * @param {object} input
+ * @param {number} input.salaireDeBase       — Salaire brut de base mensuel
+ * @param {number} [input.primesImposables]  — Sursalaire + ancienneté + rendement (TOUTES soumises à CNPS, IS, CN, IGR)
+ * @param {number} [input.indemniteLogement] — Indemnité logement en espèces (soumise à CNPS + IS + CN + IGR)
+ * @param {number} [input.primeTransport]    — Prime transport (exonérée sous 30 000, surplus imposable)
+ * @param {number} [input.partsFiscales]     — Nombre de parts fiscales (1 / 1,5 / 2 / 2,5 …), défaut 1
+ *
+ * @returns {{
+ *   salaireBrutSocial: number,        // assiette CNPS / IS / CN
+ *   cotisationsSalariales: number,    // CNPS salariale (avec plafond)
+ *   montantIS: number,
+ *   montantCN: number,
+ *   montantIGR: number,
+ *   impotsTotaux: number,             // IS + CN + IGR
+ *   chargesPatronales: number,        // 16,3 % flat
+ *   coutEmployeurTotal: number,       // salaire brut versé + charges patronales
+ *   netAPayer: number,                // versé au salarié
+ *   detail: object,                   // exposé pour traçabilité du calcul
+ * }}
+ */
+function calculateIvoryCoastPayroll({
+  salaireDeBase = 0,
+  primesImposables = 0,
+  indemniteLogement = 0,
+  primeTransport = 0,
+  partsFiscales = 1,
+}) {
+  // ── 1. ASSIETTE BRUTE SOCIALE (CNPS) ─────────────────────────────────────
+  // Surplus de prime transport (au-delà de 30 000 mensuels) réintégré dans
+  // l'assiette imposable conformément au CGI CI.
+  const surplusTransport = Math.max(0, primeTransport - 30_000);
+  const salaireBrutCNPS = salaireDeBase + primesImposables + indemniteLogement + surplusTransport;
+
+  // CNPS salariale = 6,6 % plafonné à PLAFOND_CNPS_SAL_MENSUEL
+  // ⚠ ATTENTION : plafond 70 000 FCFA conforme à la spec utilisateur.
+  //   La pratique CNPS réelle utilise 2 700 000 FCFA pour la retraite.
+  //   Pour basculer, remplacer PLAFOND_CNPS_SAL_MENSUEL par 2_700_000.
+  const baseCotisable = Math.min(salaireBrutCNPS, PLAFOND_CNPS_SAL_MENSUEL);
+  const cotisationsSalariales = baseCotisable * TAUX_CNPS_SAL;
+
+  // ── 2. IMPÔT SUR LE SALAIRE (IS) — 1,2 % flat ────────────────────────────
+  const baseIS_CN = (salaireBrutCNPS - cotisationsSalariales) * (1 - ABATTEMENT_FRAIS_PRO);
+  const montantIS = baseIS_CN * TAUX_IS;
+
+  // ── 3. CONTRIBUTION NATIONALE (CN) — barème progressif ───────────────────
+  const montantCN = appliquerBaremeProgressif(baseIS_CN, BAREME_CN);
+
+  // ── 4. IMPÔT GÉNÉRAL SUR LE REVENU (IGR) ─────────────────────────────────
+  // Base = (brut - CNPS - IS - CN) × 82 % (abattement 18 % supplémentaire)
+  // Quotient familial = Base / parts → barème IGR → résultat × parts
+  const baseIGRBrute = Math.max(
+    0,
+    (salaireBrutCNPS - cotisationsSalariales - montantIS - montantCN) * (1 - ABATTEMENT_IGR)
+  );
+  const parts = Math.max(1, parseFloat(partsFiscales) || 1);
+  const quotient = baseIGRBrute / parts;
+  const igrParPart = appliquerBaremeProgressif(quotient, BAREME_IGR);
+  const montantIGR = igrParPart * parts;
+
+  const impotsTotaux = montantIS + montantCN + montantIGR;
+
+  // ── 5. CHARGES PATRONALES ────────────────────────────────────────────────
+  // Spec utilisateur : 16,3 % flat sur brut social. Englobe Retraite + PF +
+  // AT + FDFP + Taxe Apprentissage + CMU en moyenne pondérée. Calcul détaillé
+  // par cotisation disponible dans calculerBulletin() ci-dessous.
+  const chargesPatronales = salaireBrutCNPS * TAUX_PATRONAL_GLOBAL;
+
+  // ── 6. NET À PAYER + COÛT EMPLOYEUR ──────────────────────────────────────
+  // Net = brut salarié (toutes primes y compris transport intégral) -
+  //       cotisations salariales - impôts
+  const brutVerse = salaireDeBase + primesImposables + indemniteLogement + primeTransport;
+  const netAPayer = brutVerse - cotisationsSalariales - impotsTotaux;
+  const coutEmployeurTotal = brutVerse + chargesPatronales;
+
+  return {
+    salaireBrutSocial: round0(salaireBrutCNPS),
+    cotisationsSalariales: round0(cotisationsSalariales),
+    montantIS: round0(montantIS),
+    montantCN: round0(montantCN),
+    montantIGR: round0(montantIGR),
+    impotsTotaux: round0(impotsTotaux),
+    chargesPatronales: round0(chargesPatronales),
+    coutEmployeurTotal: round0(coutEmployeurTotal),
+    netAPayer: round0(netAPayer),
+    detail: {
+      surplusTransportTaxable: round0(surplusTransport),
+      baseCotisableCnps:        round0(baseCotisable),
+      baseImpotsISetCN:         round0(baseIS_CN),
+      baseIGRBrute:             round0(baseIGRBrute),
+      quotientFamilial:         round0(quotient),
+      igrParPart:               round0(igrParPart),
+      partsFiscales:            parts,
+    },
+  };
+}
+
 // ─── PLAFONDS D'EXONÉRATION ─────────────────────────────────────────────────
 // Pour les rubriques marquées « non imposables / non cotisables » par défaut
 // (imposable_its=FALSE + cotisable_cnps=FALSE), le CGI ivoirien fixe souvent
@@ -344,4 +504,9 @@ module.exports = {
   PARAMS_CI,
   calculerParts,
   calculerBulletin,
+  // Nouveau moteur IS+CN+IGR séparés (mai 2026, voir docstring en haut du fichier)
+  calculateIvoryCoastPayroll,
+  appliquerBaremeProgressif,
+  BAREME_CN,
+  BAREME_IGR,
 };
