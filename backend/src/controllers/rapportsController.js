@@ -1,6 +1,7 @@
 const pool = require('../../config/database');
 const path = require('path');
 const pdfmake = require('pdfmake');
+const QRCode = require('qrcode');
 
 const pdfmakeDir = path.dirname(require.resolve('pdfmake/package.json'));
 pdfmake.addFonts({
@@ -83,7 +84,8 @@ const mentionTVA = (regime, tauxTva) => {
 // Mention légale standard sur les pénalités de retard
 const mentionPenalites = 'En cas de retard de paiement, des pénalités seront appliquées au taux légal en vigueur, sans préjudice de l\'indemnité forfaitaire pour frais de recouvrement.';
 
-const buildFactureDoc = (facture, lignes) => {
+const buildFactureDoc = (facture, lignes, opts = {}) => {
+  const { qrFne = null, qrPaiement = null, urlPaiement = null } = opts;
   const typeMap = { facture: 'FACTURE', devis: 'DEVIS', avoir: 'AVOIR', proforma: 'PROFORMA' };
   const typeLabel = typeMap[facture.type] || 'FACTURE';
   const devise = facture.devise || 'FCFA';
@@ -116,12 +118,22 @@ const buildFactureDoc = (facture, lignes) => {
   ].filter(Boolean).join('  ·  ');
   if (contactsLine) emetteur.push({ text: contactsLine, style: 'sous' });
 
-  const idsLine = [
+  // Identifiants légaux DGI : NCC (Numéro Compte Contribuable) prioritaire
+  // sur NINEA (rétrocompatibilité), puis IDU, RCCM, régime, centre fiscal.
+  // Toutes ces mentions sont OBLIGATOIRES sur une facture FNE certifiée.
+  const numeroFiscal = facture.emetteur_ncc || facture.emetteur_ninea;
+  const idsLine1 = [
+    numeroFiscal ? `NCC : ${numeroFiscal}` : null,
+    facture.emetteur_idu ? `IDU : ${facture.emetteur_idu}` : null,
     facture.emetteur_rccm ? `RCCM : ${facture.emetteur_rccm}` : null,
-    facture.emetteur_ninea ? `NINEA : ${facture.emetteur_ninea}` : null,
-    facture.emetteur_regime_fiscal ? `Régime fiscal : ${facture.emetteur_regime_fiscal}` : null,
   ].filter(Boolean).join('  ·  ');
-  if (idsLine) emetteur.push({ text: idsLine, style: 'sousFort' });
+  if (idsLine1) emetteur.push({ text: idsLine1, style: 'sousFort' });
+
+  const idsLine2 = [
+    facture.emetteur_regime_fiscal ? `Régime fiscal : ${facture.emetteur_regime_fiscal}` : null,
+    facture.emetteur_centre_fiscal ? `Centre fiscal : ${facture.emetteur_centre_fiscal}` : null,
+  ].filter(Boolean).join('  ·  ');
+  if (idsLine2) emetteur.push({ text: idsLine2, style: 'sous' });
 
   // ── Bloc métadonnées
   const facturePart = [
@@ -148,7 +160,19 @@ const buildFactureDoc = (facture, lignes) => {
   }
   if (facture.client_email) clientPart.push({ text: facture.client_email, style: 'sous' });
   if (facture.client_tel) clientPart.push({ text: facture.client_tel, style: 'sous' });
-  if (facture.client_ninea) clientPart.push({ text: `NINEA : ${facture.client_ninea}`, style: 'sous' });
+  // NCC client : OBLIGATOIRE pour B2B (sans lui, la TVA n'est pas déductible
+  // par le client et la facture risque d'être refusée à la certification FNE).
+  // On affiche en vert si présent, en alerte rouge si manquant et client
+  // identifié comme entreprise (code commence par CLI-E ou type pro défini).
+  if (facture.client_ninea) {
+    clientPart.push({ text: `NCC : ${facture.client_ninea}`, style: 'sousFort' });
+  } else if (facture.client_nom && parseFloat(facture.total_ttc) >= 100000) {
+    // Heuristique : facture > 100 000 FCFA sans NCC client → probablement B2B
+    clientPart.push({
+      text: '⚠ NCC client manquant — la TVA ne sera pas déductible côté acheteur',
+      fontSize: 8, color: ROUGE, italics: true, margin: [0, 2, 0, 0],
+    });
+  }
   if (facture.client_rccm) clientPart.push({ text: `RCCM : ${facture.client_rccm}`, style: 'sous' });
 
   // Table des lignes
@@ -178,16 +202,31 @@ const buildFactureDoc = (facture, lignes) => {
     totauxBody.push([{ text: 'RESTE À PAYER', style: 'totReste' }, { text: `${fmtMontant(reste)} ${devise}`, style: 'totReste' }]);
   }
 
-  // ── En-tête : logo (optionnel) + identification émetteur
-  const headerBlock = facture.emetteur_logo_url
-    ? {
-        columns: [
-          { image: facture.emetteur_logo_url, fit: [120, 80], width: 130 },
-          { stack: emetteur, width: '*' },
-        ],
-        columnGap: 16,
-      }
-    : { stack: emetteur };
+  // ── Sticker FNE (DGI) — en haut à droite. Trois éléments réglementaires :
+  // logo « FNE » + QR vers la page DGI de vérification + numéro fiscal unique.
+  // Si la facture n'a pas été certifiée, le bloc est masqué.
+  const stickerFne = qrFne && facture.fne_numero ? {
+    width: 120,
+    stack: [
+      { text: 'CERTIFIÉE FNE', fontSize: 7, bold: true, color: '#0B6E58',
+        alignment: 'center', margin: [0, 0, 0, 3] },
+      { image: qrFne, width: 90, alignment: 'center' },
+      { text: facture.fne_numero, fontSize: 7, color: NOIR,
+        alignment: 'center', bold: true, margin: [0, 3, 0, 0] },
+      { text: `DGI · Côte d'Ivoire${facture.fne_mode === 'mock' ? ' (test)' : ''}`,
+        fontSize: 6, color: GRIS, italics: true, alignment: 'center' },
+    ],
+  } : null;
+
+  // ── En-tête : logo (optionnel) + identification émetteur + sticker FNE
+  const headerCols = [];
+  if (facture.emetteur_logo_url) {
+    headerCols.push({ image: facture.emetteur_logo_url, fit: [100, 70], width: 110 });
+  }
+  headerCols.push({ stack: emetteur, width: '*' });
+  if (stickerFne) headerCols.push(stickerFne);
+
+  const headerBlock = { columns: headerCols, columnGap: 14 };
 
   const content = [
     headerBlock,
@@ -249,6 +288,68 @@ const buildFactureDoc = (facture, lignes) => {
     },
   ];
 
+  // ── Bloc paiement intégré : QR Mobile Money + coordonnées bancaires.
+  // Visible uniquement sur les factures (pas devis / avoir / proforma).
+  if (facture.type === 'facture' && qrPaiement) {
+    const coordBancaires = [];
+    if (facture.emetteur_banque) coordBancaires.push({ text: facture.emetteur_banque, fontSize: 9, bold: true, color: NOIR });
+    if (facture.emetteur_rib)    coordBancaires.push({ text: `RIB : ${facture.emetteur_rib}`, fontSize: 8.5, color: NOIR, margin: [0, 1, 0, 0] });
+    if (facture.emetteur_swift)  coordBancaires.push({ text: `SWIFT : ${facture.emetteur_swift}`, fontSize: 8.5, color: GRIS, margin: [0, 1, 0, 0] });
+
+    content.push({ text: '', margin: [0, 14, 0, 0] });
+    content.push({
+      table: {
+        widths: [95, '*', '*'],
+        body: [[
+          // QR de paiement
+          {
+            stack: [
+              { image: qrPaiement, width: 80, alignment: 'center' },
+              { text: 'Scanner pour payer', fontSize: 7, color: GRIS, alignment: 'center', italics: true, margin: [0, 3, 0, 0] },
+            ],
+            border: [false, false, true, false],
+            borderColor: [BORDURE, BORDURE, BORDURE, BORDURE],
+            margin: [0, 4, 8, 4],
+          },
+          // Méthodes Mobile Money
+          {
+            stack: [
+              { text: 'PAIEMENT MOBILE MONEY', fontSize: 8, bold: true, color: VERT,
+                margin: [0, 0, 0, 4] },
+              { text: 'Wave · Orange Money · MTN MoMo', fontSize: 9.5, bold: true, color: NOIR },
+              { text: 'Scannez le QR ou ouvrez le lien :', fontSize: 8, color: GRIS, margin: [0, 4, 0, 1] },
+              { text: urlPaiement, fontSize: 8, color: VERT, decoration: 'underline' },
+            ],
+            border: [false, false, true, false],
+            borderColor: [BORDURE, BORDURE, BORDURE, BORDURE],
+            margin: [8, 6, 8, 4],
+          },
+          // Coordonnées bancaires
+          {
+            stack: coordBancaires.length ? [
+              { text: 'VIREMENT BANCAIRE', fontSize: 8, bold: true, color: VERT, margin: [0, 0, 0, 4] },
+              ...coordBancaires,
+            ] : [
+              { text: 'VIREMENT BANCAIRE', fontSize: 8, bold: true, color: GRIS, margin: [0, 0, 0, 4] },
+              { text: 'Coordonnées non renseignées — Paramètres → Entreprise',
+                fontSize: 8, color: GRIS, italics: true },
+            ],
+            border: [false, false, false, false],
+            margin: [8, 6, 0, 4],
+          },
+        ]],
+      },
+      layout: {
+        hLineWidth: () => 0.5,
+        vLineWidth: () => 0.5,
+        hLineColor: () => BORDURE,
+        vLineColor: () => BORDURE,
+        paddingTop: () => 8,
+        paddingBottom: () => 8,
+      },
+    });
+  }
+
   // ── Conditions, notes, pénalités
   content.push({ text: '', margin: [0, 12, 0, 0] });
   content.push({ canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 0.5, lineColor: BORDURE }] });
@@ -276,8 +377,11 @@ const buildFactureDoc = (facture, lignes) => {
   ].filter(Boolean);
   const footerLine3Parts = [
     facture.emetteur_rccm ? `RCCM ${facture.emetteur_rccm}` : null,
-    facture.emetteur_ninea ? `NINEA ${facture.emetteur_ninea}` : null,
+    (facture.emetteur_ncc || facture.emetteur_ninea)
+      ? `NCC ${facture.emetteur_ncc || facture.emetteur_ninea}` : null,
+    facture.emetteur_idu ? `IDU ${facture.emetteur_idu}` : null,
     facture.emetteur_regime_fiscal ? `Régime ${facture.emetteur_regime_fiscal}` : null,
+    facture.emetteur_centre_fiscal || null,
     facture.emetteur_email || null,
     facture.emetteur_tel || null,
   ].filter(Boolean);
@@ -746,6 +850,10 @@ const getFacturePDF = async (req, res) => {
     const { id } = req.params;
     const eid = req.entrepriseId;
 
+    // SELECT enrichi (mai 2026) : ajout des champs DGI obligatoires
+    // (centre_fiscal, idu, banque/rib/swift) + jointure sur la
+    // certification FNE pour récupérer numero_fne + qr_data (URL DGI
+    // de vérification publique) à apposer en sticker sur le PDF.
     const factureRes = await pool.query(`
       SELECT f.*,
         c.nom AS client_nom, c.email AS client_email, c.telephone AS client_tel,
@@ -754,13 +862,19 @@ const getFacturePDF = async (req, res) => {
         e.nom AS emetteur_nom, e.sigle AS emetteur_sigle, e.forme_juridique AS emetteur_forme_juridique,
         e.email AS emetteur_email, e.telephone AS emetteur_tel,
         e.adresse AS emetteur_adresse, e.ville AS emetteur_ville, e.pays AS emetteur_pays,
-        e.ninea AS emetteur_ninea, e.rccm AS emetteur_rccm,
-        e.regime_fiscal AS emetteur_regime_fiscal, e.logo_url AS emetteur_logo_url, e.devise,
-        forig.numero AS origine_numero
+        e.ninea AS emetteur_ninea, e.ncc AS emetteur_ncc, e.idu AS emetteur_idu,
+        e.rccm AS emetteur_rccm,
+        e.regime_fiscal AS emetteur_regime_fiscal,
+        e.centre_fiscal AS emetteur_centre_fiscal,
+        e.banque AS emetteur_banque, e.rib AS emetteur_rib, e.swift AS emetteur_swift,
+        e.logo_url AS emetteur_logo_url, e.devise,
+        forig.numero AS origine_numero,
+        fne.numero_fne AS fne_numero, fne.qr_data AS fne_qr_url, fne.mode AS fne_mode
       FROM factures f
       LEFT JOIN clients c ON c.id=f.client_id
       LEFT JOIN entreprises e ON e.id=f.entreprise_id
       LEFT JOIN factures forig ON forig.id=f.facture_origine_id
+      LEFT JOIN factures_certifications_fne fne ON fne.facture_id=f.id
       WHERE f.id=$1 AND f.entreprise_id=$2
     `, [id, eid]);
 
@@ -771,7 +885,17 @@ const getFacturePDF = async (req, res) => {
     const facture = factureRes.rows[0];
     const lignesRes = await pool.query('SELECT * FROM lignes_facture WHERE facture_id=$1 ORDER BY ordre', [id]);
 
-    const docDefinition = buildFactureDoc(facture, lignesRes.rows);
+    // QR codes générés en PNG dataURL (consommés par pdfmake comme `image`)
+    const qrFne = facture.fne_qr_url
+      ? await QRCode.toDataURL(facture.fne_qr_url, { width: 140, margin: 1, errorCorrectionLevel: 'M' })
+      : null;
+    // QR de paiement Mobile Money : URL apex.ci/p/{numero} pointant vers
+    // une page publique de règlement (les opérateurs configurés par
+    // l'entreprise déterminent les méthodes proposées).
+    const urlPaiement = `https://apex.ci/p/${facture.numero}`;
+    const qrPaiement = await QRCode.toDataURL(urlPaiement, { width: 110, margin: 1, errorCorrectionLevel: 'M' });
+
+    const docDefinition = buildFactureDoc(facture, lignesRes.rows, { qrFne, qrPaiement, urlPaiement });
     const buffer = await pdfmake.createPdf(docDefinition).getBuffer();
 
     res.setHeader('Content-Type', 'application/pdf');
