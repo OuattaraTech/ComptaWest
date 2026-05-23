@@ -734,18 +734,49 @@ function WizardFne({ ncc, centreFiscal, cleConfigured, fneActif, modeProduction,
         </div>
         <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
           <li>
+            {t('parametres.fne_wiz_portal_prod')}{' '}
+            <a href="https://fne.dgi.gouv.ci/" target="_blank" rel="noopener noreferrer"
+               style={{ color: C.accent, textDecoration: 'underline', fontWeight: 700 }}>
+              fne.dgi.gouv.ci
+            </a>
+          </li>
+          <li>
             {t('parametres.fne_wiz_portal_test')}{' '}
             <a href="http://54.247.95.108" target="_blank" rel="noopener noreferrer"
                style={{ color: C.accent, textDecoration: 'underline' }}>
-              http://54.247.95.108
-            </a>
+              54.247.95.108
+            </a>{' '}
+            <span style={{ fontSize: 10, color: C.muted }}>
+              {t('parametres.fne_wiz_portal_test_hint')}
+            </span>
+          </li>
+          <li>
+            {t('parametres.fne_wiz_phone')}{' '}
+            <a href="tel:+2252101866 0"
+               style={{ color: C.accent, textDecoration: 'underline', fontWeight: 700 }}>
+              +225 21 01 86 60
+            </a>{' '}
+            <span style={{ fontSize: 10, color: C.muted }}>(option 4 — CTF)</span>
           </li>
           <li>
             {t('parametres.fne_wiz_support')}{' '}
             <a href="mailto:support.fne@dgi.gouv.ci"
                style={{ color: C.accent, textDecoration: 'underline' }}>
               support.fne@dgi.gouv.ci
-            </a>
+            </a>{' '}
+            <span style={{ fontSize: 10, color: C.muted }}>
+              {t('parametres.fne_wiz_support_hint')}
+            </span>
+          </li>
+          <li>
+            {t('parametres.fne_wiz_infos')}{' '}
+            <a href="mailto:infos.fne@dgi.gouv.ci"
+               style={{ color: C.accent, textDecoration: 'underline' }}>
+              infos.fne@dgi.gouv.ci
+            </a>{' '}
+            <span style={{ fontSize: 10, color: C.muted }}>
+              {t('parametres.fne_wiz_infos_hint')}
+            </span>
           </li>
           <li>
             {t('parametres.fne_wiz_dgi')}{' '}
