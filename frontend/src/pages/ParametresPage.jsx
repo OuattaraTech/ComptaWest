@@ -787,12 +787,63 @@ function WizardFne({ ncc, centreFiscal, cleConfigured, fneActif, modeProduction,
           </li>
         </ul>
       </div>
+
+      {/* Types de factures supportés vs non supportés (FAQ DGI Q#22, #33).
+          Transparence sur le périmètre couvert par ApeX pour que
+          l'utilisateur sache quels cas d'usage sont couverts et lesquels
+          demandent un autre outil. */}
+      <div style={{
+        marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}88`,
+        fontSize: 11.5, color: C.muted, lineHeight: 1.6,
+      }}>
+        <div style={{ marginBottom: 8, fontWeight: 700, color: C.text }}>
+          {t('parametres.fne_wiz_types_titre')}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: '#10B981', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              ✓ {t('parametres.fne_wiz_types_ok')}
+            </div>
+            <ul style={{ margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <li>{t('parametres.fne_wiz_type_vente')}</li>
+              <li>{t('parametres.fne_wiz_type_avoir')}</li>
+              <li>{t('parametres.fne_wiz_type_proforma')}</li>
+              <li>{t('parametres.fne_wiz_type_b2f')}</li>
+            </ul>
+          </div>
+          <div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: '#F59E0B', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              ⚠ {t('parametres.fne_wiz_types_ko')}
+            </div>
+            <ul style={{ margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <li>{t('parametres.fne_wiz_type_3r')}</li>
+              <li>{t('parametres.fne_wiz_type_rne')}</li>
+              <li>{t('parametres.fne_wiz_type_bordereau')}</li>
+            </ul>
+          </div>
+        </div>
+        <div style={{ marginTop: 8, fontSize: 10.5, fontStyle: 'italic' }}>
+          {t('parametres.fne_wiz_types_note')}
+        </div>
+      </div>
     </div>
   );
 }
 
+// Secteurs d'activité dispensés de l'obligation FNE (FAQ DGI Q#6 +
+// article 145 du Livre des Procédures Fiscales CI). Match insensible
+// à la casse et aux accents sur la chaîne entreprise.secteur.
+const SECTEURS_EXONERES_FNE = [
+  'pharmacie', 'banque', 'banques', 'assurance', 'assurances',
+  'compagnie aerienne', 'compagnies aeriennes', 'transport aerien',
+  'station service', 'stations service', 'carburant',
+  'eau', 'electricite', 'telecom', 'telecommunications',
+  'la poste', 'poste',
+];
+
 function FiscalTab({ C, dark }) {
   const { t } = useTranslation();
+  const { actuelle } = useEntreprise();
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -800,6 +851,14 @@ function FiscalTab({ C, dark }) {
     ncc: '', centre_fiscal: '', fne_actif: false, fne_auto_certif: false,
     fne_mode: 'mock', fne_api_key: '', fne_certificat: '',
   });
+
+  // Détection secteur exonéré : normalisation (lowercase + retrait
+  // diacritiques) puis test si la chaîne secteur contient l'un des
+  // mots-clés exonérés. Robuste aux variations « Pharmacie » vs
+  // « pharmacie d'officine » vs « Assurances IARD ».
+  const secteurNorm = (actuelle?.secteur || '').toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const secteurExonere = SECTEURS_EXONERES_FNE.some(s => secteurNorm.includes(s));
   const [showKey, setShowKey] = useState(false);
   // État du diagnostic DGI (pastille verte/rouge) — rafraîchi toutes les
   // 60 s côté UI, mais le backend met en cache 30 s pour ne pas spammer
@@ -915,6 +974,67 @@ function FiscalTab({ C, dark }) {
       }}>
         {t('parametres.fne_intro')}
       </div>
+
+      {/* Bandeau SOLDE STICKERS DGI (FAQ Q#9, #28). Cache le dernier
+          balance_sticker remonté lors d'une certification réelle. En
+          mode mock le bandeau est masqué. Couleur dépend du seuil :
+          - rouge si warning DGI true ou solde < 50
+          - orange si solde < 200
+          - vert sinon */}
+      {config?.fne_balance_sticker !== null && config?.fne_balance_sticker !== undefined && form.fne_mode !== 'mock' && (() => {
+        const solde = config.fne_balance_sticker;
+        const warning = config.fne_balance_warning;
+        const alerte = warning || solde < 50;
+        const tension = !alerte && solde < 200;
+        const couleur = alerte ? '#EF4444' : tension ? '#F59E0B' : '#10B981';
+        return (
+          <div style={{
+            background: `${couleur}15`, border: `1.5px solid ${couleur}66`, borderRadius: 12,
+            padding: '14px 16px', fontSize: 12.5, color: C.text, lineHeight: 1.6,
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: 10, background: `${couleur}25`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, color: couleur, fontWeight: 800, fontSize: 14,
+              fontFamily: 'monospace',
+            }}>{solde.toLocaleString('fr-FR')}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, marginBottom: 2 }}>
+                {t(alerte ? 'parametres.fne_balance_critique'
+                  : tension ? 'parametres.fne_balance_attention'
+                  : 'parametres.fne_balance_ok')}
+              </div>
+              <div style={{ color: C.muted, fontSize: 11.5 }}>
+                {t('parametres.fne_balance_help')}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Bandeau secteur exonéré (FAQ DGI Q#6 + art. 145 LPF) : si le
+          secteur de l'entreprise figure dans la liste des dispenses,
+          on prévient l'utilisateur que l'activation FNE n'est pas
+          obligatoire pour son cas — sans la désactiver (certaines
+          prestations annexes peuvent y être soumises). */}
+      {secteurExonere && (
+        <div style={{
+          background: '#F59E0B15', border: '1.5px solid #F59E0B66', borderRadius: 12,
+          padding: '14px 16px', fontSize: 12.5, color: C.text, lineHeight: 1.6,
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+        }}>
+          <AlertCircle size={18} color="#F59E0B" style={{ flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <div style={{ fontWeight: 700, marginBottom: 3 }}>
+              {t('parametres.fne_secteur_exonere_titre', { secteur: actuelle.secteur })}
+            </div>
+            <div style={{ color: C.muted, fontSize: 11.5 }}>
+              {t('parametres.fne_secteur_exonere_desc')}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Wizard FNE : checklist guidée qui se coche automatiquement selon
           l'état du formulaire. Aide pas-à-pas pour les nouveaux utilisateurs

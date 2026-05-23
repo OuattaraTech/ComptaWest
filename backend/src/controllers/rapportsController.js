@@ -286,6 +286,17 @@ const buildFactureDoc = (facture, lignes, opts = {}) => {
       italics: true,
       color: GRIS,
     },
+    // ── Mention timbre de quittance (FAQ DGI Q#10 — le sticker FNE
+    //    ne dispense pas du timbre, qui reste un impôt distinct).
+    //    Affichée uniquement pour les vraies factures, pas pour les
+    //    devis / proforma qui ne sont pas exigibles.
+    ...(facture.type === 'facture' ? [{
+      text: 'Le sticker fiscal numérique (FNE) ne dispense pas du timbre de quittance (CGI CI art. 1004 et suivants).',
+      fontSize: 8,
+      italics: true,
+      color: GRIS,
+      margin: [0, 3, 0, 0],
+    }] : []),
   ];
 
   // ── Bloc paiement intégré : QR Mobile Money + coordonnées bancaires.

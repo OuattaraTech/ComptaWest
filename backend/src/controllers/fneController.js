@@ -136,6 +136,24 @@ async function executerCertification(client, { factureId, entrepriseId, userId }
   // Sur succès, on purge la queue si la facture s'y trouvait.
   await client.query('DELETE FROM pending_sync_fne WHERE facture_id = $1', [factureId]);
 
+  // Cache du solde de stickers DGI pour le bandeau dashboard. Tentative
+  // d'UPDATE; si les colonnes n'existent pas encore (migration 026 pas
+  // appliquée), on swallow le 42703 — la certif reste valide.
+  if (cert.mode !== 'mock' && cert.balance_sticker !== null && cert.balance_sticker !== undefined) {
+    try {
+      await client.query(
+        `UPDATE entreprises
+            SET fne_balance_sticker = $1,
+                fne_balance_warning = $2,
+                fne_balance_updated_at = NOW()
+          WHERE id = $3`,
+        [cert.balance_sticker, !!cert.warning, entrepriseId]
+      );
+    } catch (err) {
+      if (err.code !== '42703') throw err;
+    }
+  }
+
   return { deja_certifiee: false, certification: ins.rows[0] };
 }
 
@@ -292,15 +310,23 @@ async function getCertification(req, res, next) {
  */
 async function getFneConfig(req, res, next) {
   try {
-    const r = await pool.query(
-      `SELECT ncc, centre_fiscal, fne_actif, fne_mode, fne_auto_certif,
-              fne_ping_statut, fne_ping_at,
-              CASE WHEN fne_api_key IS NOT NULL AND fne_api_key <> '' THEN TRUE ELSE FALSE END AS fne_api_key_set,
-              CASE WHEN fne_certificat IS NOT NULL AND fne_certificat <> '' THEN TRUE ELSE FALSE END AS fne_certificat_set,
-              CASE WHEN fne_api_key IS NOT NULL THEN '•••• ' || RIGHT(fne_api_key, 4) ELSE NULL END AS fne_api_key_apercu
-         FROM entreprises WHERE id = $1`,
-      [req.entrepriseId]
-    );
+    // SELECT enrichi avec fne_balance_sticker (migration 026). Fallback
+    // sans ces colonnes si la migration n'a pas encore été appliquée.
+    const buildSql = (avecBalance) => `
+      SELECT ncc, centre_fiscal, fne_actif, fne_mode, fne_auto_certif,
+             fne_ping_statut, fne_ping_at,
+             CASE WHEN fne_api_key IS NOT NULL AND fne_api_key <> '' THEN TRUE ELSE FALSE END AS fne_api_key_set,
+             CASE WHEN fne_certificat IS NOT NULL AND fne_certificat <> '' THEN TRUE ELSE FALSE END AS fne_certificat_set,
+             CASE WHEN fne_api_key IS NOT NULL THEN '•••• ' || RIGHT(fne_api_key, 4) ELSE NULL END AS fne_api_key_apercu
+             ${avecBalance ? ', fne_balance_sticker, fne_balance_warning, fne_balance_updated_at' : ''}
+        FROM entreprises WHERE id = $1`;
+    let r;
+    try {
+      r = await pool.query(buildSql(true), [req.entrepriseId]);
+    } catch (err) {
+      if (err.code === '42703') r = await pool.query(buildSql(false), [req.entrepriseId]);
+      else throw err;
+    }
     if (r.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Entreprise introuvable' });
     }
