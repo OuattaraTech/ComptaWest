@@ -110,7 +110,7 @@ const FOURNISSEURS_META = {
 // credentials) ou de lui faire taper une commande shell incompréhensible
 // (et qui ne marche que sous Linux/macOS), on lui propose un encodeur
 // intégré, 100 % côté navigateur, sans aucun appel réseau.
-function EncodeurBase64Orange({ C, dark, t }) {
+function EncodeurBase64({ C, dark, t, placeholderKey, placeholderSecret }) {
   const [key, setKey]    = useState('');
   const [secret, setSecret] = useState('');
   const [copie, setCopie] = useState(false);
@@ -148,9 +148,9 @@ function EncodeurBase64Orange({ C, dark, t }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
         <input type="text" value={key} onChange={e => setKey(e.target.value)}
-          placeholder="Consumer Key" style={inputStyle} />
+          placeholder={placeholderKey || 'Consumer Key'} style={inputStyle} />
         <input type="text" value={secret} onChange={e => setSecret(e.target.value)}
-          placeholder="Consumer Secret" style={inputStyle} />
+          placeholder={placeholderSecret || 'Consumer Secret'} style={inputStyle} />
       </div>
       {encoded && (
         <div style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
@@ -237,13 +237,18 @@ function GuideOperateur({ fournisseur, C, dark }) {
                   <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.55 }}>
                     {e.desc}
                   </div>
-                  {/* Outil d'encodage Base64 sous l'étape 3 d'Orange Money :
-                      résout le besoin spécifique de la concaténation
-                      ConsumerKey:Secret + encodage Base64 sans envoyer
-                      l'utilisateur sur un site tiers ni exiger une
-                      commande shell. 100 % navigateur, zéro réseau. */}
+                  {/* Outil d'encodage Base64 sous l'étape 3 d'Orange Money
+                      ET de MTN MoMo : les deux exigent une concaténation
+                      key:secret puis encodage Base64. Placeholders adaptés
+                      par opérateur. 100 % navigateur, zéro réseau —
+                      les credentials ne sortent pas du poste. */}
                   {fournisseur === 'orange_money' && e.n === 3 && (
-                    <EncodeurBase64Orange C={C} dark={dark} t={t} />
+                    <EncodeurBase64 C={C} dark={dark} t={t}
+                      placeholderKey="Consumer Key" placeholderSecret="Consumer Secret" />
+                  )}
+                  {fournisseur === 'mtn_momo' && e.n === 3 && (
+                    <EncodeurBase64 C={C} dark={dark} t={t}
+                      placeholderKey="API User (UUID)" placeholderSecret="API Key" />
                   )}
                 </div>
               </li>
