@@ -1,7 +1,7 @@
-# ApeX 🌍₣ — v2.1
-> Logiciel de comptabilité full-stack pour PME d'Afrique de l'Ouest  
-> Stack : **React 18 + Vite** · **Node.js / Express** · **PostgreSQL**  
-> Normes **SYSCOHADA** · Devise **FCFA** · Multi-entreprise · Multi-utilisateur
+# ApeX 🌍₣ — v2.6
+> Logiciel de gestion pour PME d'Afrique de l'Ouest (ex-ComptaWest, renommé ApeX en mai 2026)
+> Stack : **React 18 + Vite** · **Node.js / Express** · **PostgreSQL 14+**
+> Normes **SYSCOHADA** · Devise **FCFA** · **FNE certifié DGI Côte d'Ivoire** · Multi-entreprise · Multi-utilisateur
 
 ---
 
@@ -14,16 +14,18 @@
 5. [Installation locale](#5-installation-locale)
 6. [Variables d'environnement](#6-variables-denvironnement)
 7. [Base de données](#7-base-de-données)
-8. [Lancer le projet](#8-lancer-le-projet)
-9. [Compte de démonstration](#9-compte-de-démonstration)
-10. [Routes API](#10-routes-api)
-11. [Rôles et permissions](#11-rôles-et-permissions)
-12. [Déploiement en production](#12-déploiement-en-production)
-13. [Configuration HTTPS / Nginx](#13-configuration-https--nginx)
-14. [Sécurité](#14-sécurité)
-15. [Sauvegardes](#15-sauvegardes)
-16. [Dépannage](#16-dépannage)
-17. [Corrections v2.1](#17-corrections-v21)
+8. [Migrations BDD (système de versions)](#8-migrations-bdd-système-de-versions)
+9. [Lancer le projet](#9-lancer-le-projet)
+10. [Compte de démonstration](#10-compte-de-démonstration)
+11. [Routes API](#11-routes-api)
+12. [Rôles et permissions](#12-rôles-et-permissions)
+13. [🚀 Déploiement en production — guide pas-à-pas](#13--déploiement-en-production--guide-pas-à-pas)
+14. [Mise à jour d'une instance existante](#14-mise-à-jour-dune-instance-existante)
+15. [Configuration HTTPS / Nginx](#15-configuration-https--nginx)
+16. [Sécurité](#16-sécurité)
+17. [Sauvegardes](#17-sauvegardes)
+18. [Dépannage](#18-dépannage)
+19. [Historique des versions](#19-historique-des-versions)
 
 ---
 
@@ -298,15 +300,31 @@ GRANT ALL PRIVILEGES ON DATABASE comptawest TO comptawest_user;
 
 Mettre à jour `.env` avec ces identifiants.
 
-### Initialiser le schéma + données de démo
+### Initialisation en deux temps
+
+L'installation se fait en **deux étapes obligatoires** dans cet ordre :
 
 ```bash
 cd backend
+
+# 1) Schéma de base (10 tables socle + données de démo)
 psql -U postgres -d comptawest -f config/schema_v2.sql
+
+# 2) Migrations numérotées (modules livrés depuis le schéma initial :
+#    comptabilité, trésorerie, paie, immobilisations, FNE, abonnements…)
+for f in config/migrations/*.sql; do
+  echo "Applying $f"
+  psql -U comptawest_user -d comptawest -f "$f"
+done
 ```
 
-**Ce que le schéma crée :**
-- 10 tables : `utilisateurs`, `entreprises`, `membres_entreprise`, `clients`, `factures`, `lignes_facture`, `depenses`, `categories_depenses`, `declarations_taxes`, `paiements`
+> ⚠ Sauter l'étape 2 fait tourner ApeX en mode dégradé (les modules
+> Comptabilité, FNE, Paie, Abonnements seront indisponibles ou
+> partiellement fonctionnels). Voir [section 8](#8-migrations-bdd-système-de-versions)
+> pour le détail de chaque migration.
+
+**Ce que le schéma de base crée :**
+- 10 tables socle : `utilisateurs`, `entreprises`, `membres_entreprise`, `clients`, `factures`, `lignes_facture`, `depenses`, `categories_depenses`, `declarations_taxes`, `paiements`
 - Tous les index de performance
 - Utilisateur démo : `demo@comptawest.ci` / `demo123`
 - 2 entreprises démo avec clients, factures, dépenses et taxes d'exemple
@@ -314,13 +332,73 @@ psql -U postgres -d comptawest -f config/schema_v2.sql
 ### Vérifier l'installation
 
 ```bash
-psql -U postgres -d comptawest -c "\dt"
-# Doit lister les 10 tables
+psql -U comptawest_user -d comptawest -c "\dt" | wc -l
+# Doit afficher ≥ 50 (10 socle + tables des 27 migrations)
+
+psql -U comptawest_user -d comptawest -c "\d entreprises" | grep -c "fne_\|idu\|banque\|rib"
+# Doit afficher ≥ 8 (colonnes FNE + IDU + coordonnées bancaires)
 ```
 
 ---
 
-## 8. Lancer le projet
+## 8. Migrations BDD (système de versions)
+
+Le dossier `backend/config/migrations/` contient **27 fichiers SQL numérotés** qui ont enrichi le schéma initial au fil des modules livrés. Ils s'appliquent dans l'ordre, idempotents (utilisent `IF NOT EXISTS`), et sont sûrs à rejouer.
+
+| #   | Module                              | Quoi                                                                   |
+|-----|-------------------------------------|------------------------------------------------------------------------|
+| 001 | Audit log                           | Table `audit_log` + trigger journalisation                             |
+| 002 | Comptabilité                        | `journaux`, `ecritures`, `lignes_ecriture`, plan comptable SYSCOHADA   |
+| 003 | Facture origine                     | `facture_origine_id` pour les avoirs                                   |
+| 004 | Trésorerie                          | `comptes_tresorerie`, mouvements, rapprochement                        |
+| 005 | Paie                                | `employes`, `bulletins`, `rubriques_paie`, moteur CNPS/ITS             |
+| 006 | Immobilisations                     | `immobilisations`, amortissements, dotations                           |
+| 007 | Produits & stocks                   | `produits`, `mouvements_stock`, alertes seuil                          |
+| 008 | Fournisseurs                        | `fournisseurs`, factures fournisseurs                                  |
+| 009 | Découvert trésorerie                | Suivi des découverts autorisés                                         |
+| 010 | Invitations                         | `invitations` avec lien unique                                         |
+| 011 | Devis                               | Type `devis` + `proforma` sur factures                                 |
+| 012 | Rôle RH                             | Rôle `rh` séparé de `comptable`                                        |
+| 013 | Révocation sessions                 | `sessions_revoked` pour le logout server-side                          |
+| 014 | Langue utilisateur                  | `utilisateurs.langue` (i18n)                                           |
+| 015 | Rôles étendus                       | 10 rôles métier (proprietaire, admin, comptable, rh, commercial…)      |
+| 016 | Paiements externes                  | `integrations_paiement`, `sessions_paiement` (Mobile Money)            |
+| 017 | FNE DGI                             | `factures_certifications_fne`, NCC, fne_mode, fne_api_key              |
+| 018 | Écritures origine unique            | Contrainte unicité pour éviter doublons compta                         |
+| 019 | Trigger équilibre écritures         | Contrôle débit = crédit avant COMMIT                                   |
+| 020 | FNE queue + ping                    | `pending_sync_fne`, cache statut DGI                                   |
+| 022 | Abonnements                         | Table `abonnements`, 4 paliers Découverte/Starter/Pro/Cabinet          |
+| 023 | Permissions override                | Personnalisation des permissions par membre (JSONB)                    |
+| 024 | Paie CI (correctif fiscal)          | Rubriques HS exonérées ITS, IND_LOGEMENT cotisable CNPS                |
+| 025 | Entreprise IDU + banque             | `entreprises.idu`, `banque`, `rib`, `swift` (mentions DGI obligatoires) |
+| 026 | FNE solde stickers                  | Cache `fne_balance_sticker` pour bandeau dashboard                     |
+| 027 | Factures exemption FNE              | `factures.fne_exempt_motif` (loyer nu, billet avion, secteur exonéré)  |
+
+> Note : il n'y a pas de migration 021 — c'est volontaire (un numéro
+> a été retiré pendant le développement, pas un oubli).
+
+### Application en lot
+
+```bash
+# Sur une base vierge — applique TOUTES les migrations
+for f in backend/config/migrations/*.sql; do psql -U comptawest_user -d comptawest -f "$f"; done
+
+# Sur une base à jour — applique uniquement à partir d'une migration donnée
+for f in backend/config/migrations/02[4-7]_*.sql; do psql -U comptawest_user -d comptawest -f "$f"; done
+```
+
+### Résilience du code aux migrations manquantes
+
+Le backend utilise systématiquement des `try { } catch (err) { if (err.code === '42703') ... }` (colonne inexistante) sur les colonnes ajoutées par migrations récentes. Si une migration n'est pas appliquée :
+- Les nouvelles fonctionnalités sont **silencieusement désactivées**
+- L'app **continue de tourner** sur les fonctionnalités historiques
+- Aucune erreur 500 brutale, juste des champs absents dans l'UI
+
+C'est ce qui permet un **déploiement en deux temps** : pousser le code d'abord, appliquer les migrations ensuite, sans downtime utilisateur.
+
+---
+
+## 9. Lancer le projet
 
 **Terminal 1 — Backend :**
 ```bash
@@ -348,7 +426,7 @@ curl http://localhost:5000/health
 
 ---
 
-## 9. Compte de démonstration
+## 10. Compte de démonstration
 
 | Champ | Valeur |
 |-------|--------|
@@ -362,7 +440,7 @@ curl http://localhost:5000/health
 
 ---
 
-## 10. Routes API
+## 11. Routes API
 
 Toutes les routes commencent par `/api`.
 
@@ -443,7 +521,7 @@ Les routes protégées nécessitent :
 
 ---
 
-## 11. Rôles et permissions
+## 12. Rôles et permissions
 
 | Rôle | Consultation | Création/Modif | Suppression | Gestion membres |
 |------|:---:|:---:|:---:|:---:|
@@ -455,35 +533,72 @@ Les routes protégées nécessitent :
 
 ---
 
-## 12. Déploiement en production
+## 13. 🚀 Déploiement en production — guide pas-à-pas
 
-### Option A — VPS Ubuntu (recommandé)
+> Ce guide couvre un **déploiement complet en ~45 minutes** sur un VPS Ubuntu 22.04+ (4 Go RAM, 2 vCPU). Options Railway/Render/Vercel à la fin pour les déploiements rapides.
 
-**Prérequis :** Contabo, OVH, DigitalOcean, Hetzner — 4–10 €/mois
+### 🎯 Vue d'ensemble — les 12 étapes
 
-#### A1. Préparer le serveur
+1. [Provisionner le VPS](#étape-1--provisionner-le-vps)
+2. [Installer les dépendances système](#étape-2--installer-les-dépendances-système)
+3. [Créer la base PostgreSQL](#étape-3--créer-la-base-postgresql)
+4. [Récupérer le code source](#étape-4--récupérer-le-code-source)
+5. [Configurer le `.env` backend](#étape-5--configurer-le-env-backend)
+6. [Initialiser le schéma + appliquer les 27 migrations](#étape-6--initialiser-le-schéma--appliquer-les-27-migrations)
+7. [Lancer le backend avec PM2](#étape-7--lancer-le-backend-avec-pm2)
+8. [Builder le frontend](#étape-8--builder-le-frontend)
+9. [Configurer Nginx + reverse proxy](#étape-9--configurer-nginx--reverse-proxy)
+10. [Activer HTTPS avec Certbot (Let's Encrypt)](#étape-10--activer-https-avec-certbot)
+11. [Activer le firewall UFW](#étape-11--activer-le-firewall-ufw)
+12. [Vérifications post-déploiement](#étape-12--vérifications-post-déploiement)
+
+---
+
+### Étape 1 — Provisionner le VPS
+
+**Hébergeurs recommandés** (4–10 €/mois pour cette taille) :
+| Hébergeur | Plan | Datacenter le + proche CI |
+|---|---|---|
+| Contabo | Cloud VPS S | Allemagne (~120 ms d'Abidjan) |
+| OVH | VPS Comfort | France (~140 ms) |
+| Hetzner | CX22 | Allemagne (~120 ms) |
+| DigitalOcean | Basic Droplet | London / Frankfurt |
+
+**Spécifications minimales** :
+- Ubuntu 22.04 LTS ou 24.04 LTS
+- 4 Go RAM, 2 vCPU, 40 Go SSD
+- IPv4 publique
+- Un nom de domaine pointé vers cette IP (ex : `apex.ci`, `app.apex.ci`)
 
 ```bash
+# Se connecter en SSH
 ssh root@VOTRE_IP_VPS
-
-apt update && apt upgrade -y
-apt install -y curl git nginx certbot python3-certbot-nginx ufw python3 python3-pip unzip
-
-# Node.js 20 LTS
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt install -y nodejs
-
-# PostgreSQL
-apt install -y postgresql postgresql-contrib
-
-# ReportLab
-pip3 install reportlab --break-system-packages
-
-# PM2
-npm install -g pm2
 ```
 
-#### A2. PostgreSQL
+### Étape 2 — Installer les dépendances système
+
+```bash
+apt update && apt upgrade -y
+apt install -y curl git nginx certbot python3-certbot-nginx ufw unzip
+
+# Node.js 20 LTS (cible support ApeX)
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt install -y nodejs
+node --version   # → v20.x.x
+
+# PostgreSQL 14+
+apt install -y postgresql postgresql-contrib
+systemctl enable postgresql
+
+# PM2 (gestionnaire de processus Node.js)
+npm install -g pm2
+
+# Créer un user non-root pour l'app (sécurité)
+adduser apex
+usermod -aG sudo apex
+```
+
+### Étape 3 — Créer la base PostgreSQL
 
 ```bash
 sudo -u postgres psql
@@ -491,162 +606,324 @@ sudo -u postgres psql
 
 ```sql
 CREATE DATABASE comptawest;
-CREATE USER comptawest_user WITH ENCRYPTED PASSWORD 'MotDePasseTresfort2024!';
+CREATE USER comptawest_user WITH ENCRYPTED PASSWORD 'GENEREZ_UN_MOT_DE_PASSE_FORT_32_CHARS_MIN';
 GRANT ALL PRIVILEGES ON DATABASE comptawest TO comptawest_user;
+-- PostgreSQL 15+ : grant aussi sur le schéma public
+\c comptawest
+GRANT ALL ON SCHEMA public TO comptawest_user;
 \q
 ```
 
-#### A3. Déployer le projet
+> 💡 Génère un mot de passe fort avec `openssl rand -base64 32` (à exécuter en local).
 
+### Étape 4 — Récupérer le code source
+
+**Option A — Git (recommandé)** :
 ```bash
-# Depuis votre machine locale
-scp comptawest.zip root@VOTRE_IP:/var/www/
-
-# Sur le serveur
 cd /var/www
-unzip comptawest.zip
-cd comptawest
+git clone https://github.com/<TON_USER>/ComptaWest.git apex
+cd apex
+git checkout master   # ou la branche de release
 ```
 
-#### A4. Configurer le backend
+**Option B — Upload zip** :
+```bash
+# Depuis ta machine locale
+scp comptawest.zip root@VOTRE_IP:/var/www/
+# Sur le serveur
+cd /var/www && unzip comptawest.zip && mv ComptaWest-master apex && cd apex
+```
+
+### Étape 5 — Configurer le `.env` backend
 
 ```bash
-cd /var/www/comptawest/backend
+cd /var/www/apex/backend
 npm install --production
-
-# Créer le .env de production
+cp .env.example .env
 nano .env
 ```
 
+**Contenu minimal du `.env` de production** :
 ```env
+# Serveur
 PORT=5000
 NODE_ENV=production
+FRONTEND_URL=https://apex.ci
+
+# Base de données
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=comptawest
 DB_USER=comptawest_user
-DB_PASSWORD=MotDePasseTresfort2024!
-JWT_SECRET=GENEREZ_UNE_CLE_64_CHARS_ICI
+DB_PASSWORD=GENEREZ_UN_MOT_DE_PASSE_FORT_32_CHARS_MIN
+DB_SSL=false                              # mettre true si DB managée
+
+# Authentification (clé JWT 64+ chars — openssl rand -hex 32)
+JWT_SECRET=GENEREZ_UNE_CLE_64_HEX_ICI
 JWT_EXPIRES_IN=7d
-FRONTEND_URL=https://votre-domaine.com
+
+# === OPTIONNEL — modules avancés ===========================================
+
+# FNE — URL de production transmise par la DGI par mail après validation
+# des spécimens (voir wizard FNE dans Paramètres → Fiscal). Laisser vide
+# tant que tu n'as pas reçu l'URL, le mode 'prod' refusera de bloquer.
+FNE_PROD_URL=
+
+# OCR Mistral (lecture automatique des reçus fournisseurs)
+MISTRAL_API_KEY=
+
+# Webhooks Mobile Money — secrets HMAC pour vérifier les notifications
+# (chaque entreprise configure SA propre clé via Paramètres → Intégrations,
+# ces variables sont des fallbacks si l'entreprise n'en a pas)
+WAVE_WEBHOOK_SECRET_FALLBACK=
+ORANGE_NOTIF_TOKEN_FALLBACK=
+MTN_SUBSCRIPTION_KEY_FALLBACK=
 ```
 
+> ⚠ **Critique** : `JWT_SECRET` doit faire ≥ 32 caractères. Génération :
+> `openssl rand -hex 32`. Ne JAMAIS commiter le `.env`.
+
+### Étape 6 — Initialiser le schéma + appliquer les 27 migrations
+
 ```bash
-# Initialiser la BDD
+cd /var/www/apex/backend
+
+# 1) Schéma de base
 psql -U comptawest_user -d comptawest -f config/schema_v2.sql
+
+# 2) Toutes les migrations dans l'ordre (idempotent, sûr à rejouer)
+for f in config/migrations/*.sql; do
+  echo ">>> Applying $f"
+  psql -U comptawest_user -d comptawest -f "$f"
+done
+
+# 3) Vérification — doit afficher ≥ 50 tables
+psql -U comptawest_user -d comptawest -c "\dt" | wc -l
 ```
 
-#### A5. Lancer avec PM2
+### Étape 7 — Lancer le backend avec PM2
 
 ```bash
-cd /var/www/comptawest/backend
-pm2 start src/index.js --name "apex-api"
+cd /var/www/apex/backend
+
+# Démarrer en mode production
+pm2 start src/index.js --name "apex-api" --env production
+
+# Persister la config + démarrage automatique au reboot
 pm2 save
 pm2 startup
-# Exécuter la commande affichée
+# → copier-coller la commande affichée
+
+# Vérification
+pm2 logs apex-api --lines 30
+# → doit afficher « 🚀 ApeX API → http://localhost:5000 »
+# → doit afficher « ✅ PostgreSQL connecté »
 ```
 
-#### A6. Builder le frontend
+### Étape 8 — Builder le frontend
 
 ```bash
-cd /var/www/comptawest/frontend
+cd /var/www/apex/frontend
 npm install
 
-# Créer la config de production
-echo "VITE_API_URL=https://votre-domaine.com/api" > .env.production
+# Pointer le build sur l'URL HTTPS finale
+echo "VITE_API_URL=https://apex.ci/api" > .env.production
 
 npm run build
-# Fichiers générés dans frontend/dist/
+# → fichiers statiques générés dans frontend/dist/
+
+# Vérification
+ls -la dist/index.html dist/assets/
 ```
+
+### Étape 9 — Configurer Nginx + reverse proxy
+
+```bash
+nano /etc/nginx/sites-available/apex
+```
+
+```nginx
+server {
+    listen 80;
+    server_name apex.ci www.apex.ci;
+
+    # Frontend statique (build Vite)
+    root /var/www/apex/frontend/dist;
+    index index.html;
+
+    # SPA — toutes les routes inconnues retournent index.html
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Backend API
+    location /api/ {
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        client_max_body_size 20M;       # Upload de reçus OCR jusqu'à 20 Mo
+    }
+
+    # Webhooks Mobile Money (Wave/Orange/MTN)
+    location /webhooks/ {
+        proxy_pass http://localhost:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # Health check
+    location /health {
+        proxy_pass http://localhost:5000;
+    }
+}
+```
+
+```bash
+ln -s /etc/nginx/sites-available/apex /etc/nginx/sites-enabled/
+rm /etc/nginx/sites-enabled/default
+nginx -t                # vérifier la syntaxe
+systemctl reload nginx
+```
+
+### Étape 10 — Activer HTTPS avec Certbot
+
+```bash
+certbot --nginx -d apex.ci -d www.apex.ci
+# Suivre les prompts (email + accepter ToS + redirect 80→443)
+
+# Vérifier le renouvellement automatique
+certbot renew --dry-run
+```
+
+### Étape 11 — Activer le firewall UFW
+
+```bash
+ufw allow OpenSSH
+ufw allow 'Nginx Full'    # ports 80 + 443
+ufw enable
+ufw status
+```
+
+### Étape 12 — Vérifications post-déploiement
+
+```bash
+# 1. Health check backend
+curl https://apex.ci/health
+# → { "status": "ok", "database": "connected" }
+
+# 2. Frontend accessible
+curl -I https://apex.ci
+# → HTTP/2 200
+
+# 3. Login démo via API
+curl -X POST https://apex.ci/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"demo@comptawest.ci","password":"demo123"}'
+# → { "success": true, "data": { "token": "..." } }
+
+# 4. Vérifier les logs backend
+pm2 logs apex-api --lines 50
+
+# 5. Vérifier les colonnes des migrations récentes
+psql -U comptawest_user -d comptawest -c "\d entreprises" | grep "idu\|fne_balance"
+# → doit afficher idu, fne_balance_sticker, etc.
+```
+
+**✅ Si les 5 vérifications passent, l'app est en ligne.**
+
+> Pense à **changer immédiatement le mot de passe du compte démo** ou à le désactiver via SQL :
+> `UPDATE utilisateurs SET actif = false WHERE email = 'demo@comptawest.ci';`
 
 ---
 
-### Option B — Railway (déploiement rapide)
+### Options alternatives (déploiement rapide)
 
-**Coût :** Gratuit jusqu'à 500h/mois, puis ~5 $/mois
-
-#### B1. Pousser sur GitHub
-
-```bash
-cd comptawest
-git init
-echo ".env" >> .gitignore
-echo "node_modules/" >> .gitignore
-git add .
-git commit -m "ApeX initial"
-git remote add origin https://github.com/votre-user/comptawest.git
-git push -u origin main
-```
-
-#### B2. Backend sur Railway
-
+#### Option Railway (Backend + DB managée, ~5 $/mois)
 1. [railway.app](https://railway.app) → **New Project → Deploy from GitHub**
-2. Sélectionner votre dépôt → **Root Directory : `backend`**
-3. Railway détecte Node.js automatiquement
+2. **Root Directory** : `backend`, Railway détecte Node.js
+3. Ajouter un **Service PostgreSQL**
+4. Variables : recopier le `.env` de l'étape 5 en utilisant les `${{Postgres.PG*}}`
+5. Après le 1er déploiement, ouvrir un shell Railway et **appliquer les 27 migrations** :
+   ```bash
+   for f in config/migrations/*.sql; do psql $DATABASE_URL -f "$f"; done
+   ```
 
-#### B3. PostgreSQL sur Railway
-
-1. **New Service → Database → PostgreSQL**
-2. Copier les variables de connexion
-
-#### B4. Variables d'environnement Railway
-
-Dans **Settings → Variables** du service backend :
-
-```
-PORT=5000
-NODE_ENV=production
-DB_HOST=${{Postgres.PGHOST}}
-DB_PORT=${{Postgres.PGPORT}}
-DB_NAME=${{Postgres.PGDATABASE}}
-DB_USER=${{Postgres.PGUSER}}
-DB_PASSWORD=${{Postgres.PGPASSWORD}}
-JWT_SECRET=votre_cle_64_chars
-JWT_EXPIRES_IN=7d
-FRONTEND_URL=https://votre-frontend.vercel.app
-```
-
-#### B5. Frontend sur Vercel
-
+#### Option Vercel (Frontend statique, gratuit)
 ```bash
 cd frontend
 npm install -g vercel
-echo "VITE_API_URL=https://votre-backend.up.railway.app/api" > .env.production
-npm run build
+echo "VITE_API_URL=https://apex-api.up.railway.app/api" > .env.production
 vercel --prod
 ```
 
+#### Option Render.com (tout-en-un, gratuit avec mise en veille)
+- Web Service Node.js sur `backend/`, build `npm install`, start `node src/index.js`
+- PostgreSQL gratuit (1 Go) — `psql DATABASE_URL -f config/schema_v2.sql` + boucle migrations
+- Frontend statique : Render Static Site sur `frontend/`, build `npm run build`, publish `dist`
+
 ---
 
-### Option C — Render.com (gratuit avec limitations)
+## 14. Mise à jour d'une instance existante
 
-**Coût :** Gratuit (mise en veille après 15 min), puis ~7 $/mois
-
-#### C1. Backend sur Render
-
-1. [render.com](https://render.com) → **New → Web Service**
-2. Connecter GitHub → Root Directory : `backend`
-3. Build Command : `npm install` · Start Command : `node src/index.js`
-4. Ajouter les variables d'environnement
-
-#### C2. Base de données Render
-
-1. **New → PostgreSQL** → noter l'**Internal Database URL**
-2. Initialiser : `psql "INTERNAL_DATABASE_URL" -f backend/config/schema_v2.sql`
-
-#### C3. Frontend sur Netlify
+Quand tu déploies une nouvelle version d'ApeX sur un serveur déjà en prod, suis ces **6 étapes dans cet ordre** pour zéro downtime :
 
 ```bash
-cd frontend
-npm install -g netlify-cli
-echo "VITE_API_URL=https://votre-backend.onrender.com/api" > .env.production
-npm run build
-netlify deploy --prod --dir=dist
+# 1. SSH sur le serveur de prod
+ssh apex@VOTRE_IP
+
+# 2. Sauvegarde BDD avant toute chose
+cd /var/www/apex
+mkdir -p backups
+pg_dump -U comptawest_user comptawest | gzip > backups/comptawest_$(date +%Y%m%d_%H%M%S).sql.gz
+
+# 3. Récupérer le nouveau code
+git fetch origin
+git status                  # vérifier qu'il n'y a pas de modif locale
+git pull origin master
+
+# 4. Mettre à jour les dépendances backend + frontend
+cd backend && npm install --production && cd ..
+cd frontend && npm install && cd ..
+
+# 5. Appliquer les nouvelles migrations (idempotent, ne rejoue pas les anciennes)
+cd backend
+for f in config/migrations/*.sql; do
+  psql -U comptawest_user -d comptawest -f "$f" 2>&1 | grep -v "already exists\|^NOTICE" || true
+done
+cd ..
+
+# 6. Rebuild frontend + redémarrer backend
+cd frontend && npm run build && cd ..
+pm2 restart apex-api
+pm2 logs apex-api --lines 30   # vérifier que l'API redémarre proprement
 ```
+
+> 💡 **Les migrations sont idempotentes** grâce aux `IF NOT EXISTS` et `ON CONFLICT DO NOTHING`. Tu peux les rejouer en boucle sans risque — seules celles non encore appliquées s'exécutent vraiment.
+
+### Rollback en cas de problème
+
+```bash
+# 1. Restaurer le code à la version précédente
+cd /var/www/apex
+git log --oneline -10              # repérer le commit cible
+git reset --hard <SHA_PRECEDENT>
+
+# 2. Rebuild + restart
+cd frontend && npm run build && cd ..
+pm2 restart apex-api
+
+# 3. Si une migration a cassé la BDD, restaurer le dump
+gunzip < backups/comptawest_YYYYMMDD_HHMMSS.sql.gz | psql -U comptawest_user -d comptawest
+```
+
+> ⚠ Les migrations ApeX **n'ont pas de mécanisme `down`** (pas de rollback SQL automatique). Le seul moyen de revenir en arrière sur le schéma = restaurer un dump. D'où l'importance de l'étape 2 « sauvegarde BDD avant toute chose ».
 
 ---
 
-## 13. Configuration HTTPS / Nginx
+## 15. Configuration HTTPS / Nginx
 
 ### Fichier Nginx
 
@@ -713,7 +990,7 @@ ufw enable
 
 ---
 
-## 14. Sécurité
+## 16. Sécurité
 
 ### Ce qui est implémenté dans le code
 
@@ -755,7 +1032,7 @@ ufw deny 5000
 
 ---
 
-## 15. Sauvegardes
+## 17. Sauvegardes
 
 ### Script automatique
 
@@ -817,7 +1094,7 @@ systemctl reload nginx
 
 ---
 
-## 16. Dépannage
+## 18. Dépannage
 
 ### « Cannot connect to database »
 
@@ -883,27 +1160,65 @@ pm2 restart apex-api
 
 ---
 
-## 17. Corrections v2.1
+## 19. Historique des versions
 
-Cette version corrige tous les problèmes identifiés lors de l'audit de sécurité :
+### v2.6 — Mai 2026 — Conformité FNE complète + UX déploiement
+- **FNE DGI Côte d'Ivoire** : intégration API complète (sandbox + prod), wizard
+  guidé 6 étapes avec coordonnées officielles (téléphone CTF, emails support/infos,
+  portails prod/test), bandeau de solde stickers dynamique, alerte secteur exonéré,
+  mention timbre quittance sur PDF, exemption FNE par facture (9 motifs FAQ DGI)
+- **PDF facture** : sticker FNE QR scannable, alerte NCC client manquant pour B2B,
+  bloc paiement Mobile Money intégré (QR + virement bancaire), mentions DGI
+  complètes (NCC, IDU, RCCM, régime, centre fiscal)
+- **Paie CI** : recalibrage des barèmes après audit expert-comptable
+  (CNPS 6,6 %, ITS 0 % jusqu'à 130 000 FCFA, abattement 20 %, AT 4 %, CMU patronale)
+  + correction HS exonérées d'ITS + plafond Prime Transport 30 000 FCFA
+- **Mobile Money** : guides pas-à-pas par opérateur (Wave / Orange Money / MTN MoMo)
+  avec encodeur Base64 intégré pour Orange et MTN
+- **Landing** : nouveau hero (« La gestion de votre PME mérite mieux qu'un tableur »)
+  + bullets refondus avec mots-clés Mobile Money + Subtitle SEO
+- **Favicon** : pictogramme A-montagne officiel en SVG vectoriel + 7 tailles PNG/ICO
+- **README** : guide de déploiement pas-à-pas en 12 étapes + procédure de mise à jour
 
+### v2.5 — Mai 2026 — Internationalisation FR/EN + abonnements
+- Internationalisation complète FR=EN (≈ 2280 clés en parité stricte)
+- Modèle d'abonnement 4 paliers (Découverte / Starter / Pro / Cabinet) + page /tarifs
+- Refonte UX onboarding versionné + raccourcis dashboard + landing conversion
+- Imports en masse Excel (plan comptable, clients, fournisseurs, écritures)
+- Permissions custom par membre (matrice JSONB override)
+
+### v2.4 — Avril 2026 — Refonte des rôles + Mobile Money
+- 10 rôles métier (proprietaire, admin, comptable, rh, commercial, magasinier, etc.)
+- Intégrations Wave / Orange Money / MTN MoMo avec webhooks signés
+- OCR Mistral pour lecture automatique des reçus fournisseurs
+
+### v2.3 — Mars 2026 — Modules trésorerie & immobilisations
+- Comptes de trésorerie, rapprochement, suivi des découverts
+- Immobilisations + amortissements linéaires/dégressifs
+- Devis + proforma + conversion en facture
+
+### v2.2 — Février 2026 — Comptabilité SYSCOHADA + paie
+- Plan comptable SYSCOHADA + journaux + écritures + grand livre
+- Moteur de paie CNPS/ITS (rubriques configurables, bulletins PDF)
+
+### v2.1 — Janvier 2026 — Sécurité & robustesse
 | # | Problème | Correction |
 |---|----------|-----------|
-| 1 | `.env` avec vrais secrets partagé | `.env` supprimé du projet, uniquement `.env.example` |
-| 2 | Rate limiting absent sur `/auth/login` | Rate limiter dédié : 10 tentatives/15min, échecs seulement |
-| 3 | Année 2024 codée en dur | `useState(String(new Date().getFullYear()))` + liste dynamique |
-| 4 | `deleteFacture` retournait toujours `success: true` | Vérifie `result.rowCount`, renvoie 404 si 0 ligne |
+| 1 | `.env` avec vrais secrets partagé | `.env` supprimé, uniquement `.env.example` |
+| 2 | Rate limiting absent sur `/auth/login` | Rate limiter : 10 tentatives / 15 min |
+| 3 | Année codée en dur | `useState(String(new Date().getFullYear()))` |
+| 4 | `deleteFacture` toujours `success: true` | Vérifie `result.rowCount`, 404 si 0 |
 | 5 | Race condition numérotation factures | `SELECT FOR UPDATE` sur le compteur |
-| 6 | Aucune validation des inputs backend | `express-validator` sur toutes les routes d'écriture |
-| 7 | Catégories SYSCOHADA créées en double | Helper `creerCategoriesDefaut()` partagé |
-| 8 | `execSync` avec interpolation shell (risque injection) | Remplacé par `execFileSync('python3', [args...])` |
-| 9 | `process.exit(-1)` sur erreur DB temporaire | Log uniquement, le pool gère la reconnexion |
-| 10 | Mot de passe min 6 chars (trop faible) | Minimum 8 chars côté backend ET frontend |
-| 11 | `addPaiement` sans vérification du montant | Vérifie montant > 0, refuse si > TTC, refuse si annulée |
-| 12 | Catch silencieux dans le frontend | Toasts d'erreur sur toutes les pages |
-| 13 | Palette couleurs dupliquée dans chaque page | Fichier `src/utils/theme.js` centralisé |
-| 14 | Fichiers temporaires PDF non nettoyés en cas d'erreur | Bloc `finally` garantit le nettoyage |
-| 15 | Bcrypt 10 rounds (minimum recommandé) | Passé à 12 rounds |
+| 6 | Validation inputs backend absente | `express-validator` partout |
+| 7 | Catégories SYSCOHADA en double | Helper `creerCategoriesDefaut()` |
+| 8 | `execSync` interpolation shell | `execFileSync('python3', [...])` |
+| 9 | `process.exit(-1)` sur erreur DB | Log only, pool gère la reconnexion |
+| 10 | Mot de passe min 6 chars | Minimum 8 chars front + back |
+| 11 | `addPaiement` sans vérification | Refuse montant ≤ 0, > TTC, ou annulée |
+| 12 | Catch silencieux frontend | Toasts d'erreur partout |
+| 13 | Palette couleurs dupliquée | `src/utils/theme.js` centralisé |
+| 14 | Fichiers tmp PDF non nettoyés | Bloc `finally` garantit le nettoyage |
+| 15 | Bcrypt 10 rounds | Passé à 12 rounds |
 
 ---
 
