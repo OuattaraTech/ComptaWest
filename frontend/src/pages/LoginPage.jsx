@@ -1180,7 +1180,7 @@ const cellDot = (C, last) => ({
 
 export default function LoginPage() {
   const { t } = useTranslation();
-  const { login, register } = useAuth();
+  const { login, register, loginDemo } = useAuth();
   const { chargerEntreprises } = useEntreprise();
   const { dark, toggle } = useTheme();
   const C = getC(dark);
@@ -1215,9 +1215,11 @@ export default function LoginPage() {
   const handleDemoLogin = async () => {
     setLoading(true);
     try {
+      // Migration 028 : chaque clic crée un compte démo ISOLÉ avec son
+      // propre user + entreprise pré-remplie. Le backend retourne le JWT
+      // directement, plus besoin d'un second appel /auth/login.
       localStorage.removeItem('cw_entreprise_id');
-      await api.post('/auth/demo');
-      await login('demo@comptawest.ci', 'demo1234');
+      await loginDemo();
       await chargerEntreprises();
       toast.success(t('login.success_demo'));
       navigate('/dashboard');

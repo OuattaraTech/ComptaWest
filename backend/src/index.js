@@ -140,6 +140,22 @@ app.listen(PORT, () => {
   logger.info(`ApeX API démarrée sur le port ${PORT}`, {
     env: process.env.NODE_ENV || 'development',
   });
+
+  // Cron applicatif : nettoyage des comptes démo expirés toutes les heures.
+  // Pas de lib externe (node-cron) — setInterval suffit pour ce cas simple.
+  // Premier passage 5 min après le démarrage pour ne pas pénaliser le boot.
+  const { nettoyerComptesDemoExpires } = require('./controllers/authController');
+  const lancerNettoyage = async () => {
+    try {
+      const r = await nettoyerComptesDemoExpires();
+      if (r.skipped) return;
+      if (r.supprimes > 0) logger.info(`Nettoyage démo : ${r.supprimes} compte(s) expiré(s) supprimé(s)`);
+    } catch (err) {
+      logger.error('Nettoyage démo échoué', { erreur: err.message });
+    }
+  };
+  setTimeout(lancerNettoyage, 5 * 60 * 1000);                        // 5 min après boot
+  setInterval(lancerNettoyage, 60 * 60 * 1000);                      // puis toutes les heures
 });
 
 module.exports = app;

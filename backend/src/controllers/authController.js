@@ -128,10 +128,20 @@ const login = async (req, res) => {
 // GET /api/auth/me
 const me = async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT id, nom, email, telephone, langue, created_at FROM utilisateurs WHERE id = $1 AND actif = true',
-      [req.user.id]
-    );
+    // SELECT enrichi avec is_demo + demo_expires_at (migration 028) pour
+    // afficher le bandeau « Compte démo · expire dans Xh » côté UI.
+    // Fallback rétrocompat si la migration n'est pas appliquée.
+    const buildSql = (avecDemo) => `
+      SELECT id, nom, email, telephone, langue, created_at
+             ${avecDemo ? ', is_demo, demo_expires_at' : ''}
+        FROM utilisateurs WHERE id = $1 AND actif = true`;
+    let result;
+    try {
+      result = await pool.query(buildSql(true), [req.user.id]);
+    } catch (err) {
+      if (err.code === '42703') result = await pool.query(buildSql(false), [req.user.id]);
+      else throw err;
+    }
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Utilisateur introuvable' });
     }
@@ -164,41 +174,70 @@ const updateLangue = async (req, res) => {
   }
 };
 
-// POST /api/auth/demo — crée/réinitialise le compte démo automatiquement
+// POST /api/auth/demo — crée un compte démo ISOLÉ pour chaque visiteur.
+//
+// Migration 028 (mai 2026) : avant, un unique compte demo@comptawest.ci
+// était partagé entre tous les visiteurs → risque RGPD et expérience
+// cassée. Désormais, chaque clic crée un compte temporaire dédié avec :
+//   - email unique demo-<random>@apex.local
+//   - flag is_demo = TRUE + demo_expires_at = NOW() + 24h
+//   - entreprise dédiée avec données pré-remplies (clients, factures…)
+//   - JWT retourné directement → pas besoin de second appel /auth/login
+//
+// Fallback rétrocompat : si la migration 028 n'a pas encore été appliquée
+// (colonne is_demo absente), on retombe sur le comportement legacy avec
+// le compte partagé — l'app ne casse pas.
+const crypto = require('crypto');
+
 const loginDemo = async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    const DEMO_EMAIL = 'demo@comptawest.ci';
-    const DEMO_NOM   = 'Compte Démo';
-    const DEMO_MDP   = 'demo1234';
-    const hash = await require('bcryptjs').hash(DEMO_MDP, 10);
+    // Email aléatoire (8 hex = 64 bits, suffisant pour éviter les collisions
+    // dans une fenêtre de 24 h même avec un trafic élevé).
+    const randomId = crypto.randomBytes(4).toString('hex');
+    const demoEmail = `demo-${randomId}@apex.local`;
+    const demoNom = `Démo ${randomId.toUpperCase()}`;
+    const motDePasse = crypto.randomBytes(16).toString('hex'); // jamais affiché
+    const hash = await bcrypt.hash(motDePasse, 10);
 
-    // Upsert : crée ou remet à jour le mot de passe du compte démo
-    const uRes = await client.query(`
-      INSERT INTO utilisateurs (nom, email, mot_de_passe)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (email) DO UPDATE SET mot_de_passe = $3, nom = $1
-      RETURNING id, nom, email
-    `, [DEMO_NOM, DEMO_EMAIL, hash]);
+    // Tentative avec colonnes démo (migration 028) ; fallback rétrocompat
+    // sur l'ancien compte partagé si la migration n'est pas appliquée.
+    let user;
+    let migration028Active = true;
+    try {
+      const uRes = await client.query(`
+        INSERT INTO utilisateurs (nom, email, mot_de_passe, is_demo, demo_expires_at)
+        VALUES ($1, $2, $3, TRUE, NOW() + INTERVAL '24 hours')
+        RETURNING id, nom, email, is_demo, demo_expires_at
+      `, [demoNom, demoEmail, hash]);
+      user = uRes.rows[0];
+    } catch (err) {
+      if (err.code === '42703') {
+        // Migration 028 non appliquée : retour au compte partagé legacy
+        migration028Active = false;
+        const legacyRes = await client.query(`
+          INSERT INTO utilisateurs (nom, email, mot_de_passe)
+          VALUES ('Compte Démo', 'demo@comptawest.ci', $1)
+          ON CONFLICT (email) DO UPDATE SET mot_de_passe = $1
+          RETURNING id, nom, email
+        `, [hash]);
+        user = legacyRes.rows[0];
+      } else {
+        throw err;
+      }
+    }
 
-    const user = uRes.rows[0];
-
-    // Créer une entreprise démo si l'utilisateur n'en a pas
-    const entRes = await client.query(`
-      SELECT e.id FROM entreprises e
-      JOIN membres_entreprise m ON m.entreprise_id = e.id
-      WHERE m.utilisateur_id = $1 LIMIT 1
-    `, [user.id]);
-
-    if (entRes.rows.length === 0) {
+    // Création de l'entreprise dédiée (toujours, pour comptes isolés)
+    let eid;
+    if (migration028Active) {
       const newEnt = await client.query(`
-        INSERT INTO entreprises (nom, forme_juridique, pays, devise, regime_fiscal)
-        VALUES ('Ouattara & Associés SARL', 'SARL', 'Côte d''Ivoire', 'FCFA', 'Réel Normal')
+        INSERT INTO entreprises (nom, forme_juridique, pays, devise, regime_fiscal, is_demo)
+        VALUES ($1, 'SARL', 'Côte d''Ivoire', 'FCFA', 'RNI', TRUE)
         RETURNING id
-      `);
-      const eid = newEnt.rows[0].id;
+      `, [`${demoNom} & Associés SARL`]);
+      eid = newEnt.rows[0].id;
       await client.query(
         `INSERT INTO membres_entreprise (utilisateur_id, entreprise_id, role) VALUES ($1, $2, 'proprietaire')`,
         [user.id, eid]
@@ -207,10 +246,55 @@ const loginDemo = async (req, res) => {
       await creerPlanComptableSyscohada(eid, client);
       await creerJournauxDefaut(eid, client);
       await creerExerciceCourant(eid, client);
+      await seederDonneesDemo(client, eid, user.id);
+    } else {
+      // Mode legacy : crée l'entreprise UNIQUEMENT si elle n'existe pas
+      const entRes = await client.query(`
+        SELECT e.id FROM entreprises e
+        JOIN membres_entreprise m ON m.entreprise_id = e.id
+        WHERE m.utilisateur_id = $1 LIMIT 1
+      `, [user.id]);
+      if (entRes.rows.length === 0) {
+        const newEnt = await client.query(`
+          INSERT INTO entreprises (nom, forme_juridique, pays, devise, regime_fiscal)
+          VALUES ('Ouattara & Associés SARL', 'SARL', 'Côte d''Ivoire', 'FCFA', 'Réel Normal')
+          RETURNING id
+        `);
+        eid = newEnt.rows[0].id;
+        await client.query(
+          `INSERT INTO membres_entreprise (utilisateur_id, entreprise_id, role) VALUES ($1, $2, 'proprietaire')`,
+          [user.id, eid]
+        );
+        await creerCategoriesDefaut(eid, client);
+        await creerPlanComptableSyscohada(eid, client);
+        await creerJournauxDefaut(eid, client);
+        await creerExerciceCourant(eid, client);
+      }
     }
 
     await client.query('COMMIT');
-    res.json({ success: true, message: 'Compte démo prêt' });
+
+    // JWT direct → le frontend bascule sur le dashboard sans login séparé
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }   // borné à la durée de vie du compte démo
+    );
+
+    res.json({
+      success: true,
+      message: 'Compte démo créé',
+      data: {
+        token,
+        user: {
+          id: user.id,
+          nom: user.nom,
+          email: user.email,
+          is_demo: !!user.is_demo,
+          demo_expires_at: user.demo_expires_at || null,
+        },
+      },
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Erreur loginDemo:', err.message);
@@ -219,6 +303,122 @@ const loginDemo = async (req, res) => {
     client.release();
   }
 };
+
+// Pré-remplissage des données démo : 3 clients, 4 factures variées,
+// 3 dépenses. Volontairement modeste pour rester lisible dès l'arrivée
+// sur le dashboard. Pas d'employés ni d'écritures complexes — un premier
+// clic dans les modules les ajoutera et illustrera bien la valeur.
+async function seederDonneesDemo(client, entrepriseId, userId) {
+  // 3 clients représentatifs du marché CI
+  const clientsRes = await client.query(`
+    INSERT INTO clients (entreprise_id, nom, email, telephone, ville, pays, code, actif)
+    VALUES
+      ($1, 'Banque Atlantique CI', 'contact@bact.ci', '+225 27 20 24 16 00', 'Abidjan', 'Côte d''Ivoire', 'CLI-001', true),
+      ($1, 'GIE Femmes du Sahel',  'gie@example.ci',  '+225 01 66 77 88',    'Korhogo', 'Côte d''Ivoire', 'CLI-002', true),
+      ($1, 'SARL Logitrans',       'contact@logi.ci', '+225 07 12 34 56 78', 'San-Pedro','Côte d''Ivoire', 'CLI-003', true)
+    RETURNING id
+  `, [entrepriseId]);
+  const cliIds = clientsRes.rows.map(r => r.id);
+
+  // 4 factures variées : 1 brouillon, 1 envoyée, 1 payée, 1 en retard
+  const dates = [
+    new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10),  // -30j
+    new Date(Date.now() - 15 * 86400000).toISOString().slice(0, 10),  // -15j
+    new Date(Date.now() -  5 * 86400000).toISOString().slice(0, 10),  // -5j
+    new Date().toISOString().slice(0, 10),                             // aujourd'hui
+  ];
+  const factDefs = [
+    { cli: cliIds[0], statut: 'payee',     date: dates[0], desc: 'Audit comptable Q1 2026', qte: 1, pu: 1200000 },
+    { cli: cliIds[1], statut: 'envoyee',   date: dates[1], desc: 'Formation SYSCOHADA',     qte: 2, pu: 350000  },
+    { cli: cliIds[2], statut: 'retard',    date: dates[2], desc: 'Conseil fiscal',           qte: 1, pu: 750000  },
+    { cli: cliIds[0], statut: 'brouillon', date: dates[3], desc: 'Mission Q2 2026',          qte: 1, pu: 850000  },
+  ];
+  for (let i = 0; i < factDefs.length; i++) {
+    const f = factDefs[i];
+    const ht = f.qte * f.pu;
+    const tva = ht * 0.18;
+    const ttc = ht + tva;
+    const year = new Date(f.date).getFullYear();
+    const numero = `F-${year}-${String(i + 1).padStart(3, '0')}`;
+    const factRes = await client.query(`
+      INSERT INTO factures (entreprise_id, client_id, cree_par, numero, type, statut,
+        date_emission, sous_total, taux_tva, montant_tva, total_ttc, montant_paye, conditions_paiement)
+      VALUES ($1, $2, $3, $4, 'facture', $5, $6, $7, 18, $8, $9, $10, 'Paiement à 30 jours')
+      RETURNING id
+    `, [entrepriseId, f.cli, userId, numero, f.statut, f.date,
+        ht, tva, ttc, f.statut === 'payee' ? ttc : 0]);
+    await client.query(`
+      INSERT INTO lignes_facture (facture_id, description, quantite, prix_unitaire, total)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [factRes.rows[0].id, f.desc, f.qte, f.pu, ht]);
+  }
+
+  // 3 dépenses courantes
+  const catRes = await client.query(
+    `SELECT id, nom FROM categories_depenses WHERE entreprise_id = $1 LIMIT 5`,
+    [entrepriseId]
+  );
+  const catMap = Object.fromEntries(catRes.rows.map(c => [c.nom, c.id]));
+  const depDefs = [
+    { desc: 'Loyer bureau Cocody', cat: 'Loyers et charges',   ht: 250000 },
+    { desc: 'Facture CIE',         cat: 'Services extérieurs', ht: 45000  },
+    { desc: 'Carburant véhicule',  cat: 'Carburants',          ht: 35000  },
+  ];
+  for (const d of depDefs) {
+    const catId = catMap[d.cat] || Object.values(catMap)[0] || null;
+    if (!catId) continue;
+    await client.query(`
+      INSERT INTO depenses (entreprise_id, categorie_id, description, montant_ht, taux_tva,
+        montant_tva, montant_ttc, date_depense, mode_paiement)
+      VALUES ($1, $2, $3, $4, 18, $5, $6, NOW(), 'virement')
+    `, [entrepriseId, catId, d.desc, d.ht, d.ht * 0.18, d.ht * 1.18]);
+  }
+}
+
+// Nettoyage des comptes démo expirés. Appelé toutes les heures par le
+// cron applicatif (utils/cronJobs.js). Supprime d'abord les entreprises
+// liées (CASCADE descend sur clients/factures/employés), puis les
+// utilisateurs eux-mêmes. Compteur retourné pour les logs.
+async function nettoyerComptesDemoExpires() {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Liste des utilisateurs démo expirés (test si la migration 028 existe)
+    let expiredIds;
+    try {
+      const r = await client.query(
+        `SELECT id FROM utilisateurs WHERE is_demo = TRUE AND demo_expires_at < NOW()`
+      );
+      expiredIds = r.rows.map(x => x.id);
+    } catch (err) {
+      if (err.code === '42703') return { skipped: true, raison: 'migration_028_non_appliquee' };
+      throw err;
+    }
+    if (expiredIds.length === 0) {
+      await client.query('COMMIT');
+      return { supprimes: 0 };
+    }
+    // Suppression en cascade (entreprises → clients/factures/employés → cree_par
+    // côté factures reste NULL si NO ACTION, donc on doit supprimer les
+    // entreprises avant les utilisateurs pour éviter le FK violation)
+    await client.query(`
+      DELETE FROM entreprises WHERE id IN (
+        SELECT entreprise_id FROM membres_entreprise WHERE utilisateur_id = ANY($1)
+      )
+    `, [expiredIds]);
+    const delUsers = await client.query(
+      `DELETE FROM utilisateurs WHERE id = ANY($1) RETURNING id`,
+      [expiredIds]
+    );
+    await client.query('COMMIT');
+    return { supprimes: delUsers.rowCount };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
 
 // ── INVITATIONS ───────────────────────────────────────────────────────────
 
@@ -368,4 +568,5 @@ module.exports = {
   register, login, me, updateLangue, loginDemo, getInvitation, accepterInvitation,
   getMesPermissions,
   registerRules, loginRules,
+  nettoyerComptesDemoExpires,
 };

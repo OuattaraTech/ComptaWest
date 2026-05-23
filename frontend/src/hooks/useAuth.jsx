@@ -41,6 +41,17 @@ export const AuthProvider = ({ children }) => {
     return data.data;
   };
 
+  // Création d'un compte démo isolé (migration 028) : un user temporaire
+  // par visiteur, avec ses propres données, qui expire dans 24 h. Le
+  // backend retourne directement le JWT — pas besoin d'un second
+  // /auth/login derrière, contrairement à l'ancien comportement.
+  const loginDemo = async () => {
+    const { data } = await api.post('/auth/demo');
+    localStorage.setItem('cw_token', data.data.token);
+    setUser(data.data.user);
+    return data.data;
+  };
+
   const logout = () => {
     localStorage.removeItem('cw_token');
     localStorage.removeItem('cw_user');
@@ -50,7 +61,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, acceptInvitation, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, acceptInvitation, loginDemo, logout }}>
       {children}
     </AuthContext.Provider>
   );

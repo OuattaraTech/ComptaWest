@@ -114,6 +114,13 @@
     "balance_insufficient": "Solde insuffisant : {{available}} disponible, {{requested}} demandé. Il manque {{missing}} {{currency}}.",
     "balance_will_go_negative": "Le compte passera à découvert : solde après opération {{after}} {{currency}}."
   },
+  "demo": {
+    "banner_title": "Compte démo isolé",
+    "banner_countdown_hours": "expire dans {{h}} h {{m}}",
+    "banner_countdown_minutes": "expire dans {{m}} min",
+    "banner_help": "Vos données seront supprimées à expiration — créez un compte permanent pour les conserver.",
+    "banner_cta": "Créer un compte"
+  },
   "login": {
     "title_login": "Connectez-vous à ApeX",
     "title_register": "Créez votre compte gratuit",
