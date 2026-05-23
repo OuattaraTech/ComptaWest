@@ -104,6 +104,74 @@ const FOURNISSEURS_META = {
 };
 
 // ─── Onglet Intégrations : configuration des paiements externes ──────────
+// ─── Outil d'encodage Base64 pour Orange Money ──────────────────────────
+// Orange exige Base64(ConsumerKey:ConsumerSecret) en clé API marchand.
+// Plutôt que d'envoyer l'utilisateur sur un site tiers (fuite de
+// credentials) ou de lui faire taper une commande shell incompréhensible
+// (et qui ne marche que sous Linux/macOS), on lui propose un encodeur
+// intégré, 100 % côté navigateur, sans aucun appel réseau.
+function EncodeurBase64Orange({ C, dark, t }) {
+  const [key, setKey]    = useState('');
+  const [secret, setSecret] = useState('');
+  const [copie, setCopie] = useState(false);
+
+  // btoa() est natif au navigateur depuis toujours. Pas de dépendance,
+  // pas d'appel réseau — les Consumer Key/Secret ne quittent jamais
+  // l'ordinateur du gérant.
+  const encoded = key && secret
+    ? (() => { try { return btoa(`${key}:${secret}`); } catch { return ''; } })()
+    : '';
+
+  const copier = () => {
+    if (!encoded) return;
+    navigator.clipboard.writeText(encoded)
+      .then(() => { setCopie(true); setTimeout(() => setCopie(false), 1500); })
+      .catch(() => {});
+  };
+
+  const inputStyle = {
+    background: dark ? '#11161D' : '#fff', border: `1px solid ${C.border}`, borderRadius: 8,
+    padding: '8px 10px', color: C.text, fontSize: 12, fontFamily: 'monospace',
+    outline: 'none', width: '100%', boxSizing: 'border-box',
+  };
+
+  return (
+    <div style={{
+      marginTop: 10, padding: '12px 14px', borderRadius: 10,
+      background: `${C.accent}10`, border: `1px solid ${C.accent}40`,
+    }}>
+      <div style={{ fontSize: 11.5, fontWeight: 700, color: C.text, marginBottom: 4 }}>
+        {t('parametres.b64_tool_title')}
+      </div>
+      <div style={{ fontSize: 11, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>
+        {t('parametres.b64_tool_help')}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+        <input type="text" value={key} onChange={e => setKey(e.target.value)}
+          placeholder="Consumer Key" style={inputStyle} />
+        <input type="text" value={secret} onChange={e => setSecret(e.target.value)}
+          placeholder="Consumer Secret" style={inputStyle} />
+      </div>
+      {encoded && (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
+          <input readOnly value={encoded}
+            onFocus={e => e.target.select()}
+            style={{ ...inputStyle, background: dark ? '#0D1220' : '#F1F2EC' }} />
+          <button type="button" onClick={copier} style={{
+            padding: '0 14px', borderRadius: 8, border: 'none',
+            background: copie ? '#0F8A6E' : C.accent, color: dark ? '#000' : '#fff',
+            fontSize: 11.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+            display: 'flex', alignItems: 'center', gap: 5,
+          }}>
+            {copie ? <><CheckCircle size={12} /> {t('parametres.b64_copied')}</>
+                   : <><Copy size={12} /> {t('parametres.b64_copy')}</>}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Guide pas-à-pas pour configurer un opérateur Mobile Money ─────────
 // Affiché en haut du formulaire d'intégration (Wave / Orange Money / MTN MoMo).
 // Chaque opérateur a son propre portail dev avec sa propre procédure pour
@@ -169,6 +237,14 @@ function GuideOperateur({ fournisseur, C, dark }) {
                   <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.55 }}>
                     {e.desc}
                   </div>
+                  {/* Outil d'encodage Base64 sous l'étape 3 d'Orange Money :
+                      résout le besoin spécifique de la concaténation
+                      ConsumerKey:Secret + encodage Base64 sans envoyer
+                      l'utilisateur sur un site tiers ni exiger une
+                      commande shell. 100 % navigateur, zéro réseau. */}
+                  {fournisseur === 'orange_money' && e.n === 3 && (
+                    <EncodeurBase64Orange C={C} dark={dark} t={t} />
+                  )}
                 </div>
               </li>
             ))}
