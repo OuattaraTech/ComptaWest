@@ -34,13 +34,13 @@ export default function LogoApex({
   gap = 10,
   fallback,
 }) {
-  const [src, setSrc] = useState('/logos/apex.svg');
+  // Logo de marque complet (texte « APEX » + pictogramme) — fichier
+  // rectangulaire dédié à la sidebar et aux previews sociales. Le
+  // pictogramme carré (favicon) vit séparément dans /favicon.svg.
+  const [src, setSrc] = useState('/logos/apex.png');
   const [imageFailed, setImageFailed] = useState(false);
 
-  const handleError = () => {
-    if (src.endsWith('.svg')) setSrc('/logos/apex.png');
-    else setImageFailed(true);
-  };
+  const handleError = () => setImageFailed(true);
 
   const computedTextSize = textSize ?? Math.round(height * 0.4);
   const hasTextBlock = imageFailed || !!subtitle;
