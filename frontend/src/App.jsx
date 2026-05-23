@@ -14,6 +14,7 @@ import Layout from './components/Layout/Layout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import InvitationPage from './pages/InvitationPage.jsx';
 import TarifsPage from './pages/TarifsPage.jsx';
+import DecouvrirPage from './pages/DecouvrirPage.jsx';
 import CguPage from './pages/CguPage.jsx';
 import ConfidentialitePage from './pages/ConfidentialitePage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
@@ -84,6 +85,9 @@ function AppRoutes() {
           (consultation/upgrade depuis l'app). Pas de wrapper Public car on
           ne veut pas rediriger un utilisateur connecté vers /dashboard. */}
       <Route path="/tarifs" element={<TarifsPage />} />
+      {/* /decouvrir : landing dédiée au trafic vidéo (FB/TikTok/WhatsApp Status).
+          Différente de la landing principale : un SEUL CTA — créer une démo */}
+      <Route path="/decouvrir" element={<DecouvrirPage />} />
       {/* Pages légales publiques — référencées dans robots.txt et sitemap.xml */}
       <Route path="/cgu" element={<CguPage />} />
       <Route path="/confidentialite" element={<ConfidentialitePage />} />

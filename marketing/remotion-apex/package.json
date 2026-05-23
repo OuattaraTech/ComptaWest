@@ -1,0 +1,24 @@
+{
+  "name": "remotion-apex",
+  "version": "1.0.0",
+  "description": "Vidéos de présentation ApeX — générées par code avec Remotion",
+  "private": true,
+  "scripts": {
+    "start": "remotion studio",
+    "build:90s": "remotion render Video90s out/apex-90s.mp4 --concurrency 2",
+    "build:30s": "remotion render Video30s out/apex-30s.mp4 --concurrency 2",
+    "build:15s": "remotion render Video15s out/apex-15s.mp4 --concurrency 2",
+    "build:all": "npm run build:90s && npm run build:30s && npm run build:15s"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "remotion": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.0.0"
+  }
+}
