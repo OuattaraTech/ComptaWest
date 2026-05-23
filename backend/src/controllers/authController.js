@@ -8,6 +8,7 @@ const {
   creerJournauxDefaut, creerExerciceCourant,
   creerRubriquesPaieDefaut,
 } = require('../utils/helpers');
+const { ecritureFacture, ecriturePaiementFacture, ecritureDepense } = require('../utils/comptabilite-auto');
 const { logAudit } = require('../utils/audit');
 
 // ── Règles de validation ──────────────────────────────────────────────────
@@ -364,22 +365,46 @@ async function seederDonneesDemo(client, entrepriseId, userId) {
       INSERT INTO factures (entreprise_id, client_id, cree_par, numero, type, statut,
         date_emission, date_echeance, sous_total, taux_tva, montant_tva, total_ttc, montant_paye, conditions_paiement)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 18, $10, $11, $12, 'Paiement à 30 jours')
-      RETURNING id
+      RETURNING *
     `, [entrepriseId, f.cli, userId, numero, f.type, f.statut, f.date,
         new Date(new Date(f.date).getTime() + 30 * 86400000).toISOString().slice(0, 10),
         ht, tva, ttc, f.statut === 'payee' ? ttc : 0]);
+    const factureRow = factRes.rows[0];
     await client.query(`
       INSERT INTO lignes_facture (facture_id, description, quantite, prix_unitaire, total)
       VALUES ($1, $2, $3, $4, $5)
-    `, [factRes.rows[0].id, f.desc, f.qte, f.pu, ht]);
+    `, [factureRow.id, f.desc, f.qte, f.pu, ht]);
 
-    // Pour les factures payées, on ajoute un paiement enregistré
+    // Auto-comptabilisation : toute facture/avoir validé (≠ devis/brouillon)
+    // génère son écriture comptable (Débit 411 Clients / Crédit 70x + 4431 TVA)
+    // exactement comme via l'UI standard. Sans ça, les factures sont en BDD
+    // mais invisibles dans Grand Livre / Bilan.
+    if (f.type === 'facture' && ['envoyee','retard','payee'].includes(f.statut)) {
+      try {
+        await ecritureFacture(client, { entrepriseId, utilisateurId: userId, facture: factureRow });
+      } catch (err) {
+        if (err.code !== '42P01') throw err;
+      }
+    }
+
+    // Pour les factures payées : enregistrement du paiement + écriture
+    // d'encaissement (Débit 521 Banque / Crédit 411 Clients) qui solde
+    // la créance comptablement.
     if (f.statut === 'payee') {
       try {
-        await client.query(`
+        const paiementRes = await client.query(`
           INSERT INTO paiements (facture_id, montant, date_paiement, mode_paiement, reference)
           VALUES ($1, $2, $3, 'virement', $4)
-        `, [factRes.rows[0].id, ttc, f.date, `VIR-${numero}`]);
+          RETURNING *
+        `, [factureRow.id, ttc, f.date, `VIR-${numero}`]);
+        try {
+          await ecriturePaiementFacture(client, {
+            entrepriseId, utilisateurId: userId,
+            facture: factureRow, paiement: paiementRes.rows[0],
+          });
+        } catch (err) {
+          if (err.code !== '42P01') throw err;
+        }
       } catch (err) { if (err.code !== '42P01') throw err; }
     }
   }
@@ -401,11 +426,19 @@ async function seederDonneesDemo(client, entrepriseId, userId) {
   ];
   for (const d of depDefs) {
     if (!d.cat) continue;
-    await client.query(`
+    const depRes = await client.query(`
       INSERT INTO depenses (entreprise_id, categorie_id, description, montant_ht, taux_tva,
-        montant_tva, montant_ttc, date_depense, mode_paiement)
-      VALUES ($1, $2, $3, $4, 18, $5, $6, $7, 'virement')
-    `, [entrepriseId, d.cat, d.desc, d.ht, d.ht * 0.18, d.ht * 1.18, d.date]);
+        montant_tva, montant_ttc, date_depense, mode_paiement, statut, cree_par)
+      VALUES ($1, $2, $3, $4, 18, $5, $6, $7, 'virement', 'payee', $8)
+      RETURNING *
+    `, [entrepriseId, d.cat, d.desc, d.ht, d.ht * 0.18, d.ht * 1.18, d.date, userId]);
+    // Auto-comptabilisation dépense : Débit 60x/61x Charges + 4452 TVA déductible /
+    // Crédit 401 Fournisseurs (puis Débit 401 / Crédit 521 si statut=payee).
+    try {
+      await ecritureDepense(client, { entrepriseId, utilisateurId: userId, depense: depRes.rows[0] });
+    } catch (err) {
+      if (err.code !== '42P01') throw err;
+    }
   }
 
   // ─── 3 FOURNISSEURS (si migration 008 appliquée)
@@ -487,14 +520,33 @@ async function nettoyerComptesDemoExpires() {
       await client.query('COMMIT');
       return { supprimes: 0 };
     }
-    // Suppression en cascade (entreprises → clients/factures/employés → cree_par
-    // côté factures reste NULL si NO ACTION, donc on doit supprimer les
-    // entreprises avant les utilisateurs pour éviter le FK violation)
-    await client.query(`
-      DELETE FROM entreprises WHERE id IN (
-        SELECT entreprise_id FROM membres_entreprise WHERE utilisateur_id = ANY($1)
-      )
-    `, [expiredIds]);
+    // Suppression dans l'ordre dicté par les FK non-CASCADE :
+    //   1. lignes_ecriture → leurs compte_id pointent vers plan_comptable qui
+    //      sera supprimé par CASCADE depuis entreprises
+    //   2. ecritures → CASCADE depuis entreprises possible, mais on les
+    //      supprime explicitement pour libérer les lignes_ecriture
+    //   3. entreprises → CASCADE descend sur clients, factures, employés,
+    //      plan_comptable, journaux, exercices, abonnements…
+    //   4. utilisateurs (à la fin, après que les FK cree_par soient
+    //      orphelinées par les cascades précédentes)
+    const eidsRes = await client.query(
+      `SELECT entreprise_id FROM membres_entreprise WHERE utilisateur_id = ANY($1)`,
+      [expiredIds]
+    );
+    const entrepriseIds = eidsRes.rows.map(r => r.entreprise_id);
+    if (entrepriseIds.length > 0) {
+      await client.query(
+        `DELETE FROM lignes_ecriture WHERE ecriture_id IN (
+           SELECT id FROM ecritures WHERE entreprise_id = ANY($1)
+         )`,
+        [entrepriseIds]
+      ).catch(err => { if (err.code !== '42P01') throw err; });
+      await client.query(
+        `DELETE FROM ecritures WHERE entreprise_id = ANY($1)`,
+        [entrepriseIds]
+      ).catch(err => { if (err.code !== '42P01') throw err; });
+      await client.query(`DELETE FROM entreprises WHERE id = ANY($1)`, [entrepriseIds]);
+    }
     const delUsers = await client.query(
       `DELETE FROM utilisateurs WHERE id = ANY($1) RETURNING id`,
       [expiredIds]
