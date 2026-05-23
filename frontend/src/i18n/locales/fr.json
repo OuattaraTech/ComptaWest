@@ -1720,7 +1720,7 @@
     "guide_orange_money_step3_titre": "Concaténer + encoder Base64 (clé API marchand)",
     "guide_orange_money_step3_desc": "Orange exige que la clé API soit Base64(ConsumerKey:ConsumerSecret). Le plus simple : utilisez l'outil intégré ApeX juste en-dessous (zéro réseau, vos clés restent dans votre navigateur). Autres méthodes selon votre OS : Windows PowerShell — [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes('key:secret')) ; Linux/macOS — echo -n 'key:secret' | base64 ; Console navigateur (F12) — btoa('key:secret'). Le résultat est à coller dans le champ « Clé API Marchand » d'ApeX.",
     "b64_tool_title": "Outil intégré — encoder en Base64 (hors-ligne)",
-    "b64_tool_help": "Saisissez vos deux clés Orange : ApeX les concatène et encode pour vous. Aucun appel réseau, tout est calculé localement dans votre navigateur — vos credentials ne quittent pas votre poste.",
+    "b64_tool_help": "Saisissez vos deux clés : ApeX les concatène et encode pour vous. Aucun appel réseau, tout est calculé localement dans votre navigateur — vos credentials ne quittent pas votre poste.",
     "b64_copy": "Copier",
     "b64_copied": "Copié !",
     "guide_orange_money_step4_titre": "Récupérer le Notif Token + remplir ApeX",

@@ -1720,7 +1720,7 @@
     "guide_orange_money_step3_titre": "Concatenate + Base64-encode (merchant API key)",
     "guide_orange_money_step3_desc": "Orange requires the API key to be Base64(ConsumerKey:ConsumerSecret). Easiest path: use the built-in ApeX tool just below (zero network, your keys stay in your browser). Other methods depending on your OS: Windows PowerShell — [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes('key:secret')); Linux/macOS — echo -n 'key:secret' | base64; Browser console (F12) — btoa('key:secret'). Paste the result into the « Merchant API key » field in ApeX.",
     "b64_tool_title": "Built-in tool — encode to Base64 (offline)",
-    "b64_tool_help": "Enter your two Orange keys: ApeX concatenates and encodes them for you. No network calls — everything is computed locally in your browser, your credentials never leave your machine.",
+    "b64_tool_help": "Enter your two keys: ApeX concatenates and encodes them for you. No network calls — everything is computed locally in your browser, your credentials never leave your machine.",
     "b64_copy": "Copy",
     "b64_copied": "Copied!",
     "guide_orange_money_step4_titre": "Get the Notif Token + fill ApeX",
