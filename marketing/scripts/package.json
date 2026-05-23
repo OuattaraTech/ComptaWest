@@ -1,0 +1,12 @@
+{
+  "name": "apex-screenshots",
+  "version": "1.0.0",
+  "description": "Capture automatique des 10 écrans ApeX via Puppeteer (Chrome headless) pour le motion design Remotion",
+  "private": true,
+  "scripts": {
+    "capture": "node capture-screenshots.js"
+  },
+  "dependencies": {
+    "puppeteer": "^23.0.0"
+  }
+}
