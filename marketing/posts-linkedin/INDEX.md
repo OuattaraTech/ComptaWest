@@ -1,6 +1,29 @@
 # 📅 Calendrier des 30 posts LinkedIn ApeX
 
-Un post par jour pendant 30 jours pour faire découvrir ApeX aux gérants de PME ivoiriennes. Chaque post se concentre sur **une fonctionnalité** avec un angle différent (douleur, gain, conformité, technique, témoignage, provocation).
+Un post par jour pendant 30 jours pour faire découvrir ApeX aux gérants de PME ivoiriennes. Chaque post se concentre sur **une fonctionnalité** avec un angle différent (douleur, gain, conformité, technique, témoignage).
+
+## 🤝 Règle d'or — positionnement envers les experts-comptables
+
+Les experts-comptables sont des **alliés stratégiques**, pas des concurrents. Ils sont nos **principaux prescripteurs** : un cabinet qui recommande ApeX à ses 30 clients vaut plus que 300 PME convaincues isolément.
+
+**Tous les posts respectent ces principes :**
+
+✅ ApeX automatise la **saisie** (le travail mécanique, peu rémunérateur) → l'expert se concentre sur **l'analyse, l'optimisation, le conseil** (sa vraie valeur)
+✅ L'expert garde **la main sur la validation** : il peut accéder au compte ApeX du client avec un rôle dédié (« comptable »), vérifier, ajuster, passer les écritures complexes
+✅ Le client paie **moins de saisie**, mais **plus de conseil** — l'expert facture autant ou plus pour plus de valeur
+✅ Le palier **Cabinet** (60 000 FCFA/mois pour 15 entreprises) est conçu COMME UN OUTIL CABINET, pas pour les contourner
+
+**À ÉVITER absolument** (peut faire chuter le bouche-à-oreille cabinet) :
+❌ Tout discours « finissons-en avec les experts-comptables »
+❌ Tout slogan « divisez vos frais comptables par 4 »
+❌ Toute provocation directe vis-à-vis des cabinets (Tompro, Sage, etc.)
+❌ Tout récit où l'expert apparaît comme un « problème »
+
+**À VALORISER systématiquement :**
+✓ Le rôle de l'expert dans la chaîne (validation, optimisation, audit)
+✓ Le palier Cabinet comme **outil** professionnel
+✓ Les cabinets innovants d'Abidjan qui adoptent ApeX
+✓ La complémentarité ApeX + expert (un outil, deux acteurs)
 
 ## ⚙️ Conventions
 

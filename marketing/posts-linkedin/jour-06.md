@@ -1,44 +1,41 @@
-# Jour 06 — Bilan annuel en 1 clic
+# Jour 06 — Bilan annuel : l'outil qui libère ton expert-comptable
 
-**Visuel** : capture de la page Rapports + extrait du PDF bilan
-**Hashtags** : #Bilan #SYSCOHADA #ExpertComptable #PME_CI #Productivite
+**Visuel** : capture du PDF bilan généré par ApeX
+**Hashtags** : #Bilan #SYSCOHADA #ExpertComptable #PME_CI #Collaboration
 
 ---
 
-Décembre arrive. Tu sais ce que ça veut dire pour ton expert-comptable ?
+Une vérité que peu osent dire :
 
-3 semaines de saisie.
-12 nuits blanches.
-500 emails « urgent svp ».
-Une facture finale de 350 000 FCFA pour faire ton bilan.
+**Ton expert-comptable n'aime pas non plus passer 3 semaines à saisir tes pièces en décembre.**
 
-Et toi, tu paies.
-Et tu attends mi-février pour avoir tes comptes définitifs.
+Quand il facture le bilan annuel 350 000 FCFA, il y a deux composantes :
+1. Le **temps de saisie** (souvent 80 % du temps facturé) — peu rémunérateur, ennuyeux, mécanique
+2. Le **temps d'analyse et de conseil** (les 20 %) — sa vraie valeur ajoutée
 
-Sauf si tu utilises ApeX.
+Toi, tu paies pour les deux.
+Lui, il préférerait n'être payé que pour le 2e — c'est son vrai métier.
 
-Dans ApeX, **toutes tes écritures comptables sont déjà passées au fil de l'eau** :
-✓ chaque facture émise → écriture vente
-✓ chaque paiement reçu → écriture encaissement
-✓ chaque dépense → écriture charge
-✓ chaque bulletin de paie → écriture salaire + cotisations
-✓ chaque immobilisation → dotation amortissement
+**ApeX est l'outil qui les rapproche.**
 
-Au 31 décembre, tu cliques « Générer le bilan annuel ».
+Pendant l'année, toi tu utilises ApeX :
+✓ Chaque facture émise → écriture automatique
+✓ Chaque dépense → écriture automatique
+✓ Chaque bulletin de paie → écritures CNPS et salaires
+✓ Plan comptable SYSCOHADA pré-installé
 
-ApeX te sort un **PDF SYSCOHADA conforme**, équilibré, prêt à transmettre à ton expert-comptable. En 4 secondes.
+Au 31 décembre, ton expert-comptable :
+✓ Accède à ton compte ApeX (rôle « comptable » dédié, sans toucher à la paie ni Mobile Money)
+✓ Vérifie la qualité des écritures
+✓ Passe les écritures d'inventaire (provisions, charges constatées d'avance, amortissements complexes)
+✓ Optimise fiscalement (choix régime, étalements, crédits d'impôt)
+✓ Te rend un dossier de bilan complet, certifié, avec ses recommandations
 
-Ton expert-comptable :
-- Reçoit le PDF
-- Vérifie / fait les ajustements éventuels (charges étalées, provisions…)
-- Te rend la version définitive
+Pour LUI : il facture **la même chose** (parfois plus, car il prend plus de dossiers à temps égal).
+Pour TOI : tu paies **pour du conseil, pas pour de la saisie**.
 
-Au lieu de 3 semaines de saisie, **2 jours de relecture**.
-
-Au lieu de 350 000 FCFA, **80 000 FCFA**.
-
-C'est ça la digitalisation pour les PME ivoiriennes.
+Les meilleurs cabinets comptables d'Abidjan recommandent déjà à leurs clients de digitaliser leur compta. ApeX leur sert cette transition.
 
 apex.ci · démo gratuite
 
-#Bilan #SYSCOHADA #ExpertComptable #PME_CI #Productivite
+#Bilan #SYSCOHADA #ExpertComptable #PME_CI #Collaboration

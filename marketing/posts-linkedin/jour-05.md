@@ -5,32 +5,31 @@
 
 ---
 
-Je vais te dire une chose désagréable.
+Une vérité comptable que peu de gérants connaissent :
 
 Si tu tiens encore ta comptabilité dans Excel, **tu n'es pas en règle avec l'OHADA**.
 
 L'article 17 du SYSCOHADA est explicite : les écritures comptables doivent être **intangibles** (impossibles à modifier après validation), **horodatées**, et **traçables**.
 
-Excel ne fait aucune de ces 3 choses.
-Tompro le fait mais coûte 600 000 FCFA + maintenance.
-Sage le fait mais c'est de la dynamite à configurer.
+Excel ne fait aucune de ces 3 choses. C'est pour ça que ton expert-comptable insiste pour passer à un vrai outil — il sait qu'en cas de contrôle DGI, ton fichier Excel est juridiquement non opposable.
 
-ApeX le fait. Et c'est inclus dans le palier Starter à 15 000 FCFA/mois.
+Le marché propose plusieurs solutions sérieuses pour la compta SYSCOHADA en CI. Notre approche avec ApeX :
 
-Ce qui se passe quand tu utilises ApeX :
+→ **Plan comptable SYSCOHADA révisé** pré-installé (804 comptes)
+→ **Écritures automatiques** au fil de l'eau dès que tu utilises l'app :
+   • Facture émise → Débit 411 / Crédit 70x + 4431 TVA collectée
+   • Paiement reçu → Débit 521 / Crédit 411
+   • Dépense → Débit 60x + 4452 TVA déductible / Crédit 521
+→ **Trigger PostgreSQL** qui garantit l'équilibre (débit = crédit) avant chaque COMMIT — impossible de valider une écriture déséquilibrée
+→ **Intangibilité OHADA art. 17** : les écritures validées sont en lecture seule, modification = avoir SYSCOHADA-conforme
+→ **Grand Livre, Balance, Bilan** sortables à toute heure
 
-→ Tu émets une facture → ApeX passe **automatiquement** : Débit 411 Clients / Crédit 70x Ventes + 4431 TVA collectée
-→ Ton client paye → Débit 521 Banque / Crédit 411 Clients
-→ Tu enregistres une dépense → Débit 60x Charges + 4452 TVA déductible / Crédit 521 Banque
+Ton expert-comptable garde son rôle complet :
+- Accès direct au compte ApeX (rôle « comptable » dédié)
+- Validation des écritures complexes (provisions, étalements, charges constatées d'avance)
+- Optimisation fiscale et bouclage annuel
 
-Tu ne touches **JAMAIS** à une écriture. Elle est passée correctement, équilibrée (trigger BDD qui vérifie débit = crédit), horodatée, et stockée pour toujours.
-
-Le Grand Livre se met à jour en temps réel.
-La balance des comptes est sortable à toute heure.
-Le bilan annuel est généré en 1 clic au 31/12.
-
-Plan comptable SYSCOHADA révisé pré-installé (804 comptes).
-Conformité OHADA art. 17 garantie par trigger PostgreSQL.
+Inclus dans le palier Starter à 15 000 FCFA/mois.
 
 apex.ci · démo gratuite
 

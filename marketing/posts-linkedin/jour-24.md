@@ -5,20 +5,13 @@
 
 ---
 
-Combien tu payes pour ton logiciel de compta actuel ?
+L'opacité tarifaire est un fléau dans les logiciels B2B en Afrique.
 
-Si tu ne sais pas répondre précisément, c'est qu'on t'arnaque. La plupart des éditeurs facturent :
+Combien coûte vraiment ton logiciel actuel sur 3 ans, tout inclus ?
 
-- Licence initiale (300 000 à 800 000 FCFA)
-- Maintenance annuelle (15 à 20 % de la licence)
-- Modules en supplément (paie : +200k, immo : +100k)
-- Formation (50 000 FCFA/jour)
-- Support payant
-- Frais cachés (mise à jour majeure, multi-utilisateurs)
+Si tu hésites pour répondre, c'est que tu n'as pas une vision claire. Et c'est souvent fait exprès : licences initiales, maintenance, modules supplémentaires, formations, support, mises à jour majeures… tout est facturé séparément, et la facture finale surprend.
 
-Total réel pour une PME moyenne sur 3 ans : **1,8 à 2,5 millions FCFA**.
-
-ApeX, c'est différent. **4 paliers, prix affichés en grand sur apex.ci/tarifs** :
+ApeX choisit l'inverse : **4 paliers, prix affichés en grand sur apex.ci/tarifs**.
 
 🟢 **Découverte — GRATUIT à vie**
    1 entreprise, 50 factures/mois, 1 utilisateur. Idéal TPE / freelance.
@@ -32,14 +25,17 @@ ApeX, c'est différent. **4 paliers, prix affichés en grand sur apex.ci/tarifs*
 🟣 **Cabinet — 60 000 FCFA/mois**
    15 entreprises, tout illimité, 50 utilisateurs, OCR 1 500/mois, support prioritaire 4h.
 
-✅ **Sans engagement** : tu arrêtes quand tu veux, données exportables en CSV
-✅ **Sans frais cachés** : ce que tu vois est ce que tu payes
+Ce que tu vois est ce que tu paies :
+
+✅ **Sans engagement** : tu arrêtes quand tu veux, données exportables en CSV/Excel
+✅ **Sans frais cachés** : aucune ligne « maintenance », aucun module en supplément
+✅ **Mises à jour incluses** : tu n'as pas à payer la prochaine version
 ✅ **Paiement Mobile Money ou virement** : tu choisis
+✅ **Migration gratuite** : on t'aide à importer ton historique depuis ton outil actuel
 
-Sur 3 ans, Cabinet = **2 160 000 FCFA total**. Pour 15 entreprises gérées.
-À l'unité : **40 000 FCFA/entreprise/an**.
+Sur 3 ans, Cabinet = **2 160 000 FCFA total**. Pour 15 entreprises gérées. Soit **40 000 FCFA par entreprise et par an**.
 
-Compare avec Tompro. Compare avec Sage.
+Tu peux comparer en toute liberté avec n'importe quel concurrent. On est convaincus que la simplicité de notre grille fait le travail.
 
 apex.ci/tarifs
 

@@ -1,36 +1,40 @@
-# Jour 07 — Multi-entreprises sur un seul compte
+# Jour 07 — Multi-entreprises pour les cabinets comptables
 
 **Visuel** : sidebar avec switcher d'entreprise
 **Hashtags** : #CabinetComptable #MultiEntreprise #PME_CI #Productivite
 
 ---
 
-Si tu es expert-comptable, ce post est pour toi.
+Aux experts-comptables qui me lisent, ce post est pour vous.
 
-Tu gères combien de dossiers clients en ce moment ?
+Vous gérez combien de dossiers clients en ce moment ?
 15 ? 30 ? 80 ?
 
-Et tu jongles entre combien de logiciels différents pour chacun ?
+Si la majorité de vos clients vous envoient leurs pièces dans des classeurs ou par WhatsApp en fin de mois, vous le savez : la saisie représente 60 à 80 % du temps facturé. Le reste, c'est de l'analyse — la partie où vous apportez votre vraie valeur.
 
-→ Tompro pour les uns
-→ Sage pour 2 gros clients
-→ Excel pour les TPE qui ne paient pas un vrai logiciel
-→ Et ton calculateur paie maison
+ApeX est conçu pour vous aider à inverser ce ratio.
 
-Tu passes ta journée à faire des allers-retours entre 5 outils, et tu fais 1h de retard à chaque rendez-vous client parce que tu cherches où sont passés les fichiers.
+**Un compte. Toutes les entreprises de vos clients. Une sidebar pour switcher en 1 clic.**
 
-ApeX a été pensé pour toi.
+→ Vous (ou votre client) saisissez la matière au fil de l'eau dans ApeX
+→ Les écritures comptables sont passées automatiquement, mais vous gardez la main : vous validez, vous ajustez, vous passez les opérations complexes (provisions, étalements, retraitements)
+→ Vous accédez aux dossiers de TOUS vos clients depuis le même login
+→ Chaque entreprise a son plan comptable, ses journaux, son équipe — strictement isolés
+→ Vos clients ne voient PAS les autres clients (RGPD)
 
-**Un compte. Toutes tes entreprises clientes. Une sidebar pour switcher en 1 clic.**
+**Pour le cabinet** :
+- Moins de saisie répétitive = vous prenez plus de dossiers à temps égal
+- Plus de temps pour le conseil = vous facturez votre vraie valeur
+- Plus de différenciation = vous proposez « cabinet digital » à vos prospects
 
-→ Bascule entre 5, 20, 50 dossiers depuis le même login
-→ Chaque entreprise a son plan comptable, ses clients, ses factures, ses bulletins
-→ Les données sont **strictement isolées** (RGPD compliant)
-→ Tu invites tes collaborateurs avec des rôles précis (1 dossier OK, 5 autres KO, etc.)
+**Pour vos clients** :
+- Ils ont enfin une vision claire de leur compta en temps réel
+- Ils vous transmettent moins de pièces papier
+- Ils sont en règle FNE / CNPS / SYSCOHADA toute l'année (pas seulement au bilan)
 
-Le palier **Cabinet (60 000 FCFA/mois)** te débloque 15 entreprises et OCR Mistral pour saisir 100 reçus en 1 photo.
+Le palier **Cabinet (60 000 FCFA/mois)** débloque 15 entreprises et OCR Mistral pour traiter 1 500 reçus/mois.
 
-Coût comparé à Tompro Pro (1.2M FCFA + maintenance) ? Calcule.
+Les cabinets d'Abidjan qui ont basculé l'utilisent comme un outil de **rétention client** : recommandent ApeX à leurs PME → fidélisation, intégration impossible à défaire.
 
 Démo gratuite, sans carte : apex.ci
 
