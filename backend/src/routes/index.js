@@ -130,6 +130,25 @@ router.get('/auth/me/permissions', auth, entrepriseAccess(), getMesPermissions);
 router.get('/auth/invitation/:token',  getInvitation);
 router.post('/auth/invitation/:token', authLimiter, accepterInvitation);
 
+// ─── CABINETS PARTENAIRES (migration 029) ───────────────────────────────────
+const {
+  activerPartenariat, getCabinetInfo, getMesClients,
+  inviterPme, getInvitations, revoquerInvitation, revoquerConnection,
+  getInvitationPublic, accepterInvitationPme,
+} = require('../controllers/cabinetController');
+
+router.post('/cabinets/activer-partenariat', auth, entrepriseAccess(), activerPartenariat);
+router.get('/cabinets/me',                   auth, entrepriseAccess(), getCabinetInfo);
+router.get('/cabinets/mes-clients',          auth, entrepriseAccess(), getMesClients);
+router.post('/cabinets/inviter-pme',         auth, entrepriseAccess(), authLimiter, inviterPme);
+router.get('/cabinets/invitations',          auth, entrepriseAccess(), getInvitations);
+router.delete('/cabinets/invitations/:id',   auth, entrepriseAccess(), revoquerInvitation);
+router.delete('/cabinets/connections/:id',   auth, entrepriseAccess(), revoquerConnection);
+
+// Routes PUBLIQUES (acceptation par la PME prospecte, pas encore inscrite)
+router.get('/invitations/cabinet/:token',           getInvitationPublic);
+router.post('/invitations/cabinet/:token/accepter', authLimiter, accepterInvitationPme);
+
 // ─── ENTREPRISES ───────────────────────────────────────────────────────────
 router.get('/entreprises', auth, getMesEntreprises);
 router.post('/entreprises', auth, checkQuota('entreprises'), entrepriseRules, validate, createEntreprise);

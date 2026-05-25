@@ -69,9 +69,26 @@ const QUOTAS = {
     api_publique:   true,
     support_sla:   'prioritaire_4h',
   },
+  // Palier réservé aux cabinets d'experts-comptables PARTENAIRES (migration 029).
+  // Licence gratuite à vie en échange de l'apport de PME clientes payantes.
+  // Activé manuellement par le super-admin après validation du dossier ONECCA.
+  cabinet_partenaire: {
+    libelle:        'Cabinet Partenaire ONECCA',
+    prix_mensuel:  0,
+    prix_annuel:   0,
+    utilisateurs:   Infinity,
+    entreprises:   Infinity,     // accès illimité aux dossiers de leurs clients PME
+    factures_mois:  Infinity,
+    ocr_scans_mois: 2000,        // OCR un peu boosté pour la révision multi-dossiers
+    paiement_fournisseurs: 3,
+    paie_bulletins: Infinity,
+    immobilisations: true,
+    api_publique:   true,
+    support_sla:   'partenaire_2h',
+  },
 };
 
-const PALIERS_ORDONNES = ['decouverte', 'starter', 'pro', 'cabinet'];
+const PALIERS_ORDONNES = ['decouverte', 'starter', 'pro', 'cabinet', 'cabinet_partenaire'];
 
 function getQuotas(palier) {
   return QUOTAS[palier] || QUOTAS.decouverte;
