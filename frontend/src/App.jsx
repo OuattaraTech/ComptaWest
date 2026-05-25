@@ -14,7 +14,6 @@ import Layout from './components/Layout/Layout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import InvitationPage from './pages/InvitationPage.jsx';
 import TarifsPage from './pages/TarifsPage.jsx';
-import DecouvrirPage from './pages/DecouvrirPage.jsx';
 import PartenairesCabinetsPage from './pages/PartenairesCabinetsPage.jsx';
 import RejoindreCabinetPage from './pages/RejoindreCabinetPage.jsx';
 import CabinetPortailPage from './pages/CabinetPortailPage.jsx';
@@ -88,9 +87,6 @@ function AppRoutes() {
           (consultation/upgrade depuis l'app). Pas de wrapper Public car on
           ne veut pas rediriger un utilisateur connecté vers /dashboard. */}
       <Route path="/tarifs" element={<TarifsPage />} />
-      {/* /decouvrir : landing dédiée au trafic vidéo (FB/TikTok/WhatsApp Status).
-          Différente de la landing principale : un SEUL CTA — créer une démo */}
-      <Route path="/decouvrir" element={<DecouvrirPage />} />
       {/* Programme Partenaires Cabinets (migration 029) */}
       <Route path="/partenaires-cabinets" element={<PartenairesCabinetsPage />} />
       <Route path="/rejoindre/:token" element={<RejoindreCabinetPage />} />

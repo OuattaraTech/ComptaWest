@@ -115,7 +115,7 @@ Tout-en-un, conforme DGI :
 
 ### CTA bouton
 - **Texte du bouton** : « Tester gratuitement »
-- **URL** : `https://apex.ci/decouvrir?utm_source=fb&utm_campaign=lancement`
+- **URL** : `https://apex.ci/?utm_source=fb&utm_campaign=lancement`
 
 ### Ciblage recommandé
 - **Lieu** : Côte d'Ivoire (focus Abidjan + Yamoussoukro + Bouaké + San-Pedro)

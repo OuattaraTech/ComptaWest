@@ -13,7 +13,7 @@
 |---|---|---|
 | J-7 | Envoi vidéo à 10 amis entrepreneurs CI via WhatsApp privé, demande feedback | 0 |
 | J-6 | Ajustements vidéo selon retours (durée, ton, hook) | 0 |
-| J-5 | Création page `/decouvrir` ApeX (déjà fait) + UTM tracking | 0 |
+| J-5 | UTM tracking sur landing principale `/` (paramètres utm_source, utm_campaign) | 0 |
 | J-4 | Configuration Google Analytics + pixel Meta (Facebook + Instagram) | 0 |
 | J-3 | Liste cible : 50 contacts à approcher manuellement le J0 | 0 |
 | J-2 | Publication post LinkedIn « ce que j'ai appris en construisant ApeX » (storytelling, pas de promo) | 0 |
@@ -110,7 +110,7 @@
 - [ ] Vidéo 90s rendue (`out/apex-90s.mp4`)
 - [ ] Vidéo 30s rendue (`out/apex-30s.mp4`)
 - [ ] Vidéo 15s rendue (`out/apex-15s.mp4`)
-- [ ] Page `/decouvrir` déployée sur apex.ci
+- [ ] Bouton démo très visible sur la landing principale `/`
 - [ ] Google Analytics + pixel Meta installés
 - [ ] Compte Facebook Business + carte bancaire validée
 - [ ] WhatsApp Business installé sur le téléphone du gérant

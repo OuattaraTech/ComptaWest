@@ -175,7 +175,7 @@ export default function PartenairesCabinetsPage() {
               <p style={{ fontSize: 14, color: '#D1D5DB', marginTop: 8 }}>
                 Notre équipe vous recontacte sous 48 h ouvrées. En attendant, vous pouvez tester ApeX en mode démo.
               </p>
-              <Link to="/decouvrir" style={{
+              <Link to="/login" style={{
                 display: 'inline-flex', alignItems: 'center', gap: 8,
                 marginTop: 20, padding: '12px 28px', borderRadius: 12,
                 background: '#10B981', color: '#000', fontWeight: 700,
