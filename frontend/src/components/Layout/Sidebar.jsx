@@ -13,8 +13,9 @@ import {
   LayoutDashboard, Users, FileText, BarChart3, LogOut,
   Settings, ChevronRight, Receipt, Calculator, Plus,
   ChevronDown, Building2, Check, Sun, Moon, Shield, BookMarked, Wallet, UserCheck, Package, Box, Truck,
-  FileSignature,
+  FileSignature, Award,
 } from 'lucide-react';
+import { Link as RouterLink } from 'react-router-dom';
 
 // Items de navigation. Chaque entrée déclare le module backend à interroger :
 // le menu n'apparaît que si usePermissions().can(module, 'read') === true.
@@ -161,6 +162,25 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
             )}
           />
         </div>
+
+        {/* Bandeau Cabinet Partenaire ONECCA — visible si l'entreprise courante
+            est un cabinet partenaire (migration 029). Donne un accès rapide au
+            portail multi-dossiers /cabinet. */}
+        {actuelle?.type_compte === 'cabinet_partenaire' && (
+          <RouterLink to="/cabinet" style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '10px 12px', borderRadius: 10,
+            background: 'linear-gradient(135deg, #F59E0B25, #F59E0B10)',
+            border: '1px solid #F59E0B66',
+            textDecoration: 'none', marginBottom: 8,
+          }}>
+            <Award size={18} color="#F59E0B" />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#F59E0B' }}>CABINET PARTENAIRE</div>
+              <div style={{ fontSize: 10, color: C.muted, marginTop: 1 }}>Portail multi-dossiers →</div>
+            </div>
+          </RouterLink>
+        )}
 
         {/* Switcher entreprise */}
         <div style={{ position: 'relative' }}>

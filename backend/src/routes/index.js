@@ -134,7 +134,7 @@ router.post('/auth/invitation/:token', authLimiter, accepterInvitation);
 const {
   activerPartenariat, getCabinetInfo, getMesClients,
   inviterPme, getInvitations, revoquerInvitation, revoquerConnection,
-  getInvitationPublic, accepterInvitationPme,
+  getInvitationPublic, accepterInvitationPme, postulerPartenariat,
 } = require('../controllers/cabinetController');
 
 router.post('/cabinets/activer-partenariat', auth, entrepriseAccess(), activerPartenariat);
@@ -148,6 +148,9 @@ router.delete('/cabinets/connections/:id',   auth, entrepriseAccess(), revoquerC
 // Routes PUBLIQUES (acceptation par la PME prospecte, pas encore inscrite)
 router.get('/invitations/cabinet/:token',           getInvitationPublic);
 router.post('/invitations/cabinet/:token/accepter', authLimiter, accepterInvitationPme);
+
+// Formulaire public de candidature au programme Partenaire
+router.post('/cabinets/candidature', authLimiter, postulerPartenariat);
 
 // ─── ENTREPRISES ───────────────────────────────────────────────────────────
 router.get('/entreprises', auth, getMesEntreprises);

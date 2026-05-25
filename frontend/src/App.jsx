@@ -15,6 +15,9 @@ import LoginPage from './pages/LoginPage.jsx';
 import InvitationPage from './pages/InvitationPage.jsx';
 import TarifsPage from './pages/TarifsPage.jsx';
 import DecouvrirPage from './pages/DecouvrirPage.jsx';
+import PartenairesCabinetsPage from './pages/PartenairesCabinetsPage.jsx';
+import RejoindreCabinetPage from './pages/RejoindreCabinetPage.jsx';
+import CabinetPortailPage from './pages/CabinetPortailPage.jsx';
 import CguPage from './pages/CguPage.jsx';
 import ConfidentialitePage from './pages/ConfidentialitePage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
@@ -88,6 +91,11 @@ function AppRoutes() {
       {/* /decouvrir : landing dédiée au trafic vidéo (FB/TikTok/WhatsApp Status).
           Différente de la landing principale : un SEUL CTA — créer une démo */}
       <Route path="/decouvrir" element={<DecouvrirPage />} />
+      {/* Programme Partenaires Cabinets (migration 029) */}
+      <Route path="/partenaires-cabinets" element={<PartenairesCabinetsPage />} />
+      <Route path="/rejoindre/:token" element={<RejoindreCabinetPage />} />
+      {/* /r/:code = alias court vers la landing partenaires (renvoie sur le formulaire avec le code pré-rempli) */}
+      <Route path="/r/:code" element={<PartenairesCabinetsPage />} />
       {/* Pages légales publiques — référencées dans robots.txt et sitemap.xml */}
       <Route path="/cgu" element={<CguPage />} />
       <Route path="/confidentialite" element={<ConfidentialitePage />} />
@@ -97,6 +105,9 @@ function AppRoutes() {
             la matrice avant tout appel API : si refusé, page « Accès
             refusé » lisible plutôt qu'une page blanche avec erreurs. */}
         <Route path="dashboard" element={<DashboardSwitch />} />
+        {/* Portail Cabinet Partenaire (migration 029) — accessible si l'entreprise
+            courante a type_compte = 'cabinet_partenaire' ; sinon redirection auto */}
+        <Route path="cabinet" element={<CabinetPortailPage />} />
         <Route path="dashboard-rh" element={<PermissionGate module="dashboard_rh"><DashboardRH /></PermissionGate>} />
         <Route path="clients" element={<PermissionGate module="clients"><ClientsPage /></PermissionGate>} />
         <Route path="devis" element={<PermissionGate module="devis"><DevisPage /></PermissionGate>} />
