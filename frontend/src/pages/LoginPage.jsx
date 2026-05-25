@@ -1220,9 +1220,9 @@ export default function LoginPage() {
       // directement, plus besoin d'un second appel /auth/login.
       localStorage.removeItem('cw_entreprise_id');
       await loginDemo();
-      await chargerEntreprises();
+      const ent = await chargerEntreprises();
       toast.success(t('login.success_demo'));
-      navigate('/dashboard');
+      navigate(ent?.type_compte === 'cabinet_partenaire' ? '/cabinet' : '/dashboard');
     } catch (err) {
       toast.error(err.response?.data?.message || t('login.error_demo'));
     } finally {
@@ -1243,7 +1243,7 @@ export default function LoginPage() {
         }
         await register(form);
       }
-      await chargerEntreprises();
+      const ent = await chargerEntreprises();
 
       let palierAppliqueAvecSucces = false;
       if (mode === 'register' && planChoisi && planChoisi !== 'decouverte') {
@@ -1263,7 +1263,10 @@ export default function LoginPage() {
       } else {
         toast.success(t('login.success_login'));
       }
-      navigate('/dashboard');
+      // Cabinet partenaire → portail dédié, sinon dashboard standard.
+      // Le register d'un cabinet via /admin passe par /invitation/<token>,
+      // donc ici on couvre surtout le login récurrent du responsable cabinet.
+      navigate(ent?.type_compte === 'cabinet_partenaire' ? '/cabinet' : '/dashboard');
     } catch (err) {
       toast.error(err.response?.data?.message || t('login.error_login'));
     } finally {

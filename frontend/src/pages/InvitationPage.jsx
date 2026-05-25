@@ -83,9 +83,10 @@ export default function InvitationPage() {
     setLoading(true);
     try {
       await acceptInvitation(token, { nom: form.nom, mot_de_passe: form.mot_de_passe });
-      await chargerEntreprises();
+      const ent = await chargerEntreprises();
       toast.success(t('invitation.success'));
-      navigate('/dashboard');
+      // Cabinet partenaire (activation via /admin) → portail dédié.
+      navigate(ent?.type_compte === 'cabinet_partenaire' ? '/cabinet' : '/dashboard');
     } catch (err) {
       toast.error(err.response?.data?.message || t('invitation.error'));
     } finally {

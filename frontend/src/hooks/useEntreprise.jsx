@@ -28,8 +28,12 @@ export const EntrepriseProvider = ({ children }) => {
       const choix = saved || liste[0] || null;
       setActuelle(choix);
       if (choix) api.defaults.headers.common['X-Entreprise-Id'] = choix.id;
+      // Retourne l'entreprise active pour que les appelants puissent décider
+      // immédiatement où rediriger (ex: LoginPage → /cabinet si partenaire).
+      return choix;
     } catch (err) {
       console.error('Erreur chargement entreprises:', err);
+      return null;
     } finally {
       setLoading(false);
     }
