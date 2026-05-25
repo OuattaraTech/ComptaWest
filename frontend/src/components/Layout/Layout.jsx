@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar.jsx';
 import BandeauDemo from './BandeauDemo.jsx';
+import WelcomePmePartenariat from '../WelcomePmePartenariat.jsx';
 import { useTheme } from '../../hooks/useTheme.jsx';
 import { Menu, X } from 'lucide-react';
 
@@ -85,6 +86,7 @@ export default function Layout() {
         flex: 1, minHeight: '100vh', overflow: 'auto', minWidth: 0,
       }}>
         <BandeauDemo />
+        <WelcomePmePartenariat />
         <Outlet />
       </main>
     </div>

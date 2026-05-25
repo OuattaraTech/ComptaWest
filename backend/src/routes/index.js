@@ -135,6 +135,7 @@ const {
   activerPartenariat, getCabinetInfo, getMesClients,
   inviterPme, getInvitations, revoquerInvitation, revoquerConnection,
   getInvitationPublic, accepterInvitationPme, postulerPartenariat,
+  getEntreprisePublicInfo,
 } = require('../controllers/cabinetController');
 
 router.post('/cabinets/activer-partenariat', auth, entrepriseAccess(), activerPartenariat);
@@ -151,6 +152,9 @@ router.post('/invitations/cabinet/:token/accepter', authLimiter, accepterInvitat
 
 // Formulaire public de candidature au programme Partenaire
 router.post('/cabinets/candidature', authLimiter, postulerPartenariat);
+
+// Infos publiques d'une entreprise (nom seul — pour Welcome Modal PME)
+router.get('/entreprises/:id/public-info', auth, getEntreprisePublicInfo);
 
 // ─── ENTREPRISES ───────────────────────────────────────────────────────────
 router.get('/entreprises', auth, getMesEntreprises);

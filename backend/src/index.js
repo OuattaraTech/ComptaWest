@@ -156,6 +156,23 @@ app.listen(PORT, () => {
   };
   setTimeout(lancerNettoyage, 5 * 60 * 1000);                        // 5 min après boot
   setInterval(lancerNettoyage, 60 * 60 * 1000);                      // puis toutes les heures
+
+  // Cron applicatif : relance des invitations cabinet pending depuis > 2 jours
+  // (migration 029). 1 seule relance par invitation, pas de spam.
+  const { relancerInvitationsPending } = require('./controllers/cabinetController');
+  const lancerRelances = async () => {
+    try {
+      const r = await relancerInvitationsPending();
+      if (r.skipped) return;
+      if (r.relancees > 0) {
+        logger.info(`Relance invitations cabinets : ${r.envoyees}/${r.relancees} envoyées`);
+      }
+    } catch (err) {
+      logger.error('Relance invitations échouée', { erreur: err.message });
+    }
+  };
+  setTimeout(lancerRelances, 7 * 60 * 1000);                         // 7 min après boot
+  setInterval(lancerRelances, 60 * 60 * 1000);                       // toutes les heures
 });
 
 module.exports = app;

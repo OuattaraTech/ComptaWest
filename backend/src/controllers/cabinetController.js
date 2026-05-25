@@ -18,6 +18,12 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../../config/database');
+const { envoyerEmail } = require('../utils/email');
+const {
+  invitationPme: tplInvitationPme,
+  relanceInvitationPme: tplRelance,
+  activationCabinet: tplActivation,
+} = require('../utils/emailTemplates');
 const {
   creerCategoriesDefaut, creerPlanComptableSyscohada,
   creerJournauxDefaut, creerExerciceCourant,
@@ -194,13 +200,31 @@ async function inviterPme(req, res) {
     logAudit(req, 'INVITE', 'cabinet_invitation', inv.rows[0].id,
       { email: email_pme, remise });
 
-    // TODO L3 : envoi email réel via service email (en attendant, on retourne le lien)
+    // Envoi de l'email d'invitation (Resend si configuré, sinon log)
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const lienInvitation = `${baseUrl}/rejoindre/${token}`;
+    const cabRes = await pool.query('SELECT nom FROM entreprises WHERE id = $1', [req.entrepriseId]);
+    const cabinet_nom = cabRes.rows[0]?.nom || 'Votre cabinet';
+
+    const emailRes = await envoyerEmail({
+      to: email_pme,
+      ...tplInvitationPme({
+        cabinet_nom, lien_invitation: lienInvitation,
+        remise_pct: remise, nom_pme,
+      }),
+      tags: { type: 'invitation_pme', cabinet_id: req.entrepriseId },
+    });
+
     res.json({
       success: true,
-      message: 'Invitation enregistrée. Lien à transmettre à la PME.',
-      data: { ...inv.rows[0], lien_invitation: lienInvitation },
+      message: emailRes.sent
+        ? 'Invitation envoyée par email à la PME.'
+        : 'Invitation créée. Email pas encore envoyé (transmettez le lien manuellement).',
+      data: {
+        ...inv.rows[0],
+        lien_invitation: lienInvitation,
+        email_envoye: emailRes.sent,
+      },
     });
   } catch (err) {
     console.error('Erreur inviterPme:', err.message);
@@ -427,6 +451,23 @@ async function accepterInvitationPme(req, res) {
   }
 }
 
+// ─── GET /api/entreprises/:id/public-info ───────────────────────────────────
+// Renvoie les infos NON sensibles d'une entreprise (nom + type_compte +
+// code_parrain) — utilisé par le Welcome Modal PME pour afficher « votre
+// cabinet [Nom] ». Auth requise (n'importe quel utilisateur logué).
+async function getEntreprisePublicInfo(req, res) {
+  try {
+    const r = await pool.query(
+      `SELECT id, nom, type_compte, code_parrain FROM entreprises WHERE id = $1`,
+      [req.params.id]
+    );
+    if (!r.rows[0]) return res.status(404).json({ success: false, message: 'Entreprise introuvable' });
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
 // ─── PUBLIC : POST /api/cabinets/candidature ────────────────────────────────
 // Formulaire public pour postuler au programme Partenaire (LOT 2).
 // Le super-admin valide manuellement via /admin (LOT 4) avant activation.
@@ -484,6 +525,61 @@ async function postulerPartenariat(req, res) {
   }
 }
 
+// ─── CRON : relance des invitations pending J+2 ────────────────────────────
+// Cherche les invitations pending sans relance_envoyee_at créées il y a > 2j,
+// envoie un email de relance, marque relance_envoyee_at = NOW().
+// Une seule relance par invitation (volontairement : pas de spam).
+// Appelé toutes les heures par le cron applicatif (backend/src/index.js).
+async function relancerInvitationsPending() {
+  const client = await pool.connect();
+  try {
+    let dues;
+    try {
+      dues = await client.query(
+        `SELECT ci.*, e.nom AS cabinet_nom
+           FROM cabinet_invitations ci
+           JOIN entreprises e ON e.id = ci.cabinet_id
+          WHERE ci.statut = 'pending'
+            AND ci.relance_envoyee_at IS NULL
+            AND ci.created_at < NOW() - INTERVAL '2 days'
+            AND ci.expires_at > NOW()
+          LIMIT 20`
+      );
+    } catch (err) {
+      // 42P01 = table inexistante (migration 029 pas appliquée)
+      if (err.code === '42P01') return { skipped: true, raison: 'migration_029_non_appliquee' };
+      throw err;
+    }
+    if (dues.rows.length === 0) return { relancees: 0 };
+
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    let envoyees = 0;
+    for (const inv of dues.rows) {
+      const lien = `${baseUrl}/rejoindre/${inv.token}`;
+      const r = await envoyerEmail({
+        to: inv.email_pme,
+        ...tplRelance({
+          cabinet_nom: inv.cabinet_nom,
+          lien_invitation: lien,
+          remise_pct: inv.remise_proposee_pct,
+          nom_pme: inv.nom_pme,
+        }),
+        tags: { type: 'relance_invitation_pme', invitation_id: inv.id },
+      });
+      // On marque toujours comme « relance envoyée », même si l'email a juste
+      // été loggé en console — ça évite de spammer le cron en boucle.
+      await client.query(
+        `UPDATE cabinet_invitations SET relance_envoyee_at = NOW(), updated_at = NOW() WHERE id = $1`,
+        [inv.id]
+      );
+      if (r.sent) envoyees++;
+    }
+    return { relancees: dues.rows.length, envoyees };
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   activerPartenariat,
   getCabinetInfo,
@@ -495,4 +591,6 @@ module.exports = {
   getInvitationPublic,
   accepterInvitationPme,
   postulerPartenariat,
+  relancerInvitationsPending,
+  getEntreprisePublicInfo,
 };
