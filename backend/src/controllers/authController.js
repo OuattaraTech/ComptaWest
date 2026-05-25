@@ -137,16 +137,25 @@ const me = async (req, res) => {
     // SELECT enrichi avec is_demo + demo_expires_at (migration 028) pour
     // afficher le bandeau « Compte démo · expire dans Xh » côté UI.
     // Fallback rétrocompat si la migration n'est pas appliquée.
-    const buildSql = (avecDemo) => `
+    // is_super_admin ajouté en migration 029 (programme partenariat
+    // cabinets) → fallback rétrocompat si migration non appliquée.
+    const buildSql = (avecDemo, avecAdmin) => `
       SELECT id, nom, email, telephone, langue, created_at
              ${avecDemo ? ', is_demo, demo_expires_at' : ''}
+             ${avecAdmin ? ', is_super_admin' : ''}
         FROM utilisateurs WHERE id = $1 AND actif = true`;
     let result;
     try {
-      result = await pool.query(buildSql(true), [req.user.id]);
+      result = await pool.query(buildSql(true, true), [req.user.id]);
     } catch (err) {
-      if (err.code === '42703') result = await pool.query(buildSql(false), [req.user.id]);
-      else throw err;
+      if (err.code === '42703') {
+        try {
+          result = await pool.query(buildSql(true, false), [req.user.id]);
+        } catch (err2) {
+          if (err2.code === '42703') result = await pool.query(buildSql(false, false), [req.user.id]);
+          else throw err2;
+        }
+      } else throw err;
     }
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Utilisateur introuvable' });

@@ -182,6 +182,25 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
           </RouterLink>
         )}
 
+        {/* Bandeau Console Super-Admin — visible uniquement pour les
+            utilisateurs ApeX internes (is_super_admin=TRUE, migration 029).
+            Permet d'accéder à /admin sans taper l'URL. */}
+        {user?.is_super_admin && (
+          <RouterLink to="/admin" style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '10px 12px', borderRadius: 10,
+            background: 'linear-gradient(135deg, #6366F125, #6366F110)',
+            border: '1px solid #6366F166',
+            textDecoration: 'none', marginBottom: 8,
+          }}>
+            <Shield size={18} color="#6366F1" />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#6366F1' }}>CONSOLE ADMIN</div>
+              <div style={{ fontSize: 10, color: C.muted, marginTop: 1 }}>KPIs &amp; candidatures →</div>
+            </div>
+          </RouterLink>
+        )}
+
         {/* Switcher entreprise */}
         <div style={{ position: 'relative' }}>
           <button onClick={() => setShowSwitcher(s => !s)} style={{
