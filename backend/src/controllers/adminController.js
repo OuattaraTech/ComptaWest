@@ -17,7 +17,7 @@ const {
   creerRubriquesPaieDefaut,
 } = require('../utils/helpers');
 const { envoyerEmail } = require('../utils/email');
-const { activationCabinet: tplActivation } = require('../utils/emailTemplates');
+const { activationCabinet: tplActivation, invitationDirecteCabinet: tplInvitDirecte } = require('../utils/emailTemplates');
 const { logAudit } = require('../utils/audit');
 
 function genererCodeParrain() {
@@ -317,7 +317,165 @@ async function getRelances(req, res) {
   }
 }
 
+// ─── POST /api/admin/inviter-cabinet ───────────────────────────────────────
+// Invitation DIRECTE par le super-admin (≠ candidature spontanée).
+// L'admin saisit nom + email (+ téléphone WhatsApp optionnel + nom cabinet
+// optionnel + message personnel optionnel), et le système :
+//   1. Crée le compte cabinet complet (entreprise, plan compta, abonnement…)
+//      avec utilisateur en statut « invité » (actif=FALSE, invitation_token).
+//   2. Envoie un email chaleureux signé par le super-admin avec le bouton
+//      d'activation pointant sur /invitation/<token> (page existante).
+//   3. Si un téléphone est fourni, génère en plus un lien wa.me que l'admin
+//      peut cliquer pour relayer manuellement sur WhatsApp.
+// Le destinataire clique → définit son mot de passe → atterrit sur /cabinet.
+async function inviterCabinetDirect(req, res) {
+  const { nom_responsable, email, telephone, nom_cabinet, message_personnel } = req.body;
+
+  if (!nom_responsable || !email) {
+    return res.status(400).json({ success: false, message: 'Nom du responsable et email sont obligatoires' });
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ success: false, message: 'Email invalide' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Vérifier qu'aucun compte actif n'existe avec cet email
+    const existing = await client.query(
+      'SELECT id, actif FROM utilisateurs WHERE email = $1',
+      [email.toLowerCase().trim()]
+    );
+    if (existing.rows.length > 0 && existing.rows[0].actif) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        success: false,
+        message: `Un compte actif existe déjà avec ${email}. Cette personne peut se connecter directement.`,
+      });
+    }
+
+    const bcrypt = require('bcryptjs');
+    const motDePasseTemp = crypto.randomBytes(24).toString('hex');
+    const hash = await bcrypt.hash(motDePasseTemp, 12);
+    const invitationToken = crypto.randomBytes(32).toString('hex');
+
+    // Crée ou recycle l'utilisateur (compte inactif jusqu'à activation)
+    const userRes = await client.query(`
+      INSERT INTO utilisateurs
+        (nom, email, mot_de_passe, telephone, actif, invitation_token, invitation_expire_at)
+      VALUES ($1, $2, $3, $4, FALSE, $5, NOW() + INTERVAL '30 days')
+      ON CONFLICT (email) DO UPDATE SET
+        nom = EXCLUDED.nom,
+        telephone = COALESCE(EXCLUDED.telephone, utilisateurs.telephone),
+        actif = FALSE,
+        invitation_token = EXCLUDED.invitation_token,
+        invitation_expire_at = EXCLUDED.invitation_expire_at,
+        updated_at = NOW()
+      RETURNING id
+    `, [nom_responsable.trim(), email.toLowerCase().trim(), hash, telephone || null, invitationToken]);
+    const userId = userRes.rows[0].id;
+
+    // Génère un code parrain unique (5 tentatives anti-collision)
+    let codeParrain = null;
+    for (let i = 0; i < 5; i++) {
+      const candidate = genererCodeParrain();
+      const coll = await client.query('SELECT 1 FROM entreprises WHERE code_parrain = $1', [candidate]);
+      if (coll.rows.length === 0) { codeParrain = candidate; break; }
+    }
+    if (!codeParrain) throw new Error('Génération code parrain échouée');
+
+    // Nom cabinet par défaut basé sur le responsable si non fourni
+    const nomCabinet = (nom_cabinet || `Cabinet ${nom_responsable.split(/\s+/).slice(-1)[0]}`).trim();
+
+    const entRes = await client.query(`
+      INSERT INTO entreprises
+        (nom, forme_juridique, pays, devise, regime_fiscal, ville,
+         type_compte, code_parrain)
+      VALUES ($1, 'SARL', 'Côte d''Ivoire', 'FCFA', 'RNI', 'Abidjan',
+              'cabinet_partenaire', $2)
+      RETURNING id
+    `, [nomCabinet, codeParrain]);
+    const eid = entRes.rows[0].id;
+
+    // Membre propriétaire
+    await client.query(`
+      INSERT INTO membres_entreprise (utilisateur_id, entreprise_id, role)
+      VALUES ($1, $2, 'proprietaire')
+    `, [userId, eid]);
+
+    // Plan compta + journaux + exercice + rubriques paie (réutilise les helpers)
+    await creerCategoriesDefaut(eid, client);
+    await creerPlanComptableSyscohada(eid, client);
+    await creerJournauxDefaut(eid, client);
+    await creerExerciceCourant(eid, client);
+    await creerRubriquesPaieDefaut(eid, client);
+
+    // Abonnement gratuit cabinet_partenaire
+    await client.query(`
+      INSERT INTO abonnements
+        (entreprise_id, palier, statut, periodicite,
+         date_debut, date_fin, prix_mensuel_fcfa, notes_commerciales)
+      VALUES ($1, 'cabinet_partenaire', 'actif', 'annuel',
+              CURRENT_DATE, CURRENT_DATE + INTERVAL '999 years', 0,
+              'Invitation directe super-admin')
+    `, [eid]);
+
+    await client.query('COMMIT');
+
+    // Envoi email d'invitation (hors transaction)
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const lienActivation = `${baseUrl}/invitation/${invitationToken}`;
+    // Récupère le nom du super-admin pour signer l'email et le message WA
+    const adminRes = await pool.query('SELECT nom FROM utilisateurs WHERE id=$1', [req.user.id]);
+    const expediteurNom = adminRes.rows[0]?.nom || "L'équipe ApeX";
+
+    const emailRes = await envoyerEmail({
+      to: email,
+      ...tplInvitDirecte({
+        nom_responsable: nom_responsable.trim(),
+        lien_activation: lienActivation,
+        message_personnel: message_personnel ? message_personnel.trim() : null,
+        expediteur_nom: expediteurNom,
+      }),
+      tags: { type: 'invitation_cabinet_direct', cabinet_id: eid },
+    });
+
+    // Lien WhatsApp prêt-à-cliquer si téléphone fourni
+    let lienWhatsapp = null;
+    if (telephone && telephone.trim()) {
+      const phone = telephone.replace(/[^\d+]/g, '').replace(/^\+/, '');
+      const msgWa = `Bonjour ${nom_responsable},\n\n${expediteurNom} (ApeX) vous invite à rejoindre le Programme Partenaires Cabinets — licence gratuite + commission sur chaque PME parrainée.\n\nActivez votre compte : ${lienActivation}\n\nÀ très vite !`;
+      lienWhatsapp = `https://wa.me/${phone}?text=${encodeURIComponent(msgWa)}`;
+    }
+
+    logAudit(req, 'INVITE_DIRECT', 'cabinet', eid, { email, code_parrain: codeParrain });
+
+    res.json({
+      success: true,
+      message: emailRes.sent
+        ? `Invitation envoyée à ${email}`
+        : `Cabinet créé, mais l'email automatique a échoué — utilisez le lien WhatsApp ou copiez le lien manuellement.`,
+      data: {
+        cabinet_id: eid,
+        cabinet_nom: nomCabinet,
+        code_parrain: codeParrain,
+        lien_activation: lienActivation,
+        lien_whatsapp: lienWhatsapp,
+        email_envoye: emailRes.sent,
+      },
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Erreur inviterCabinetDirect:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   getStats, getCabinetsLeaderboard, getCandidatures,
   validerCandidature, refuserCandidature, getRelances,
+  inviterCabinetDirect,
 };

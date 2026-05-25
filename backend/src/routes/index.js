@@ -161,6 +161,7 @@ const { requireSuperAdmin } = require('../middleware/superAdmin');
 const {
   getStats: adminGetStats, getCabinetsLeaderboard, getCandidatures,
   validerCandidature, refuserCandidature, getRelances: adminGetRelances,
+  inviterCabinetDirect,
 } = require('../controllers/adminController');
 
 router.get('/admin/stats',                       auth, requireSuperAdmin, adminGetStats);
@@ -169,6 +170,7 @@ router.get('/admin/candidatures',                auth, requireSuperAdmin, getCan
 router.post('/admin/candidatures/:id/valider',   auth, requireSuperAdmin, validerCandidature);
 router.post('/admin/candidatures/:id/refuser',   auth, requireSuperAdmin, refuserCandidature);
 router.get('/admin/relances',                    auth, requireSuperAdmin, adminGetRelances);
+router.post('/admin/inviter-cabinet',            auth, requireSuperAdmin, inviterCabinetDirect);
 
 // ─── ENTREPRISES ───────────────────────────────────────────────────────────
 router.get('/entreprises', auth, getMesEntreprises);

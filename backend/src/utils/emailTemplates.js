@@ -184,4 +184,76 @@ Accédez à votre portail : ${lien_portail}
   return { subject, html, text };
 }
 
-module.exports = { invitationPme, relanceInvitationPme, activationCabinet };
+// ─── Invitation directe d'un cabinet par le super-admin ───────────────────
+// Différent de `activationCabinet` (qui suit une candidature spontanée) :
+// ici l'admin choisit personnellement le cabinet et l'invite.
+// Le ton est chaleureux, signé, avec un message personnel optionnel.
+function invitationDirecteCabinet({ nom_responsable, lien_activation, message_personnel, expediteur_nom = "L'équipe ApeX" }) {
+  const prenom = (nom_responsable || '').trim().split(/\s+/)[0] || nom_responsable;
+  const subject = `${prenom}, je vous propose une licence cabinet partenaire ApeX`;
+
+  const messageBloc = message_personnel ? `
+    <div style="padding: 16px 20px; background: #F0FDF4; border-left: 4px solid #10B981; border-radius: 0 8px 8px 0; margin: 20px 0; font-style: italic; color: #1F2937;">
+      ${message_personnel.replace(/\n/g, '<br>')}
+    </div>` : '';
+
+  const html = wrap('Programme Partenaires Cabinets', `
+    <p>Bonjour ${nom_responsable},</p>
+
+    <p>Je vous écris personnellement pour vous proposer de rejoindre le
+    <strong>Programme Partenaires Cabinets ApeX</strong> — réservé aux
+    experts-comptables ONECCA qui accompagnent les PME ivoiriennes au quotidien.</p>
+
+    ${messageBloc}
+
+    <div class="benefits">
+      <strong>Vos avantages, 100 % offerts :</strong>
+      <ul>
+        <li><strong>Licence cabinet complète</strong> — dossiers clients illimités, révision SYSCOHADA, conformité ITS 2024</li>
+        <li><strong>Code parrain personnel</strong> à partager à vos clients PME (qui obtiennent une remise sur leur 1ère année)</li>
+        <li><strong>Commission</strong> sur chaque PME parrainée (modalités à valider ensemble)</li>
+        <li>Support prioritaire WhatsApp en <strong>2 h ouvrées</strong></li>
+        <li>Une <strong>page dédiée</strong> sur apex.ci où votre cabinet apparaît en référence</li>
+      </ul>
+    </div>
+
+    <p style="text-align: center;">
+      <a href="${lien_activation}" class="button">Activer mon compte cabinet</a>
+    </p>
+
+    <p class="small">L'inscription prend 2 minutes : vous définissez votre mot de passe,
+    votre code parrain est généré automatiquement, vous pouvez inviter vos premiers
+    clients dans la foulée.</p>
+
+    <p>Le lien ci-dessus est personnel et expire dans 30 jours. Si une question vous
+    vient, répondez simplement à ce mail ou écrivez-nous sur WhatsApp.</p>
+
+    <p>À très bientôt,<br>
+    <strong>${expediteur_nom}</strong><br>
+    <span class="small">ApeX · Programme Partenaires</span></p>
+  `, `Invitation personnelle envoyée par ${expediteur_nom}. Vous pouvez ignorer ce mail si le projet ne vous intéresse pas — aucun rappel automatique ne sera envoyé.`);
+
+  const text = `Bonjour ${nom_responsable},
+
+Je vous écris personnellement pour vous proposer de rejoindre le Programme
+Partenaires Cabinets ApeX — réservé aux experts-comptables ONECCA.
+
+${message_personnel ? '\n' + message_personnel + '\n' : ''}
+Vos avantages, 100 % offerts :
+  - Licence cabinet complète (dossiers illimités, révision SYSCOHADA, ITS 2024)
+  - Code parrain personnel à partager à vos clients PME
+  - Commission sur chaque PME parrainée
+  - Support prioritaire WhatsApp 2 h ouvrées
+  - Page dédiée sur apex.ci
+
+Activez votre compte (lien personnel, expire dans 30 jours) :
+${lien_activation}
+
+À très bientôt,
+${expediteur_nom}
+— ApeX
+`;
+  return { subject, html, text };
+}
+
+module.exports = { invitationPme, relanceInvitationPme, activationCabinet, invitationDirecteCabinet };

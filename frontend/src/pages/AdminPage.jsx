@@ -4,6 +4,7 @@ import {
   TrendingUp, Users, Award, Building2, AlertCircle, RefreshCw,
   ShieldCheck, Sparkles, Check, X, Send, Copy, Crown, Medal,
   Clock, ArrowUpRight, Search, Inbox, Activity, Mail,
+  UserPlus, MessageCircle, Phone, ExternalLink,
 } from 'lucide-react';
 import api from '../utils/api.jsx';
 import toast from 'react-hot-toast';
@@ -88,6 +89,9 @@ export default function AdminPage() {
   const [motifRefus, setMotifRefus] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [recherche, setRecherche] = useState('');
+  const [modalInviter, setModalInviter] = useState(false);
+  const [formInvit, setFormInvit] = useState({ nom_responsable: '', email: '', telephone: '', nom_cabinet: '', message_personnel: '' });
+  const [resultatInvit, setResultatInvit] = useState(null);
 
   const fetchAll = async (silent = false) => {
     if (silent) setRefreshing(true); else setLoading(true);
@@ -156,6 +160,26 @@ export default function AdminPage() {
   const copier = (txt) => {
     navigator.clipboard.writeText(txt);
     toast.success('Copié');
+  };
+
+  const inviterCabinet = async () => {
+    const { nom_responsable, email } = formInvit;
+    if (!nom_responsable.trim() || !email.trim()) {
+      toast.error('Nom et email obligatoires');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const { data } = await api.post('/admin/inviter-cabinet', formInvit);
+      setResultatInvit(data.data);
+      setModalInviter(false);
+      setFormInvit({ nom_responsable: '', email: '', telephone: '', nom_cabinet: '', message_personnel: '' });
+      fetchAll(true);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur lors de l\'envoi');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   if (loading) {
@@ -232,16 +256,29 @@ export default function AdminPage() {
               </div>
             </div>
           </div>
-          <button onClick={() => fetchAll(true)} disabled={refreshing} style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '10px 16px', borderRadius: 10,
-            background: C.surface, border: `1px solid ${C.border}`,
-            color: C.text, fontFamily: fontUI, fontSize: 13, fontWeight: 600,
-            cursor: refreshing ? 'wait' : 'pointer',
-          }}>
-            <RefreshCw size={14} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-            Rafraîchir
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={() => fetchAll(true)} disabled={refreshing} style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '10px 16px', borderRadius: 10,
+              background: C.surface, border: `1px solid ${C.border}`,
+              color: C.text, fontFamily: fontUI, fontSize: 13, fontWeight: 600,
+              cursor: refreshing ? 'wait' : 'pointer',
+            }}>
+              <RefreshCw size={14} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+              Rafraîchir
+            </button>
+            <button onClick={() => setModalInviter(true)} className="admin-action" style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '10px 18px', borderRadius: 10,
+              background: `linear-gradient(135deg, ${C.accent}, ${C.admin})`,
+              border: 'none', color: '#FFF',
+              fontFamily: fontUI, fontSize: 13, fontWeight: 700,
+              cursor: 'pointer', boxShadow: `0 6px 20px ${C.adminGlow}`,
+            }}>
+              <UserPlus size={14} strokeWidth={2.4} />
+              Inviter un cabinet
+            </button>
+          </div>
         </div>
       </div>
 
@@ -487,6 +524,134 @@ export default function AdminPage() {
         </Modal>
       )}
 
+      {/* MODAL INVITER UN CABINET */}
+      {modalInviter && (
+        <Modal C={C} onClose={() => !actionLoading && setModalInviter(false)} large>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg, ${C.accent}, ${C.admin})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 6px 20px ${C.adminGlow}` }}>
+              <UserPlus size={22} color="#FFF" strokeWidth={2.4} />
+            </div>
+            <div>
+              <h3 style={{ fontFamily: fontDisplay, fontSize: 20, fontWeight: 800, margin: 0, color: C.text }}>Inviter un cabinet</h3>
+              <div style={{ fontSize: 12.5, color: C.sub, marginTop: 2 }}>Email personnalisé signé de ton nom · lien WhatsApp en bonus</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <FieldInput C={C} label="Nom du responsable *" placeholder="ex: Mamadou DIALLO" value={formInvit.nom_responsable} onChange={(v) => setFormInvit(f => ({ ...f, nom_responsable: v }))} />
+            <FieldInput C={C} label="Email professionnel *" type="email" placeholder="m.diallo@cabinet-diallo.ci" value={formInvit.email} onChange={(v) => setFormInvit(f => ({ ...f, email: v }))} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <FieldInput C={C} label="WhatsApp (optionnel)" placeholder="+225 07 00 00 00 00" value={formInvit.telephone} onChange={(v) => setFormInvit(f => ({ ...f, telephone: v }))}
+              hint="Permet de générer un lien wa.me pré-rempli" />
+            <FieldInput C={C} label="Nom du cabinet (optionnel)" placeholder="Cabinet Diallo & Associés" value={formInvit.nom_cabinet} onChange={(v) => setFormInvit(f => ({ ...f, nom_cabinet: v }))}
+              hint="Sinon, généré automatiquement" />
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: C.sub, marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Message personnel (optionnel)</label>
+            <textarea
+              value={formInvit.message_personnel}
+              onChange={(e) => setFormInvit(f => ({ ...f, message_personnel: e.target.value }))}
+              placeholder="ex: Nous avons échangé lors de la rencontre ONECCA du mois dernier, j'ai pensé que le programme pourrait vous intéresser…"
+              rows={3}
+              style={{
+                width: '100%', padding: 12, borderRadius: 10,
+                background: C.cardElev, border: `1px solid ${C.border}`,
+                color: C.text, fontFamily: fontUI, fontSize: 13,
+                outline: 'none', resize: 'vertical', boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Encadré en vert dans l'email reçu par le destinataire.</div>
+          </div>
+
+          <div style={{ marginTop: 16, padding: 14, background: C.cardElev, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12, color: C.sub, lineHeight: 1.6 }}>
+            <strong style={{ color: C.text }}>Ce qui sera fait :</strong> compte cabinet créé (palier <code style={{ fontFamily: fontMono, color: C.accent }}>cabinet_partenaire</code> gratuit · code parrain unique généré · plan SYSCOHADA initialisé). Email d'invitation envoyé via Resend avec lien d'activation valable 30 j. Lien WhatsApp prêt-à-cliquer retourné si téléphone fourni.
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 22, justifyContent: 'flex-end' }}>
+            <button onClick={() => setModalInviter(false)} disabled={actionLoading} style={btnSecondary(C)}>Annuler</button>
+            <button onClick={inviterCabinet} disabled={actionLoading} style={btnPrimary(C)}>
+              {actionLoading ? 'Envoi en cours…' : 'Envoyer l\'invitation'}
+              {!actionLoading && <Send size={14} />}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL SUCCÈS INVITATION */}
+      {resultatInvit && (
+        <Modal C={C} onClose={() => setResultatInvit(null)} large>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+            <div style={{ width: 52, height: 52, borderRadius: 14, background: `linear-gradient(135deg, ${C.accent}, ${C.admin})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 8px 24px ${C.adminGlow}` }}>
+              <Check size={26} color="#FFF" strokeWidth={2.8} />
+            </div>
+            <div>
+              <h3 style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 800, margin: 0, color: C.text, letterSpacing: '-0.015em' }}>Invitation prête</h3>
+              <div style={{ fontSize: 13, color: C.sub, marginTop: 2 }}>
+                {resultatInvit.email_envoye
+                  ? <>Email envoyé · Cabinet <strong style={{ color: C.text }}>{resultatInvit.cabinet_nom}</strong></>
+                  : <>Email automatique indisponible — utilise les liens ci-dessous</>}
+              </div>
+            </div>
+          </div>
+
+          {resultatInvit.email_envoye && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12, background: `${C.accent}12`, border: `1px solid ${C.accent}40`, borderRadius: 10, marginBottom: 16 }}>
+              <Mail size={16} color={C.accent} />
+              <span style={{ fontSize: 13, color: C.text }}>Email d'invitation parti avec succès.</span>
+            </div>
+          )}
+          {!resultatInvit.email_envoye && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12, background: `${C.warning}12`, border: `1px solid ${C.warning}40`, borderRadius: 10, marginBottom: 16 }}>
+              <AlertCircle size={16} color={C.warning} />
+              <span style={{ fontSize: 13, color: C.text }}>Configure <code style={{ fontFamily: fontMono }}>RESEND_API_KEY</code> pour automatiser l'envoi. En attendant, utilise WhatsApp ou copie le lien.</span>
+            </div>
+          )}
+
+          <ResultatLigne C={C}
+            icon={Award} label="Code parrain"
+            value={resultatInvit.code_parrain}
+            mono action={() => copier(resultatInvit.code_parrain)} actionLabel="Copier" />
+
+          <ResultatLigne C={C}
+            icon={ExternalLink} label="Lien d'activation (valable 30 j)"
+            value={resultatInvit.lien_activation}
+            mono small action={() => copier(resultatInvit.lien_activation)} actionLabel="Copier le lien" />
+
+          {resultatInvit.lien_whatsapp && (
+            <div style={{
+              marginTop: 16, padding: 16,
+              background: 'linear-gradient(135deg, #25D36615, #25D36608)',
+              border: '1px solid #25D36640', borderRadius: 12,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: '#25D366', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <MessageCircle size={18} color="#FFF" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text }}>Envoyer aussi sur WhatsApp</div>
+                  <div style={{ fontSize: 11.5, color: C.sub, marginTop: 2 }}>Ouvre WhatsApp avec un message pré-rempli</div>
+                </div>
+                <a href={resultatInvit.lien_whatsapp} target="_blank" rel="noopener noreferrer"
+                  className="admin-action"
+                  style={{
+                    padding: '10px 16px', borderRadius: 10,
+                    background: '#25D366', color: '#FFF', textDecoration: 'none',
+                    fontFamily: fontUI, fontWeight: 700, fontSize: 13,
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                  }}>
+                  Ouvrir WhatsApp <ExternalLink size={13} />
+                </a>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 22, justifyContent: 'flex-end' }}>
+            <button onClick={() => setResultatInvit(null)} style={btnPrimary(C)}>Terminé</button>
+          </div>
+        </Modal>
+      )}
+
       {/* MODAL REFUSER */}
       {modalRefuser && (
         <Modal C={C} onClose={() => !actionLoading && (setModalRefuser(null), setMotifRefus(''))}>
@@ -638,22 +803,74 @@ function Stat({ C, label, value }) {
   );
 }
 
-function Modal({ C, onClose, children }) {
+function Modal({ C, onClose, children, large }) {
   return (
     <div onClick={onClose} style={{
       position: 'fixed', inset: 0, zIndex: 200,
       background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 24, animation: 'fadeIn 0.2s ease-out',
+      padding: 24, animation: 'fadeIn 0.2s ease-out', overflowY: 'auto',
     }}>
       <div onClick={(e) => e.stopPropagation()} style={{
-        width: '100%', maxWidth: 480,
+        width: '100%', maxWidth: large ? 620 : 480,
         background: C.surface, border: `1px solid ${C.borderStrong}`,
         borderRadius: 18, padding: 28,
         boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+        maxHeight: '90vh', overflowY: 'auto',
       }}>
         {children}
       </div>
+    </div>
+  );
+}
+
+function FieldInput({ C, label, type = 'text', placeholder, value, onChange, hint }) {
+  return (
+    <div>
+      <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: C.sub, marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</label>
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+        style={{
+          width: '100%', padding: '10px 12px', borderRadius: 10,
+          background: C.cardElev, border: `1px solid ${C.border}`,
+          color: C.text, fontFamily: fontUI, fontSize: 13.5,
+          outline: 'none', boxSizing: 'border-box',
+        }} />
+      {hint && <div style={{ fontSize: 10.5, color: C.muted, marginTop: 4 }}>{hint}</div>}
+    </div>
+  );
+}
+
+function ResultatLigne({ C, icon: Icon, label, value, mono, small, action, actionLabel }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      padding: 14, background: C.cardElev,
+      border: `1px solid ${C.border}`, borderRadius: 10,
+      marginBottom: 10,
+    }}>
+      <div style={{ width: 32, height: 32, borderRadius: 9, background: `${C.admin}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <Icon size={15} color={C.admin} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</div>
+        <div style={{
+          fontSize: small ? 11.5 : 14, fontWeight: 600,
+          color: C.text, fontFamily: mono ? fontMono : 'inherit',
+          marginTop: 3,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>{value}</div>
+      </div>
+      {action && (
+        <button onClick={action} className="admin-action" style={{
+          padding: '7px 12px', borderRadius: 8,
+          background: 'transparent', border: `1px solid ${C.border}`,
+          color: C.text, fontFamily: fontUI, fontSize: 11.5, fontWeight: 600,
+          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+          flexShrink: 0,
+        }}>
+          <Copy size={11} /> {actionLabel}
+        </button>
+      )}
     </div>
   );
 }
