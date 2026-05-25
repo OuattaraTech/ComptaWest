@@ -17,6 +17,7 @@ import TarifsPage from './pages/TarifsPage.jsx';
 import PartenairesCabinetsPage from './pages/PartenairesCabinetsPage.jsx';
 import RejoindreCabinetPage from './pages/RejoindreCabinetPage.jsx';
 import CabinetPortailPage from './pages/CabinetPortailPage.jsx';
+import AdminPage from './pages/AdminPage.jsx';
 import CguPage from './pages/CguPage.jsx';
 import ConfidentialitePage from './pages/ConfidentialitePage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
@@ -104,6 +105,9 @@ function AppRoutes() {
         {/* Portail Cabinet Partenaire (migration 029) — accessible si l'entreprise
             courante a type_compte = 'cabinet_partenaire' ; sinon redirection auto */}
         <Route path="cabinet" element={<CabinetPortailPage />} />
+        {/* Console super-admin — protégée par requireSuperAdmin côté backend.
+            Le frontend affiche « Accès refusé » si l'API renvoie 403. */}
+        <Route path="admin" element={<AdminPage />} />
         <Route path="dashboard-rh" element={<PermissionGate module="dashboard_rh"><DashboardRH /></PermissionGate>} />
         <Route path="clients" element={<PermissionGate module="clients"><ClientsPage /></PermissionGate>} />
         <Route path="devis" element={<PermissionGate module="devis"><DevisPage /></PermissionGate>} />

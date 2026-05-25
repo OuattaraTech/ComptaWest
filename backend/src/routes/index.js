@@ -156,6 +156,20 @@ router.post('/cabinets/candidature', authLimiter, postulerPartenariat);
 // Infos publiques d'une entreprise (nom seul — pour Welcome Modal PME)
 router.get('/entreprises/:id/public-info', auth, getEntreprisePublicInfo);
 
+// ─── ADMIN (super-admin uniquement) — migration 029 ─────────────────────────
+const { requireSuperAdmin } = require('../middleware/superAdmin');
+const {
+  getStats: adminGetStats, getCabinetsLeaderboard, getCandidatures,
+  validerCandidature, refuserCandidature, getRelances: adminGetRelances,
+} = require('../controllers/adminController');
+
+router.get('/admin/stats',                       auth, requireSuperAdmin, adminGetStats);
+router.get('/admin/cabinets',                    auth, requireSuperAdmin, getCabinetsLeaderboard);
+router.get('/admin/candidatures',                auth, requireSuperAdmin, getCandidatures);
+router.post('/admin/candidatures/:id/valider',   auth, requireSuperAdmin, validerCandidature);
+router.post('/admin/candidatures/:id/refuser',   auth, requireSuperAdmin, refuserCandidature);
+router.get('/admin/relances',                    auth, requireSuperAdmin, adminGetRelances);
+
 // ─── ENTREPRISES ───────────────────────────────────────────────────────────
 router.get('/entreprises', auth, getMesEntreprises);
 router.post('/entreprises', auth, checkQuota('entreprises'), entrepriseRules, validate, createEntreprise);
