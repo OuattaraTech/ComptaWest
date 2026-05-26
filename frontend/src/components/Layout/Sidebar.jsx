@@ -37,6 +37,7 @@ const navItems = [
   { to: '/paie',            icon: UserCheck,       i18nKey: 'nav.paie',             label: 'Paie & RH',         module: 'paie' },
   { to: '/taxes',           icon: Calculator,      i18nKey: 'nav.taxes',            label: 'Taxes & Impôts',    module: 'taxes' },
   { to: '/comptabilite',    icon: BookMarked,      i18nKey: 'nav.comptabilite',     label: 'Comptabilité',      module: 'ecritures' },
+  { to: '/dsf',             icon: FileSignature,                                    label: 'Liasse DSF',        module: 'cloture' },
   { to: '/rapports',        icon: BarChart3,       i18nKey: 'nav.rapports',         label: 'Rapports',          module: 'rapports' },
 ];
 

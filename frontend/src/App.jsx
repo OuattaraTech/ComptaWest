@@ -30,6 +30,7 @@ import TaxesPage from './pages/TaxesPage.jsx';
 import ParametresPage from './pages/ParametresPage.jsx';
 import AuditLogPage from './pages/AuditLogPage.jsx';
 import ComptabilitePage from './pages/ComptabilitePage.jsx';
+import DsfPage from './pages/DsfPage.jsx';
 import TresoreriePage from './pages/TresoreriePage.jsx';
 import RHPage from './pages/RHPage.jsx';
 import ImmobilisationsPage from './pages/ImmobilisationsPage.jsx';
@@ -128,6 +129,7 @@ function AppRoutes() {
         <Route path="taxes" element={<PermissionGate module="taxes"><TaxesPage /></PermissionGate>} />
         <Route path="rapports" element={<PermissionGate module="rapports"><RapportsPage /></PermissionGate>} />
         <Route path="comptabilite" element={<PermissionGate module="ecritures"><ComptabilitePage /></PermissionGate>} />
+        <Route path="dsf" element={<PermissionGate module="cloture"><DsfPage /></PermissionGate>} />
         <Route path="audit-log" element={<PermissionGate module="audit_log"><AuditLogPage /></PermissionGate>} />
         <Route path="parametres" element={<ParametresPage />} />
       </Route>

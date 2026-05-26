@@ -286,7 +286,7 @@ export default function CabinetPortailPage() {
       case 'TVA':  return '/taxes';
       case 'CNPS': return '/paie';
       case 'IS':   return '/taxes';
-      case 'DSF':  return '/comptabilite';
+      case 'DSF':  return '/dsf';
       default:     return '/dashboard';
     }
   };
