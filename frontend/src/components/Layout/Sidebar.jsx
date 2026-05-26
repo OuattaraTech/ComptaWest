@@ -84,8 +84,24 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
   const [newEntNom, setNewEntNom] = useState('');
   const [creating, setCreating] = useState(false);
 
-  // Couleurs selon le thème
-  const C = {
+  // Mode cabinet : adopte la palette du portail (fond mesh gradient
+  // or/émeraude + accent or) pour une continuité visuelle entre la
+  // sidebar et la page /cabinet. Voir CabinetPortailPage.jsx getC().
+  const modeCabinet = actuelle?.type_compte === 'cabinet_partenaire';
+  const C = modeCabinet ? {
+    bg:     dark
+      ? 'radial-gradient(ellipse 100% 60% at 50% 0%, rgba(245,196,74,0.10), transparent 70%), #0B0D14'
+      : 'linear-gradient(180deg, #FAFBF5 0%, #F2EFE3 100%)',
+    border: dark ? '#23252F' : '#E5DFC8',
+    accent: dark ? '#F5C44A' : '#D69A17',     // or — couleur identité cabinet
+    text:   dark ? '#F2F4F8' : '#0E1116',
+    muted:  dark ? '#6B7280' : '#6B6852',
+    sub:    dark ? '#A9B1BC' : '#4A4837',
+    hover:  dark ? '#181B23' : '#F0EBD8',
+    gold:   '#F5C44A',
+    inputBg: dark ? '#10131A' : '#F5F0DD',
+    dropBg:  dark ? '#13161E' : '#FFFFFF',
+  } : {
     bg:     dark ? '#0D1220' : '#FFFFFF',
     border: dark ? '#1E2D40' : '#E2EAF4',
     accent: '#00D4AA',
@@ -118,13 +134,9 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
   };
 
   const roleInfo = ROLE_COLORS[actuelle?.role] || ROLE_COLORS.user;
-  // Mode « espace cabinet » : quand le dossier sélectionné est celui du
-  // cabinet partenaire lui-même, on masque tous les modules PME (compta,
-  // factures, paie…) — ils n'ont aucun sens pour le cabinet sur SON
-  // propre dossier. Le cabinet n'accède aux modules PME qu'en switchant
-  // vers le dossier d'un client. Seuls Cabinet + Paramètres + Admin
-  // (si super_admin) restent visibles.
-  const modeCabinet = actuelle?.type_compte === 'cabinet_partenaire';
+  // modeCabinet : déclaré plus haut (avant la palette C) pour pouvoir
+  // basculer la couleur du fond + accent or quand le dossier sélectionné
+  // est celui du cabinet partenaire lui-même.
   // Section Administration : visible si au moins un item admin (audit log…)
   // est lisible. La matrice peut évoluer sans toucher à ce check.
   const showAdminSection = !modeCabinet && adminItems.some(item => can(item.module, 'read'));
