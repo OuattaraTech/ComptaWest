@@ -17,7 +17,7 @@ const {
   creerRubriquesPaieDefaut,
 } = require('../utils/helpers');
 const { envoyerEmail } = require('../utils/email');
-const { activationCabinet: tplActivation, invitationDirecteCabinet: tplInvitDirecte } = require('../utils/emailTemplates');
+const { invitationDirecteCabinet: tplInvitDirecte } = require('../utils/emailTemplates');
 const { logAudit } = require('../utils/audit');
 
 function genererCodeParrain() {
@@ -43,7 +43,6 @@ async function getStats(req, res) {
         (SELECT COUNT(*) FROM cabinet_invitations WHERE statut = 'pending') AS invitations_pending,
         (SELECT COUNT(*) FROM cabinet_invitations WHERE statut = 'accepted') AS invitations_acceptees,
         (SELECT COUNT(*) FROM cabinet_invitations) AS invitations_total,
-        (SELECT COUNT(*) FROM cabinet_candidatures WHERE statut = 'pending') AS candidatures_pending,
         (SELECT COUNT(*) FROM utilisateurs WHERE actif = TRUE) AS utilisateurs_actifs,
         (SELECT COUNT(*) FROM utilisateurs WHERE is_demo = TRUE AND actif = TRUE) AS users_demo_actifs
     `);
@@ -64,7 +63,6 @@ async function getStats(req, res) {
         invitations_acceptees: acceptees,
         invitations_total: totalInv,
         taux_conversion_pct: tauxConversion,
-        candidatures_pending: parseInt(c.candidatures_pending) || 0,
         utilisateurs_actifs: parseInt(c.utilisateurs_actifs) || 0,
         users_demo_actifs: parseInt(c.users_demo_actifs) || 0,
       },
@@ -117,187 +115,6 @@ async function getCabinetsLeaderboard(req, res) {
   }
 }
 
-// ─── GET /api/admin/candidatures — Liste des candidatures cabinets ─────────
-async function getCandidatures(req, res) {
-  try {
-    const statut = req.query.statut || 'pending';
-    const r = await pool.query(
-      `SELECT c.*, e.nom AS cabinet_cree_nom
-         FROM cabinet_candidatures c
-         LEFT JOIN entreprises e ON e.id = c.cabinet_cree_id
-        WHERE c.statut = $1
-        ORDER BY c.created_at DESC LIMIT 200`,
-      [statut]
-    );
-    res.json({ success: true, data: r.rows });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-}
-
-// ─── POST /api/admin/candidatures/:id/valider ─────────────────────────────
-// Transforme une candidature pending en compte cabinet_partenaire complet :
-//   1. Crée l'utilisateur dirigeant (actif=false, invitation_token unique)
-//   2. Crée l'entreprise (type_compte='cabinet_partenaire', code parrain)
-//   3. Membre proprietaire, abonnement 0 FCFA, plan compta SYSCOHADA
-//   4. Envoie email d'activation avec lien /invitation/<token>
-async function validerCandidature(req, res) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    const candRes = await client.query(
-      `SELECT * FROM cabinet_candidatures WHERE id = $1 AND statut = 'pending' FOR UPDATE`,
-      [req.params.id]
-    );
-    const cand = candRes.rows[0];
-    if (!cand) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ success: false, message: 'Candidature introuvable ou déjà traitée' });
-    }
-
-    // Génère un mot de passe aléatoire temporaire (jamais envoyé en clair)
-    // + invitation_token pour le lien d'activation
-    const motDePasseTemp = crypto.randomBytes(24).toString('hex');
-    const bcrypt = require('bcryptjs');
-    const hash = await bcrypt.hash(motDePasseTemp, 12);
-    const invitationToken = crypto.randomBytes(32).toString('hex');
-
-    // Crée ou met à jour l'utilisateur
-    const userRes = await client.query(
-      `INSERT INTO utilisateurs (nom, email, mot_de_passe, actif,
-                                  invitation_token, invitation_expire_at)
-       VALUES ($1, $2, $3, FALSE, $4, NOW() + INTERVAL '30 days')
-       ON CONFLICT (email) DO UPDATE SET
-         nom = $1,
-         actif = FALSE,
-         invitation_token = $4,
-         invitation_expire_at = NOW() + INTERVAL '30 days',
-         updated_at = NOW()
-       RETURNING id`,
-      [cand.nom_responsable, cand.email_pro, hash, invitationToken]
-    );
-    const userId = userRes.rows[0].id;
-
-    // Génère un code parrain unique
-    let codeParrain;
-    for (let i = 0; i < 5; i++) {
-      codeParrain = genererCodeParrain();
-      const coll = await client.query('SELECT 1 FROM entreprises WHERE code_parrain = $1', [codeParrain]);
-      if (coll.rows.length === 0) break;
-      codeParrain = null;
-    }
-    if (!codeParrain) throw new Error('Génération code parrain échouée');
-
-    // Crée l'entreprise cabinet
-    const entRes = await client.query(
-      `INSERT INTO entreprises
-         (nom, forme_juridique, pays, devise, regime_fiscal, ville,
-          type_compte, code_parrain)
-       VALUES ($1, 'SARL', 'Côte d''Ivoire', 'FCFA', 'RNI', $2,
-               'cabinet_partenaire', $3)
-       RETURNING id`,
-      [cand.nom_cabinet, cand.ville || 'Abidjan', codeParrain]
-    );
-    const eid = entRes.rows[0].id;
-
-    // Membre propriétaire
-    await client.query(
-      `INSERT INTO membres_entreprise (utilisateur_id, entreprise_id, role)
-       VALUES ($1, $2, 'proprietaire')`,
-      [userId, eid]
-    );
-
-    // Plan comptable + journaux + exercice + rubriques paie
-    await creerCategoriesDefaut(eid, client);
-    await creerPlanComptableSyscohada(eid, client);
-    await creerJournauxDefaut(eid, client);
-    await creerExerciceCourant(eid, client);
-    await creerRubriquesPaieDefaut(eid, client);
-
-    // Abonnement gratuit cabinet_partenaire
-    await client.query(
-      `INSERT INTO abonnements (entreprise_id, palier, statut, periodicite,
-         date_debut, date_fin, prix_mensuel_fcfa, notes_commerciales)
-       VALUES ($1, 'cabinet_partenaire', 'actif', 'annuel',
-         CURRENT_DATE, CURRENT_DATE + INTERVAL '999 years', 0,
-         'Licence offerte — programme Partenaire ONECCA')`,
-      [eid]
-    );
-
-    // Marque la candidature comme validée
-    await client.query(
-      `UPDATE cabinet_candidatures
-          SET statut = 'valide',
-              traite_at = NOW(),
-              traite_par = $1,
-              cabinet_cree_id = $2,
-              notes_admin = COALESCE(notes_admin, '') || E'\n[' || NOW() || '] Validé par super-admin',
-              updated_at = NOW()
-        WHERE id = $3`,
-      [req.user.id, eid, cand.id]
-    );
-
-    await client.query('COMMIT');
-
-    // Envoi email d'activation (en dehors de la transaction)
-    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const lienActivation = `${baseUrl}/invitation/${invitationToken}`;
-    const emailRes = await envoyerEmail({
-      to: cand.email_pro,
-      ...tplActivation({
-        cabinet_nom: cand.nom_cabinet,
-        code_parrain: codeParrain,
-        lien_portail: lienActivation,
-      }),
-      tags: { type: 'activation_cabinet', candidature_id: cand.id },
-    });
-
-    logAudit(req, 'VALIDATE', 'cabinet_candidature', cand.id,
-      { cabinet_id: eid, code_parrain: codeParrain });
-
-    res.json({
-      success: true,
-      message: 'Cabinet activé. Email d\'activation envoyé.',
-      data: {
-        cabinet_id: eid,
-        cabinet_nom: cand.nom_cabinet,
-        code_parrain: codeParrain,
-        lien_activation: lienActivation,
-        email_envoye: emailRes.sent,
-      },
-    });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('Erreur validerCandidature:', err.message);
-    res.status(500).json({ success: false, message: err.message });
-  } finally {
-    client.release();
-  }
-}
-
-// ─── POST /api/admin/candidatures/:id/refuser ─────────────────────────────
-async function refuserCandidature(req, res) {
-  try {
-    const { motif } = req.body;
-    const r = await pool.query(
-      `UPDATE cabinet_candidatures
-          SET statut = 'refuse',
-              traite_at = NOW(),
-              traite_par = $1,
-              notes_admin = COALESCE(notes_admin, '') || E'\n[' || NOW() || '] Refusé : ' || $2,
-              updated_at = NOW()
-        WHERE id = $3 AND statut = 'pending'
-        RETURNING id, email_pro, nom_cabinet`,
-      [req.user.id, motif || 'pas de motif renseigné', req.params.id]
-    );
-    if (!r.rows[0]) return res.status(404).json({ success: false, message: 'Candidature introuvable ou déjà traitée' });
-    logAudit(req, 'REFUSE', 'cabinet_candidature', r.rows[0].id, { motif });
-    res.json({ success: true, message: 'Candidature refusée', data: r.rows[0] });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-}
 
 // ─── GET /api/admin/relances — Dernières relances envoyées ─────────────────
 async function getRelances(req, res) {
@@ -531,7 +348,6 @@ async function inviterCabinetDirect(req, res) {
 }
 
 module.exports = {
-  getStats, getCabinetsLeaderboard, getCandidatures,
-  validerCandidature, refuserCandidature, getRelances,
+  getStats, getCabinetsLeaderboard, getRelances,
   inviterCabinetDirect, envoyerEmailTest,
 };

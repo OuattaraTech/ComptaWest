@@ -14,7 +14,6 @@ import Layout from './components/Layout/Layout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import InvitationPage from './pages/InvitationPage.jsx';
 import TarifsPage from './pages/TarifsPage.jsx';
-import PartenairesCabinetsPage from './pages/PartenairesCabinetsPage.jsx';
 import RejoindreCabinetPage from './pages/RejoindreCabinetPage.jsx';
 import CabinetPortailPage from './pages/CabinetPortailPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
@@ -88,11 +87,8 @@ function AppRoutes() {
           (consultation/upgrade depuis l'app). Pas de wrapper Public car on
           ne veut pas rediriger un utilisateur connecté vers /dashboard. */}
       <Route path="/tarifs" element={<TarifsPage />} />
-      {/* Programme Partenaires Cabinets (migration 029) */}
-      <Route path="/partenaires-cabinets" element={<PartenairesCabinetsPage />} />
+      {/* Acceptation d'invitation PME par un cabinet partenaire (LOT 2 du programme) */}
       <Route path="/rejoindre/:token" element={<RejoindreCabinetPage />} />
-      {/* /r/:code = alias court vers la landing partenaires (renvoie sur le formulaire avec le code pré-rempli) */}
-      <Route path="/r/:code" element={<PartenairesCabinetsPage />} />
       {/* Pages légales publiques — référencées dans robots.txt et sitemap.xml */}
       <Route path="/cgu" element={<CguPage />} />
       <Route path="/confidentialite" element={<ConfidentialitePage />} />

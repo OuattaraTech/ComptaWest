@@ -134,7 +134,7 @@ router.post('/auth/invitation/:token', authLimiter, accepterInvitation);
 const {
   activerPartenariat, getCabinetInfo, getMesClients,
   inviterPme, getInvitations, revoquerInvitation, revoquerConnection,
-  getInvitationPublic, accepterInvitationPme, postulerPartenariat,
+  getInvitationPublic, accepterInvitationPme,
   getEntreprisePublicInfo,
 } = require('../controllers/cabinetController');
 
@@ -150,25 +150,19 @@ router.delete('/cabinets/connections/:id',   auth, entrepriseAccess(), revoquerC
 router.get('/invitations/cabinet/:token',           getInvitationPublic);
 router.post('/invitations/cabinet/:token/accepter', authLimiter, accepterInvitationPme);
 
-// Formulaire public de candidature au programme Partenaire
-router.post('/cabinets/candidature', authLimiter, postulerPartenariat);
-
 // Infos publiques d'une entreprise (nom seul — pour Welcome Modal PME)
 router.get('/entreprises/:id/public-info', auth, getEntreprisePublicInfo);
 
 // ─── ADMIN (super-admin uniquement) — migration 029 ─────────────────────────
 const { requireSuperAdmin } = require('../middleware/superAdmin');
 const {
-  getStats: adminGetStats, getCabinetsLeaderboard, getCandidatures,
-  validerCandidature, refuserCandidature, getRelances: adminGetRelances,
+  getStats: adminGetStats, getCabinetsLeaderboard,
+  getRelances: adminGetRelances,
   inviterCabinetDirect, envoyerEmailTest,
 } = require('../controllers/adminController');
 
 router.get('/admin/stats',                       auth, requireSuperAdmin, adminGetStats);
 router.get('/admin/cabinets',                    auth, requireSuperAdmin, getCabinetsLeaderboard);
-router.get('/admin/candidatures',                auth, requireSuperAdmin, getCandidatures);
-router.post('/admin/candidatures/:id/valider',   auth, requireSuperAdmin, validerCandidature);
-router.post('/admin/candidatures/:id/refuser',   auth, requireSuperAdmin, refuserCandidature);
 router.get('/admin/relances',                    auth, requireSuperAdmin, adminGetRelances);
 router.post('/admin/inviter-cabinet',            auth, requireSuperAdmin, inviterCabinetDirect);
 router.post('/admin/test-email',                 auth, requireSuperAdmin, envoyerEmailTest);

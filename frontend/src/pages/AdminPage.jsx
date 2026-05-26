@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp, Users, Award, Building2, AlertCircle, RefreshCw,
   ShieldCheck, Sparkles, Check, X, Send, Copy, Crown, Medal,
-  Clock, ArrowUpRight, Search, Inbox, Activity, Mail,
+  Clock, Search, Activity, Mail,
   UserPlus, MessageCircle, Phone, ExternalLink,
 } from 'lucide-react';
 import api from '../utils/api.jsx';
@@ -78,15 +78,11 @@ export default function AdminPage() {
   const C = getC(dark);
 
   const [stats, setStats] = useState(null);
-  const [candidatures, setCandidatures] = useState([]);
   const [cabinets, setCabinets] = useState([]);
   const [relances, setRelances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
-  const [modalValider, setModalValider] = useState(null);
-  const [modalRefuser, setModalRefuser] = useState(null);
-  const [motifRefus, setMotifRefus] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [recherche, setRecherche] = useState('');
   const [modalInviter, setModalInviter] = useState(false);
@@ -96,14 +92,12 @@ export default function AdminPage() {
   const fetchAll = async (silent = false) => {
     if (silent) setRefreshing(true); else setLoading(true);
     try {
-      const [s, c, l, r] = await Promise.all([
+      const [s, l, r] = await Promise.all([
         api.get('/admin/stats'),
-        api.get('/admin/candidatures?statut=pending'),
         api.get('/admin/cabinets'),
         api.get('/admin/relances'),
       ]);
       setStats(s.data.data);
-      setCandidatures(c.data.data);
       setCabinets(l.data.data);
       setRelances(r.data.data);
     } catch (err) {
@@ -125,37 +119,6 @@ export default function AdminPage() {
       (c.code_parrain || '').toLowerCase().includes(q)
     );
   }, [cabinets, recherche]);
-
-  const valider = async () => {
-    if (!modalValider) return;
-    setActionLoading(true);
-    try {
-      const { data } = await api.post(`/admin/candidatures/${modalValider.id}/valider`);
-      toast.success(`Cabinet activé · code parrain ${data.data.code_parrain}`);
-      setModalValider(null);
-      fetchAll(true);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const refuser = async () => {
-    if (!modalRefuser) return;
-    setActionLoading(true);
-    try {
-      await api.post(`/admin/candidatures/${modalRefuser.id}/refuser`, { motif: motifRefus });
-      toast.success('Candidature refusée');
-      setModalRefuser(null);
-      setMotifRefus('');
-      fetchAll(true);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur');
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   const copier = (txt) => {
     navigator.clipboard.writeText(txt);
@@ -321,7 +284,7 @@ export default function AdminPage() {
             label="Cabinets partenaires"
             value={formatNum(stats.cabinets_partenaires)}
             unit="actifs"
-            sub={stats.candidatures_pending > 0 ? `${stats.candidatures_pending} en attente de validation` : 'Aucune candidature en attente'} />
+            sub={stats.cabinets_partenaires > 0 ? `+ invitations directes via /admin` : 'Invite ton 1er cabinet depuis le header'} />
           <KpiHero C={C} icon={Building2} accent={C.info}
             label="PME actives"
             value={formatNum(stats.pme_actives)}
@@ -342,63 +305,11 @@ export default function AdminPage() {
           border: `1px solid ${C.border}`, borderRadius: 14,
           marginBottom: 32,
         }}>
-          <Mini C={C} icon={Inbox} label="Candidatures en attente" value={stats.candidatures_pending} accent={C.warning} />
           <Mini C={C} icon={Send} label="Invitations PME pending" value={stats.invitations_pending} accent={C.info} />
+          <Mini C={C} icon={Check} label="Invitations PME acceptées" value={stats.invitations_acceptees} accent={C.accent} />
           <Mini C={C} icon={Users} label="Utilisateurs actifs" value={stats.utilisateurs_actifs} accent={C.accent} />
           <Mini C={C} icon={Clock} label="Comptes démo en cours" value={stats.users_demo_actifs} accent={C.muted} />
         </div>
-
-        {/* CANDIDATURES */}
-        <Section C={C} icon={Inbox} accent={C.warning} title="Candidatures en attente" count={candidatures.length}>
-          {candidatures.length === 0 ? (
-            <EmptyState C={C} icon={Check} text="Aucune candidature à traiter" sub="Tu seras notifié dès qu'un cabinet postule via /partenaires-cabinets" />
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {candidatures.map((c, idx) => (
-                <div key={c.id} className="admin-card" style={{
-                  display: 'grid', gridTemplateColumns: '56px 1fr auto', gap: 16,
-                  padding: 18, background: C.card, border: `1px solid ${C.border}`,
-                  borderRadius: 14, alignItems: 'center',
-                  animationDelay: `${idx * 0.04}s`,
-                }}>
-                  <Avatar C={C} nom={c.nom_cabinet} size={56} />
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                      <span style={{ fontFamily: fontDisplay, fontSize: 17, fontWeight: 700, color: C.text }}>{c.nom_cabinet}</span>
-                      {c.numero_onecca && <span style={{ fontSize: 10, fontWeight: 700, color: C.admin, padding: '2px 8px', borderRadius: 4, background: `${C.admin}15`, border: `1px solid ${C.admin}30` }}>ONECCA {c.numero_onecca}</span>}
-                      <span style={{ fontSize: 11, color: C.muted, marginLeft: 'auto' }}>Reçue le {formatDate(c.created_at)}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, fontSize: 12.5, color: C.sub, flexWrap: 'wrap' }}>
-                      <span><strong style={{ color: C.text, fontWeight: 600 }}>{c.nom_responsable}</strong></span>
-                      <span>·</span>
-                      <span style={{ fontFamily: fontMono, fontSize: 11.5 }}>{c.email_pro}</span>
-                      {c.ville && <><span>·</span><span>{c.ville}</span></>}
-                      {c.nb_clients_pme > 0 && <><span>·</span><span><strong style={{ color: C.text, fontWeight: 600 }}>{c.nb_clients_pme}</strong> clients PME</span></>}
-                      {c.nb_collaborateurs > 0 && <><span>·</span><span>{c.nb_collaborateurs} collab.</span></>}
-                    </div>
-                    {c.message && <div style={{ marginTop: 10, padding: '8px 12px', background: C.cardElev, borderRadius: 8, fontSize: 12.5, color: C.sub, fontStyle: 'italic', borderLeft: `3px solid ${C.admin}` }}>« {c.message} »</div>}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="admin-action" onClick={() => setModalRefuser(c)} style={{
-                      padding: '10px 14px', borderRadius: 10,
-                      background: 'transparent', border: `1px solid ${C.border}`,
-                      color: C.muted, fontFamily: fontUI, fontWeight: 600, fontSize: 12.5,
-                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                    }}><X size={14} />Refuser</button>
-                    <button className="admin-action" onClick={() => setModalValider(c)} style={{
-                      padding: '10px 18px', borderRadius: 10,
-                      background: `linear-gradient(135deg, ${C.accent}, ${C.admin})`,
-                      border: 'none', color: '#FFF',
-                      fontFamily: fontUI, fontWeight: 700, fontSize: 12.5,
-                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                      boxShadow: `0 4px 16px ${C.adminGlow}`,
-                    }}><Check size={14} />Valider</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Section>
 
         {/* LEADERBOARD */}
         <Section C={C} icon={Crown} accent={C.gold} title="Leaderboard cabinets" count={cabinets.length}
@@ -519,36 +430,6 @@ export default function AdminPage() {
           Console privée · toutes les actions sont consignées dans <code style={{ fontFamily: fontMono, color: C.sub }}>audit_log</code>
         </div>
       </div>
-
-      {/* MODAL VALIDER */}
-      {modalValider && (
-        <Modal C={C} onClose={() => !actionLoading && setModalValider(null)}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg, ${C.accent}, ${C.admin})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 6px 20px ${C.adminGlow}` }}>
-              <Check size={22} color="#FFF" strokeWidth={2.6} />
-            </div>
-            <div>
-              <h3 style={{ fontFamily: fontDisplay, fontSize: 20, fontWeight: 800, margin: 0, color: C.text }}>Valider la candidature</h3>
-              <div style={{ fontSize: 12.5, color: C.sub, marginTop: 2 }}>{modalValider.nom_cabinet}</div>
-            </div>
-          </div>
-          <div style={{ padding: 16, background: C.cardElev, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 13, color: C.sub, lineHeight: 1.6 }}>
-            En validant, le système va :
-            <ul style={{ margin: '10px 0 0', paddingLeft: 20, color: C.text }}>
-              <li>Créer le compte cabinet (palier <code style={{ fontFamily: fontMono, color: C.accent }}>cabinet_partenaire</code>, gratuit)</li>
-              <li>Générer un <strong>code parrain unique</strong> et un lien d'activation valide 30 jours</li>
-              <li>Envoyer un email d'activation à <code style={{ fontFamily: fontMono, color: C.text }}>{modalValider.email_pro}</code></li>
-            </ul>
-          </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'flex-end' }}>
-            <button onClick={() => setModalValider(null)} disabled={actionLoading} style={btnSecondary(C)}>Annuler</button>
-            <button onClick={valider} disabled={actionLoading} style={btnPrimary(C)}>
-              {actionLoading ? 'Validation…' : 'Valider et activer'}
-              {!actionLoading && <ArrowUpRight size={14} />}
-            </button>
-          </div>
-        </Modal>
-      )}
 
       {/* MODAL INVITER UN CABINET */}
       {modalInviter && (
@@ -678,40 +559,6 @@ export default function AdminPage() {
         </Modal>
       )}
 
-      {/* MODAL REFUSER */}
-      {modalRefuser && (
-        <Modal C={C} onClose={() => !actionLoading && (setModalRefuser(null), setMotifRefus(''))}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 12, background: `${C.danger}18`, border: `1px solid ${C.danger}40`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <X size={22} color={C.danger} strokeWidth={2.6} />
-            </div>
-            <div>
-              <h3 style={{ fontFamily: fontDisplay, fontSize: 20, fontWeight: 800, margin: 0, color: C.text }}>Refuser la candidature</h3>
-              <div style={{ fontSize: 12.5, color: C.sub, marginTop: 2 }}>{modalRefuser.nom_cabinet}</div>
-            </div>
-          </div>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: C.sub, marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Motif (interne)</label>
-          <textarea
-            value={motifRefus}
-            onChange={(e) => setMotifRefus(e.target.value)}
-            placeholder="ex: pas de n° ONECCA vérifiable / hors cible / doublon…"
-            rows={3}
-            style={{
-              width: '100%', padding: 12, borderRadius: 10,
-              background: C.cardElev, border: `1px solid ${C.border}`,
-              color: C.text, fontFamily: fontUI, fontSize: 13,
-              outline: 'none', resize: 'vertical', boxSizing: 'border-box',
-            }}
-          />
-          <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>Conservé en BDD pour audit, non envoyé au cabinet.</div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 24, justifyContent: 'flex-end' }}>
-            <button onClick={() => { setModalRefuser(null); setMotifRefus(''); }} disabled={actionLoading} style={btnSecondary(C)}>Annuler</button>
-            <button onClick={refuser} disabled={actionLoading} style={btnDanger(C)}>
-              {actionLoading ? 'Envoi…' : 'Confirmer le refus'}
-            </button>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }
@@ -913,11 +760,6 @@ const btnSecondary = (C) => ({
   padding: '10px 16px', borderRadius: 10,
   background: 'transparent', border: `1px solid ${C.border}`,
   color: C.sub, fontFamily: fontUI, fontWeight: 600, fontSize: 13, cursor: 'pointer',
-});
-const btnDanger = (C) => ({
-  padding: '10px 18px', borderRadius: 10,
-  background: C.danger, border: 'none', color: '#FFF',
-  fontFamily: fontUI, fontWeight: 700, fontSize: 13, cursor: 'pointer',
 });
 const badgeStatut = (C, statut) => {
   const map = {

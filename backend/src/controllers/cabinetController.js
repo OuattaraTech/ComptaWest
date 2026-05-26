@@ -471,60 +471,6 @@ async function getEntreprisePublicInfo(req, res) {
 // ─── PUBLIC : POST /api/cabinets/candidature ────────────────────────────────
 // Formulaire public pour postuler au programme Partenaire (LOT 2).
 // Le super-admin valide manuellement via /admin (LOT 4) avant activation.
-async function postulerPartenariat(req, res) {
-  try {
-    const {
-      nom_cabinet, nom_responsable, email_pro, telephone,
-      numero_onecca, ville, nb_collaborateurs, nb_clients_pme,
-      message, source,
-    } = req.body;
-
-    if (!nom_cabinet || !nom_responsable || !email_pro) {
-      return res.status(400).json({
-        success: false,
-        message: 'Nom du cabinet, nom du responsable et email professionnel requis',
-      });
-    }
-
-    // Anti-doublon : refuse les candidatures en double sous 24h pour le même email
-    const doublon = await pool.query(
-      `SELECT id, statut FROM cabinet_candidatures
-        WHERE LOWER(email_pro) = LOWER($1) AND created_at > NOW() - INTERVAL '24 hours'`,
-      [email_pro]
-    );
-    if (doublon.rows.length > 0) {
-      return res.status(429).json({
-        success: false,
-        message: 'Une candidature avec cet email a déjà été soumise dans les 24 dernières heures. Notre équipe vous recontactera sous 48h.',
-      });
-    }
-
-    const r = await pool.query(
-      `INSERT INTO cabinet_candidatures
-         (nom_cabinet, nom_responsable, email_pro, telephone, numero_onecca,
-          ville, nb_collaborateurs, nb_clients_pme, message, source,
-          ip_soumission, user_agent)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-       RETURNING id, created_at`,
-      [nom_cabinet.trim(), nom_responsable.trim(), email_pro.toLowerCase().trim(),
-       telephone || null, numero_onecca || null, ville || null,
-       parseInt(nb_collaborateurs) || null, parseInt(nb_clients_pme) || null,
-       message || null, source || 'site_web',
-       req.ip, req.get('user-agent')]
-    );
-
-    console.log(`[CANDIDATURE CABINET] ${email_pro} — ${nom_cabinet}`);
-    res.json({
-      success: true,
-      message: 'Candidature reçue. Notre équipe vous recontactera sous 48 heures ouvrées.',
-      data: { id: r.rows[0].id },
-    });
-  } catch (err) {
-    console.error('Erreur postulerPartenariat:', err.message);
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
-  }
-}
-
 // ─── CRON : relance des invitations pending J+2 ────────────────────────────
 // Cherche les invitations pending sans relance_envoyee_at créées il y a > 2j,
 // envoie un email de relance, marque relance_envoyee_at = NOW().
@@ -590,7 +536,6 @@ module.exports = {
   revoquerConnection,
   getInvitationPublic,
   accepterInvitationPme,
-  postulerPartenariat,
   relancerInvitationsPending,
   getEntreprisePublicInfo,
 };
