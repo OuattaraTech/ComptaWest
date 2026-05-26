@@ -317,6 +317,59 @@ async function getRelances(req, res) {
   }
 }
 
+// ─── POST /api/admin/test-email ────────────────────────────────────────────
+// Envoie un email de test à l'email du super-admin connecté, sans toucher
+// à la BDD. Sert à valider que RESEND_API_KEY est correctement configurée
+// et que le domaine d'envoi est bien vérifié sur Resend.
+async function envoyerEmailTest(req, res) {
+  try {
+    const r = await pool.query('SELECT email, nom FROM utilisateurs WHERE id=$1', [req.user.id]);
+    const dest = r.rows[0];
+    if (!dest) return res.status(404).json({ success: false, message: 'Utilisateur introuvable' });
+
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#F3F4F6;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;">
+  <div style="max-width:520px;margin:32px auto;background:#FFF;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#10B981,#0F8A6E);padding:32px;text-align:center;color:#FFF;">
+      <h1 style="margin:0;font-size:24px;font-weight:800;">Configuration Resend ✓</h1>
+    </div>
+    <div style="padding:28px;color:#1F2937;font-size:15px;line-height:1.6;">
+      <p>Bonjour ${dest.nom || ''},</p>
+      <p>Cet email confirme que <strong>RESEND_API_KEY</strong> est correctement
+      configurée sur l'environnement <code style="background:#F3F4F6;padding:2px 6px;border-radius:4px;">${process.env.NODE_ENV || 'development'}</code>.</p>
+      <p>Tu peux maintenant inviter des cabinets depuis la console
+      <a href="${baseUrl}/admin" style="color:#10B981;">/admin</a> — les emails
+      seront envoyés automatiquement.</p>
+      <p style="font-size:13px;color:#6B7280;margin-top:24px;">Domaine d'envoi : <code style="background:#F3F4F6;padding:2px 6px;border-radius:4px;">${process.env.EMAIL_FROM || 'non configuré'}</code></p>
+    </div>
+  </div>
+</body></html>`;
+    const result = await envoyerEmail({
+      to: dest.email,
+      subject: '[ApeX] Test de configuration Resend',
+      html,
+      text: `Cet email confirme que RESEND_API_KEY est correctement configurée.\n\nDomaine d'envoi : ${process.env.EMAIL_FROM || 'non configuré'}\nFrontend : ${baseUrl}`,
+      tags: { type: 'test_email' },
+    });
+    logAudit(req, 'TEST_EMAIL', 'admin', null, { destinataire: dest.email, mode: result.mode });
+
+    if (result.sent) {
+      return res.json({ success: true, message: `Email de test envoyé à ${dest.email}`, data: { mode: result.mode, id: result.id } });
+    }
+    return res.status(200).json({
+      success: false,
+      message: result.mode === 'logged'
+        ? `RESEND_API_KEY non configurée — email loggé en console uniquement. Édite backend/.env puis redémarre.`
+        : `Échec de l'envoi : ${result.error}. Vérifie que le domaine est bien vérifié sur Resend (Dashboard → Domains).`,
+      data: { mode: result.mode, error: result.error },
+    });
+  } catch (err) {
+    console.error('Erreur envoyerEmailTest:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
 // ─── POST /api/admin/inviter-cabinet ───────────────────────────────────────
 // Invitation DIRECTE par le super-admin (≠ candidature spontanée).
 // L'admin saisit nom + email (+ téléphone WhatsApp optionnel + nom cabinet
@@ -349,9 +402,12 @@ async function inviterCabinetDirect(req, res) {
     );
     if (existing.rows.length > 0 && existing.rows[0].actif) {
       await client.query('ROLLBACK');
+      const cestMoi = existing.rows[0].id === req.user.id;
       return res.status(409).json({
         success: false,
-        message: `Un compte actif existe déjà avec ${email}. Cette personne peut se connecter directement.`,
+        message: cestMoi
+          ? `Vous essayez de vous inviter vous-même. Pour tester l'envoi d'emails sans créer de compte, utilisez le bouton « Tester Resend » dans le header.`
+          : `Un compte actif existe déjà avec ${email}. Cette personne peut se connecter directement.`,
       });
     }
 
@@ -477,5 +533,5 @@ async function inviterCabinetDirect(req, res) {
 module.exports = {
   getStats, getCabinetsLeaderboard, getCandidatures,
   validerCandidature, refuserCandidature, getRelances,
-  inviterCabinetDirect,
+  inviterCabinetDirect, envoyerEmailTest,
 };

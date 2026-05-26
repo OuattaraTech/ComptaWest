@@ -162,6 +162,22 @@ export default function AdminPage() {
     toast.success('Copié');
   };
 
+  const testerEmail = async () => {
+    setActionLoading(true);
+    try {
+      const { data } = await api.post('/admin/test-email');
+      if (data.success) {
+        toast.success(data.message, { duration: 5000 });
+      } else {
+        toast.error(data.message, { duration: 7000 });
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const inviterCabinet = async () => {
     const { nom_responsable, email } = formInvit;
     if (!nom_responsable.trim() || !email.trim()) {
@@ -257,6 +273,16 @@ export default function AdminPage() {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={testerEmail} disabled={actionLoading} title="Envoyer un email de test à votre adresse pour vérifier Resend" style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '10px 16px', borderRadius: 10,
+              background: C.surface, border: `1px solid ${C.border}`,
+              color: C.sub, fontFamily: fontUI, fontSize: 13, fontWeight: 600,
+              cursor: actionLoading ? 'wait' : 'pointer',
+            }}>
+              <Mail size={14} />
+              Tester Resend
+            </button>
             <button onClick={() => fetchAll(true)} disabled={refreshing} style={{
               display: 'flex', alignItems: 'center', gap: 8,
               padding: '10px 16px', borderRadius: 10,
