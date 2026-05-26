@@ -532,6 +532,146 @@ async function relancerInvitationsPending() {
   }
 }
 
+// ─── POST /api/cabinets/echeances/marquer-faite ────────────────────────────
+// L'EC marque manuellement une échéance comme déclarée pour la masquer
+// du calendrier. Idempotent (UNIQUE sur cabinet+pme+type+periode).
+async function marquerEcheanceFaite(req, res) {
+  try {
+    const { pme_id, type, periode, note } = req.body;
+    if (!pme_id || !type || !periode) {
+      return res.status(400).json({ success: false, message: 'pme_id, type et periode requis' });
+    }
+    // Sécurité : la PME doit être connectée à ce cabinet
+    const ok = await pool.query(
+      `SELECT 1 FROM cabinet_connections
+        WHERE cabinet_id = $1 AND pme_id = $2 AND statut = 'active'`,
+      [req.entrepriseId, pme_id]
+    );
+    if (ok.rows.length === 0) {
+      return res.status(403).json({ success: false, message: 'PME non connectée à votre cabinet' });
+    }
+    await pool.query(
+      `INSERT INTO cabinet_echeances_traitees
+         (cabinet_id, pme_id, type, periode, traite_par, note)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (cabinet_id, pme_id, type, periode) DO UPDATE
+         SET traite_par = EXCLUDED.traite_par,
+             traite_at = NOW(),
+             note = EXCLUDED.note`,
+      [req.entrepriseId, pme_id, type, periode, req.user.id, note || null]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Erreur marquerEcheanceFaite:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+// ─── DELETE /api/cabinets/echeances/marquer-faite ──────────────────────────
+// Annule le marquage (la déclaration n'est finalement pas faite).
+async function annulerEcheanceFaite(req, res) {
+  try {
+    const { pme_id, type, periode } = req.body;
+    if (!pme_id || !type || !periode) {
+      return res.status(400).json({ success: false, message: 'pme_id, type et periode requis' });
+    }
+    await pool.query(
+      `DELETE FROM cabinet_echeances_traitees
+        WHERE cabinet_id = $1 AND pme_id = $2 AND type = $3 AND periode = $4`,
+      [req.entrepriseId, pme_id, type, periode]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+// ─── GET /api/cabinets/charge-clients ──────────────────────────────────────
+// Pour chaque PME connectée, compte les actions en attente de l'EC :
+//   - factures en brouillon (à valider/envoyer)
+//   - dépenses en attente (à comptabiliser)
+//   - échéances fiscales dans les 7 prochains jours (déduites du calendrier)
+// Retourne par PME un total + breakdown. Utilisé pour afficher des
+// pastilles d'urgence sur les cards client du portail.
+async function getChargeClients(req, res) {
+  try {
+    const clientsRes = await pool.query(
+      `SELECT p.id AS pme_id, p.regime_fiscal
+         FROM cabinet_connections cc
+         JOIN entreprises p ON p.id = cc.pme_id
+        WHERE cc.cabinet_id = $1 AND cc.statut = 'active'`,
+      [req.entrepriseId]
+    );
+    const pmes = clientsRes.rows;
+    if (pmes.length === 0) return res.json({ success: true, data: {} });
+
+    const pmeIds = pmes.map(p => p.pme_id);
+
+    // Factures en brouillon (toutes PME en une requête)
+    const facturesRes = await pool.query(
+      `SELECT entreprise_id, COUNT(*)::int AS n
+         FROM factures
+        WHERE entreprise_id = ANY($1::uuid[]) AND statut = 'brouillon'
+        GROUP BY entreprise_id`,
+      [pmeIds]
+    );
+    const facturesMap = Object.fromEntries(facturesRes.rows.map(r => [r.entreprise_id, r.n]));
+
+    // Dépenses en attente
+    const depensesRes = await pool.query(
+      `SELECT entreprise_id, COUNT(*)::int AS n
+         FROM depenses
+        WHERE entreprise_id = ANY($1::uuid[]) AND statut = 'en_attente'
+        GROUP BY entreprise_id`,
+      [pmeIds]
+    );
+    const depensesMap = Object.fromEntries(depensesRes.rows.map(r => [r.entreprise_id, r.n]));
+
+    // Échéances fiscales dans les 7 jours (logique réutilisée du calendrier)
+    const aujourdhui = new Date(); aujourdhui.setHours(0, 0, 0, 0);
+    const limite7j = new Date(); limite7j.setDate(limite7j.getDate() + 7);
+
+    const charge = {};
+    for (const pme of pmes) {
+      const factures = facturesMap[pme.pme_id] || 0;
+      const depenses = depensesMap[pme.pme_id] || 0;
+
+      // Compte les échéances proches (mêmes règles que getEcheancesFiscales)
+      let echeances = 0;
+      const candidats = [];
+      // ITS — 15 de chaque mois
+      for (let i = 0; i < 2; i++) candidats.push({ d: new Date(aujourdhui.getFullYear(), aujourdhui.getMonth() + i, 15) });
+      // TVA si RNI
+      if (pme.regime_fiscal === 'RNI') {
+        for (let i = 0; i < 2; i++) candidats.push({ d: new Date(aujourdhui.getFullYear(), aujourdhui.getMonth() + i, 15) });
+      }
+      // CNPS trimestriel + acomptes IS
+      candidats.push({ d: new Date(aujourdhui.getFullYear(), 3, 15) });
+      candidats.push({ d: new Date(aujourdhui.getFullYear(), 6, 15) });
+      candidats.push({ d: new Date(aujourdhui.getFullYear(), 9, 15) });
+      candidats.push({ d: new Date(aujourdhui.getFullYear() + 1, 0, 15) });
+      if (pme.regime_fiscal === 'RNI') {
+        candidats.push({ d: new Date(aujourdhui.getFullYear(), 2, 15) });
+        candidats.push({ d: new Date(aujourdhui.getFullYear(), 5, 15) });
+        candidats.push({ d: new Date(aujourdhui.getFullYear(), 8, 15) });
+        candidats.push({ d: new Date(aujourdhui.getFullYear(), 11, 15) });
+      }
+      for (const c of candidats) {
+        if (c.d >= aujourdhui && c.d <= limite7j) echeances++;
+      }
+
+      const total = factures + depenses + echeances;
+      if (total > 0) {
+        charge[pme.pme_id] = { total, factures_brouillon: factures, depenses_en_attente: depenses, echeances_proches: echeances };
+      }
+    }
+    res.json({ success: true, data: charge });
+  } catch (err) {
+    console.error('Erreur getChargeClients:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
 // ─── PATCH /api/cabinets/connections/:id ───────────────────────────────────
 // Met à jour les tags et notes privées d'une connexion cabinet↔PME.
 // Annotations strictement internes au cabinet, invisibles pour la PME.
@@ -583,6 +723,22 @@ async function getEcheancesFiscales(req, res) {
         WHERE cc.cabinet_id = $1 AND cc.statut = 'active'`,
       [req.entrepriseId]
     );
+
+    // Échéances déjà marquées comme traitées par l'EC (table override).
+    // Clé "pme_id|type|YYYY-MM-DD" pour matching rapide.
+    let traitees = new Set();
+    try {
+      const tr = await pool.query(
+        `SELECT pme_id, type, periode FROM cabinet_echeances_traitees
+          WHERE cabinet_id = $1`,
+        [req.entrepriseId]
+      );
+      for (const r of tr.rows) {
+        traitees.add(`${r.pme_id}|${r.type}|${r.periode.toISOString().slice(0,10)}`);
+      }
+    } catch (err) {
+      if (err.code !== '42P01') throw err; // migration 033 pas appliquée → ignore
+    }
     const aujourdhui = new Date();
     const limite = new Date();
     limite.setDate(limite.getDate() + 60);
@@ -639,9 +795,11 @@ async function getEcheancesFiscales(req, res) {
         echeances.push({ pme_id: pme.pme_id, pme_nom: pme.pme_nom, type: 'DSF', label: 'États financiers annuels', date: dsfDate.toISOString().slice(0, 10), severite: 'annuel' });
       }
     }
-    // Tri chronologique
-    echeances.sort((a, b) => a.date.localeCompare(b.date));
-    res.json({ success: true, data: echeances });
+    // Tri chronologique + filtre des échéances déjà traitées
+    const restantes = echeances
+      .filter(e => !traitees.has(`${e.pme_id}|${e.type}|${e.date}`))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    res.json({ success: true, data: restantes });
   } catch (err) {
     console.error('Erreur getEcheancesFiscales:', err.message);
     res.status(500).json({ success: false, message: err.message });
@@ -662,4 +820,7 @@ module.exports = {
   getEntreprisePublicInfo,
   mettreAJourConnection,
   getEcheancesFiscales,
+  getChargeClients,
+  marquerEcheanceFaite,
+  annulerEcheanceFaite,
 };

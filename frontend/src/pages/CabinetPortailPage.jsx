@@ -4,6 +4,7 @@ import {
   Award, Copy, Check, X, Building2, Users, Mail, MessageCircle,
   RefreshCw, UserPlus, Send, ExternalLink, Search,
   Sparkles, Activity, Trash2, ArrowRight, Edit3, Tag, Calendar, AlertTriangle, Clock,
+  AlertCircle, LayoutList, LayoutGrid, Filter,
 } from 'lucide-react';
 import api from '../utils/api.jsx';
 import toast from 'react-hot-toast';
@@ -77,6 +78,13 @@ export default function CabinetPortailPage() {
   const [clients, setClients] = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [echeances, setEcheances] = useState([]);
+  const [charge, setCharge] = useState({});
+  // Filtres persistés en localStorage
+  const [filtreTag, setFiltreTag] = useState(() => localStorage.getItem('cw_cab_f_tag') || '');
+  const [filtreRegime, setFiltreRegime] = useState(() => localStorage.getItem('cw_cab_f_regime') || '');
+  const [filtrePalier, setFiltrePalier] = useState(() => localStorage.getItem('cw_cab_f_palier') || '');
+  const [vueCompacte, setVueCompacte] = useState(() => localStorage.getItem('cw_cab_v_compact') === '1');
+  const [triParCharge, setTriParCharge] = useState(() => localStorage.getItem('cw_cab_v_tricharge') === '1');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -99,16 +107,18 @@ export default function CabinetPortailPage() {
   const fetchAll = async (silent = false) => {
     if (silent) setRefreshing(true); else setLoading(true);
     try {
-      const [i, c, inv, ech] = await Promise.all([
+      const [i, c, inv, ech, ch] = await Promise.all([
         api.get('/cabinets/me'),
         api.get('/cabinets/mes-clients'),
         api.get('/cabinets/invitations'),
         api.get('/cabinets/echeances-fiscales'),
+        api.get('/cabinets/charge-clients'),
       ]);
       setInfo(i.data.data);
       setClients(c.data.data);
       setInvitations(inv.data.data);
       setEcheances(ech.data.data);
+      setCharge(ch.data.data || {});
     } catch (err) {
       toast.error(err.response?.data?.message || 'Erreur de chargement');
     } finally {
@@ -120,6 +130,13 @@ export default function CabinetPortailPage() {
   useEffect(() => {
     if (actuelle?.type_compte === 'cabinet_partenaire') fetchAll();
   }, [actuelle]);
+
+  // Persist filtres + vue dans localStorage
+  useEffect(() => { localStorage.setItem('cw_cab_f_tag', filtreTag); }, [filtreTag]);
+  useEffect(() => { localStorage.setItem('cw_cab_f_regime', filtreRegime); }, [filtreRegime]);
+  useEffect(() => { localStorage.setItem('cw_cab_f_palier', filtrePalier); }, [filtrePalier]);
+  useEffect(() => { localStorage.setItem('cw_cab_v_compact', vueCompacte ? '1' : '0'); }, [vueCompacte]);
+  useEffect(() => { localStorage.setItem('cw_cab_v_tricharge', triParCharge ? '1' : '0'); }, [triParCharge]);
 
   // Scroll vers l'ancre passée dans l'URL (#clients, #calendrier,
   // #invitations) une fois les données chargées et le DOM rendu.
@@ -138,14 +155,27 @@ export default function CabinetPortailPage() {
     ? Math.round((invitations.filter(i => i.statut === 'accepted').length / invitations.length) * 1000) / 10
     : 0;
 
+  // Liste unique de tags pour le filtre dropdown
+  const tagsConnus = useMemo(() => {
+    const s = new Set();
+    for (const c of clients) for (const t of c.tags || []) s.add(t);
+    return [...s].sort();
+  }, [clients]);
+
   const clientsFiltres = useMemo(() => {
     const q = recherche.trim().toLowerCase();
-    if (!q) return clients;
-    return clients.filter(c =>
-      (c.pme_nom || '').toLowerCase().includes(q) ||
-      (c.ncc || '').toLowerCase().includes(q)
-    );
-  }, [clients, recherche]);
+    let out = clients.filter(c => {
+      if (q && !(c.pme_nom || '').toLowerCase().includes(q) && !(c.ncc || '').toLowerCase().includes(q)) return false;
+      if (filtreTag && !(c.tags || []).includes(filtreTag)) return false;
+      if (filtreRegime && c.regime_fiscal !== filtreRegime) return false;
+      if (filtrePalier && (c.palier || '').toLowerCase() !== filtrePalier.toLowerCase()) return false;
+      return true;
+    });
+    if (triParCharge) {
+      out = [...out].sort((a, b) => (charge[b.pme_id]?.total || 0) - (charge[a.pme_id]?.total || 0));
+    }
+    return out;
+  }, [clients, recherche, filtreTag, filtreRegime, filtrePalier, triParCharge, charge]);
 
   const copier = (txt) => { navigator.clipboard.writeText(txt); toast.success('Copié'); };
 
@@ -178,6 +208,39 @@ export default function CabinetPortailPage() {
     setClientEnEdition(c);
     setEditTags((c.tags || []).join(', '));
     setEditNotes(c.notes_privees || '');
+  };
+
+  // Page de déclaration cible selon le type d'échéance (heuristique)
+  const pageDeclarationPour = (type) => {
+    switch (type) {
+      case 'ITS':  return '/paie';
+      case 'TVA':  return '/taxes';
+      case 'CNPS': return '/paie';
+      case 'IS':   return '/taxes';
+      case 'DSF':  return '/comptabilite';
+      default:     return '/dashboard';
+    }
+  };
+
+  // Clic sur une échéance du calendrier : ouvre directement la page
+  // de déclaration concernée dans le dossier de la PME ciblée.
+  const ouvrirDeclaration = (pme_id, type) => {
+    const cible = (clients.find(c => c.pme_id === pme_id) && entreprises.find(e => e.id === pme_id));
+    if (!cible) {
+      toast.error('Dossier introuvable');
+      return;
+    }
+    switchEntreprise(cible, pageDeclarationPour(type));
+  };
+
+  const marquerEcheanceFaite = async (e) => {
+    try {
+      await api.post('/cabinets/echeances/marquer-faite', { pme_id: e.pme_id, type: e.type, periode: e.date });
+      toast.success('Échéance marquée comme déclarée');
+      fetchAll(true);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur');
+    }
   };
 
   const enregistrerAnnotations = async () => {
@@ -387,24 +450,36 @@ export default function CabinetPortailPage() {
 
         {/* SECTION CLIENTS PME */}
         <div id="clients" style={{ scrollMarginTop: 90 }} />
-        <Section C={C} icon={Building2} accent={C.cabinet} title="Mes clients PME" count={clients.length}
+        <Section C={C} icon={Building2} accent={C.cabinet}
+          title="Mes clients PME"
+          count={`${clientsFiltres.length}${clientsFiltres.length !== clients.length ? ` / ${clients.length}` : ''}`}
           right={clients.length > 0 && (
-            <div style={{ position: 'relative' }}>
-              <Search size={14} color={C.muted} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-              <input value={recherche} onChange={(e) => setRecherche(e.target.value)} placeholder="Filtrer par nom ou NCC…"
-                style={{
-                  padding: '8px 12px 8px 34px', width: 220,
-                  background: C.surface, border: `1px solid ${C.border}`,
-                  borderRadius: 10, color: C.text,
-                  fontFamily: fontUI, fontSize: 12.5, outline: 'none',
-                }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button onClick={() => setTriParCharge(t => !t)} title="Trier par charge décroissante"
+                style={{ ...iconBtn(C), width: 'auto', padding: '0 10px', fontSize: 11.5, fontWeight: 600, color: triParCharge ? C.cabinet : C.sub, background: triParCharge ? `${C.cabinet}18` : C.cardElev, border: `1px solid ${triParCharge ? C.cabinet + '55' : C.border}` }}>
+                <AlertCircle size={12} /> Charge
+              </button>
+              <button onClick={() => setVueCompacte(v => !v)} title="Basculer cards / table compacte"
+                style={iconBtn(C)}>
+                {vueCompacte ? <LayoutGrid size={13} /> : <LayoutList size={13} />}
+              </button>
             </div>
           )}
         >
+          {clients.length > 0 && (
+            <FiltresBar C={C}
+              recherche={recherche} setRecherche={setRecherche}
+              filtreTag={filtreTag} setFiltreTag={setFiltreTag} tagsConnus={tagsConnus}
+              filtreRegime={filtreRegime} setFiltreRegime={setFiltreRegime}
+              filtrePalier={filtrePalier} setFiltrePalier={setFiltrePalier} />
+          )}
           {clientsFiltres.length === 0 ? (
             <EmptyState C={C} icon={Building2}
-              text={recherche ? 'Aucun client ne correspond' : 'Aucun client PME pour l\'instant'}
-              sub={recherche ? 'Essaie un autre filtre' : 'Cliquez sur « Inviter une PME » pour ajouter votre premier client'} />
+              text={clients.length === 0 ? 'Aucun client PME pour l\'instant' : 'Aucun client ne correspond aux filtres'}
+              sub={clients.length === 0 ? 'Cliquez sur « Inviter une PME » pour ajouter votre premier client' : 'Ajustez ou réinitialisez les filtres'} />
+          ) : vueCompacte ? (
+            <TableCompacteClients C={C} clients={clientsFiltres} charge={charge}
+              onOuvrir={accederAuDossier} onAnnoter={ouvrirEditionAnnotations} onDetacher={detacherClient} />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {clientsFiltres.map((c, idx) => (
@@ -418,6 +493,7 @@ export default function CabinetPortailPage() {
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                       <span style={{ fontFamily: fontDisplay, fontSize: 15, fontWeight: 700, color: C.text }}>{c.pme_nom}</span>
+                      <ChargeBadge C={C} charge={charge[c.pme_id]} />
                       {c.regime_fiscal && <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, padding: '2px 7px', borderRadius: 4, background: C.cardElev }}>{c.regime_fiscal}</span>}
                       {c.palier && <span style={{ fontSize: 10, fontWeight: 700, color: C.accent, padding: '2px 7px', borderRadius: 4, background: `${C.accent}18` }}>{c.palier.toUpperCase()}</span>}
                       {(c.tags || []).map((tag, ti) => (
@@ -474,7 +550,9 @@ export default function CabinetPortailPage() {
               text="Aucune échéance dans les 60 prochains jours"
               sub={clients.length === 0 ? 'Invitez votre premier client pour voir son calendrier fiscal' : 'Vos clients sont à jour'} />
           ) : (
-            <CalendrierFiscal C={C} echeances={echeances} onAccederDossier={accederAuDossier} />
+            <CalendrierFiscal C={C} echeances={echeances}
+              onOuvrirDeclaration={ouvrirDeclaration}
+              onMarquerFaite={marquerEcheanceFaite} />
           )}
         </Section>
 
@@ -736,16 +814,170 @@ export default function CabinetPortailPage() {
   );
 }
 
-function CalendrierFiscal({ C, echeances, onAccederDossier }) {
-  // Groupement par mois (clé : "YYYY-MM")
-  const parMois = {};
-  for (const e of echeances) {
-    const cle = e.date.slice(0, 7);
-    if (!parMois[cle]) parMois[cle] = [];
-    parMois[cle].push(e);
-  }
+function ChargeBadge({ C, charge }) {
+  if (!charge || !charge.total) return null;
+  const tooltip = [
+    charge.factures_brouillon > 0 && `${charge.factures_brouillon} facture(s) en brouillon`,
+    charge.depenses_en_attente > 0 && `${charge.depenses_en_attente} dépense(s) à comptabiliser`,
+    charge.echeances_proches > 0 && `${charge.echeances_proches} échéance(s) fiscale(s) dans 7 j`,
+  ].filter(Boolean).join(' · ');
+  return (
+    <span title={tooltip} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      fontSize: 10.5, fontWeight: 800,
+      padding: '2px 7px 2px 6px', borderRadius: 10,
+      background: `${C.danger}25`, color: C.danger,
+      border: `1px solid ${C.danger}50`, cursor: 'help',
+      fontFamily: '"JetBrains Mono", monospace',
+    }}>
+      <AlertCircle size={10} /> {charge.total}
+    </span>
+  );
+}
+
+function FiltresBar({ C, recherche, setRecherche, filtreTag, setFiltreTag, tagsConnus, filtreRegime, setFiltreRegime, filtrePalier, setFiltrePalier }) {
+  const reset = () => { setRecherche(''); setFiltreTag(''); setFiltreRegime(''); setFiltrePalier(''); };
+  const hasFilters = recherche || filtreTag || filtreRegime || filtrePalier;
+  const inputBase = {
+    padding: '8px 10px', borderRadius: 9,
+    background: C.surface, border: `1px solid ${C.border}`,
+    color: C.text, fontFamily: 'inherit', fontSize: 12.5, outline: 'none',
+  };
+  return (
+    <div style={{
+      display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
+      marginBottom: 14, padding: 10, background: C.card,
+      border: `1px solid ${C.border}`, borderRadius: 12,
+    }}>
+      <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 180 }}>
+        <Search size={13} color={C.muted} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
+        <input value={recherche} onChange={(e) => setRecherche(e.target.value)}
+          placeholder="Nom ou NCC…"
+          style={{ ...inputBase, width: '100%', padding: '8px 10px 8px 30px', boxSizing: 'border-box' }} />
+      </div>
+      <select value={filtreTag} onChange={(e) => setFiltreTag(e.target.value)} style={inputBase}>
+        <option value="">Tous tags</option>
+        {tagsConnus.map(t => <option key={t} value={t}>{t}</option>)}
+      </select>
+      <select value={filtreRegime} onChange={(e) => setFiltreRegime(e.target.value)} style={inputBase}>
+        <option value="">Tous régimes</option>
+        <option value="RNI">RNI</option>
+        <option value="RSI">RSI</option>
+        <option value="RNL">RNL</option>
+      </select>
+      <select value={filtrePalier} onChange={(e) => setFiltrePalier(e.target.value)} style={inputBase}>
+        <option value="">Tous paliers</option>
+        <option value="decouverte">Découverte</option>
+        <option value="starter">Starter</option>
+        <option value="pro">Pro</option>
+      </select>
+      {hasFilters && (
+        <button onClick={reset} style={{
+          padding: '8px 12px', borderRadius: 9,
+          background: 'transparent', border: `1px solid ${C.border}`,
+          color: C.muted, fontFamily: 'inherit', fontSize: 12, fontWeight: 600,
+          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+        }}><X size={11} /> Réinitialiser</button>
+      )}
+    </div>
+  );
+}
+
+function TableCompacteClients({ C, clients, charge, onOuvrir, onAnnoter, onDetacher }) {
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+        <thead>
+          <tr style={{ background: C.cardElev, borderBottom: `1px solid ${C.border}` }}>
+            <th style={thStyle(C)}>Client</th>
+            <th style={thStyle(C)}>Régime</th>
+            <th style={thStyle(C)}>Palier</th>
+            <th style={thStyle(C)}>Tags</th>
+            <th style={{ ...thStyle(C), textAlign: 'center' }}>Charge</th>
+            <th style={thStyle(C)}>Connecté</th>
+            <th style={{ ...thStyle(C), textAlign: 'right' }}>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {clients.map((c) => (
+            <tr key={c.connection_id} className="cab-row" style={{ borderBottom: `1px solid ${C.border}` }}>
+              <td style={{ padding: '10px 12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Avatar C={C} nom={c.pme_nom} size={28} />
+                  <div style={{ fontWeight: 600, color: C.text }}>{c.pme_nom}</div>
+                </div>
+              </td>
+              <td style={{ padding: '10px 12px', color: C.sub }}>{c.regime_fiscal || '—'}</td>
+              <td style={{ padding: '10px 12px' }}>
+                {c.palier && <span style={{ fontSize: 10, fontWeight: 700, color: C.accent, padding: '2px 7px', borderRadius: 4, background: `${C.accent}18` }}>{c.palier.toUpperCase()}</span>}
+              </td>
+              <td style={{ padding: '10px 12px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {(c.tags || []).slice(0, 3).map((t, i) => (
+                    <span key={i} style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: `${C.cabinet}18`, color: C.cabinet }}>{t}</span>
+                  ))}
+                  {(c.tags || []).length > 3 && <span style={{ fontSize: 10, color: C.muted }}>+{c.tags.length - 3}</span>}
+                </div>
+              </td>
+              <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                <ChargeBadge C={C} charge={charge[c.pme_id]} />
+              </td>
+              <td style={{ padding: '10px 12px', color: C.muted, fontSize: 11.5 }}>
+                {new Date(c.active_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+              </td>
+              <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                <div style={{ display: 'inline-flex', gap: 5 }}>
+                  <button onClick={() => onAnnoter(c)} title="Annoter" style={iconBtnTable(C)}><Edit3 size={12} /></button>
+                  <button onClick={() => onDetacher(c.connection_id, c.pme_nom)} title="Détacher" style={{ ...iconBtnTable(C), color: C.danger }}><Trash2 size={12} /></button>
+                  <button onClick={() => onOuvrir(c.pme_id, c.pme_nom)} title="Accéder au dossier" style={{
+                    padding: '5px 10px', borderRadius: 7,
+                    background: `linear-gradient(135deg, ${C.cabinet}, ${C.accent})`,
+                    border: 'none', color: '#FFF', fontFamily: 'inherit', fontWeight: 700, fontSize: 11,
+                    cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3,
+                  }}>Ouvrir <ArrowRight size={10} /></button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const thStyle = (C) => ({
+  padding: '8px 12px', textAlign: 'left',
+  fontSize: 10, fontWeight: 800, color: C.muted,
+  letterSpacing: '0.06em', textTransform: 'uppercase',
+});
+const iconBtnTable = (C) => ({
+  width: 28, height: 28, borderRadius: 7,
+  background: C.cardElev, border: `1px solid ${C.border}`,
+  color: C.sub, cursor: 'pointer',
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+});
+
+function CalendrierFiscal({ C, echeances, onOuvrirDeclaration, onMarquerFaite }) {
   const aujourdhui = new Date(); aujourdhui.setHours(0, 0, 0, 0);
-  const nomsMois = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const dans7j = new Date(); dans7j.setDate(dans7j.getDate() + 7);
+  const finMois = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth() + 1, 0);
+
+  // Groupement par urgence
+  const groupes = { retard: [], semaine: [], mois: [], plus_tard: [] };
+  for (const e of echeances) {
+    const d = new Date(e.date + 'T00:00:00');
+    if (d < aujourdhui) groupes.retard.push(e);
+    else if (d <= dans7j) groupes.semaine.push(e);
+    else if (d <= finMois) groupes.mois.push(e);
+    else groupes.plus_tard.push(e);
+  }
+
+  const sections = [
+    { key: 'retard',    titre: 'En retard',       icon: AlertTriangle, color: C.danger,  items: groupes.retard },
+    { key: 'semaine',   titre: 'Cette semaine',   icon: Clock,         color: C.warning, items: groupes.semaine },
+    { key: 'mois',      titre: 'Ce mois',         icon: Calendar,      color: C.cabinet, items: groupes.mois },
+    { key: 'plus_tard', titre: 'À venir',         icon: Calendar,      color: C.muted,   items: groupes.plus_tard },
+  ].filter(s => s.items.length > 0);
 
   const couleurType = {
     ITS:  { bg: `${C.info}18`, color: C.info },
@@ -756,20 +988,28 @@ function CalendrierFiscal({ C, echeances, onAccederDossier }) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {Object.entries(parMois).map(([cle, items]) => {
-        const [y, m] = cle.split('-');
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+      {sections.map((s) => {
+        const Icon = s.icon;
         return (
-          <div key={cle}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
-              {nomsMois[parseInt(m) - 1]} {y}
+          <div key={s.key}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <Icon size={14} color={s.color} />
+              <span style={{ fontSize: 11.5, fontWeight: 800, color: s.color, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                {s.titre}
+              </span>
+              <span style={{ fontSize: 10.5, color: C.muted, fontFamily: '"JetBrains Mono", monospace', padding: '1px 7px', borderRadius: 10, background: C.cardElev, border: `1px solid ${C.border}` }}>
+                {s.items.length}
+              </span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
-              {items.map((e, idx) => {
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 10 }}>
+              {s.items.map((e, idx) => {
                 const dDate = new Date(e.date + 'T00:00:00');
                 const joursRestants = Math.round((dDate - aujourdhui) / (1000 * 60 * 60 * 24));
-                const couleurStatut = joursRestants < 0 ? C.danger : joursRestants <= 7 ? C.warning : C.muted;
-                const labelStatut = joursRestants < 0 ? `${Math.abs(joursRestants)} j retard` : joursRestants === 0 ? "aujourd'hui" : joursRestants <= 7 ? `dans ${joursRestants} j` : `dans ${joursRestants} j`;
+                const labelStatut = joursRestants < 0
+                  ? `${Math.abs(joursRestants)} j de retard`
+                  : joursRestants === 0 ? "aujourd'hui"
+                  : `dans ${joursRestants} j`;
                 const c = couleurType[e.type] || { bg: `${C.muted}18`, color: C.muted };
                 return (
                   <div key={`${e.pme_id}-${e.type}-${e.date}-${idx}`} className="cab-card" style={{
@@ -782,22 +1022,36 @@ function CalendrierFiscal({ C, echeances, onAccederDossier }) {
                         fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 5,
                         background: c.bg, color: c.color, letterSpacing: '0.04em',
                       }}>{e.type}</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: couleurStatut }}>
-                        {joursRestants < 0 ? <AlertTriangle size={11} /> : <Clock size={11} />}
-                        {labelStatut}
-                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: s.color }}>{labelStatut}</span>
                     </div>
-                    <div style={{ fontFamily: 'inherit', fontSize: 12, color: C.text, lineHeight: 1.4 }}>{e.label}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
-                      <button onClick={() => onAccederDossier(e.pme_id, e.pme_nom)} style={{
-                        flex: 1, padding: 0, background: 'none', border: 'none',
-                        color: C.text, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600,
-                        textAlign: 'left', cursor: 'pointer',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }} title={`Accéder au dossier ${e.pme_nom}`}>{e.pme_nom}</button>
-                      <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: C.muted }}>
+                    <div style={{ fontSize: 12, color: C.text, lineHeight: 1.4 }}>{e.label}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.pme_nom}>
+                        {e.pme_nom}
+                      </span>
+                      <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: C.muted, flexShrink: 0 }}>
                         {new Date(e.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
                       </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
+                      <button onClick={() => onOuvrirDeclaration(e.pme_id, e.type)}
+                        className="cab-action" style={{
+                          flex: 1, padding: '7px 10px', borderRadius: 8,
+                          background: `${C.cabinet}18`, border: `1px solid ${C.cabinet}40`,
+                          color: C.cabinet, fontFamily: 'inherit', fontWeight: 700, fontSize: 11.5,
+                          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                        }} title={`Ouvrir la déclaration ${e.type} chez ${e.pme_nom}`}>
+                        Ouvrir <ArrowRight size={11} />
+                      </button>
+                      <button onClick={() => onMarquerFaite(e)}
+                        className="cab-action" style={{
+                          padding: '7px 10px', borderRadius: 8,
+                          background: 'transparent', border: `1px solid ${C.border}`,
+                          color: C.sub, fontFamily: 'inherit', fontWeight: 600, fontSize: 11.5,
+                          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                        }} title="Marquer cette échéance comme déclarée (la masque du calendrier)">
+                        <Check size={11} /> Faite
+                      </button>
                     </div>
                   </div>
                 );
