@@ -433,13 +433,18 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
           <LanguageSwitcher C={{ ...C, accent: '#00D4AA' }} dark={dark} />
         </div>
 
-        <NavLink to="/parametres" style={{
-          display: 'flex', alignItems: 'center', gap: 9,
-          padding: '8px 10px', borderRadius: 9, textDecoration: 'none',
-          fontSize: 12, fontWeight: 500, color: C.muted, marginBottom: 4,
-        }}>
-          <Settings size={15} /> {t('common.settings')}
-        </NavLink>
+        {/* Paramètres masqué en mode cabinet : la page actuelle gère les
+            paramètres d'une PME (fiscal, abonnement, membres) et n'a pas
+            de sens sur le dossier propre du cabinet. */}
+        {!modeCabinet && (
+          <NavLink to="/parametres" style={{
+            display: 'flex', alignItems: 'center', gap: 9,
+            padding: '8px 10px', borderRadius: 9, textDecoration: 'none',
+            fontSize: 12, fontWeight: 500, color: C.muted, marginBottom: 4,
+          }}>
+            <Settings size={15} /> {t('common.settings')}
+          </NavLink>
+        )}
 
         <div style={{
           display: 'flex', alignItems: 'center', gap: 9,
