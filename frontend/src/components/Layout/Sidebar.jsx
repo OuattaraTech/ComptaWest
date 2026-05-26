@@ -13,7 +13,7 @@ import {
   LayoutDashboard, Users, FileText, BarChart3, LogOut,
   Settings, ChevronRight, Receipt, Calculator, Plus,
   ChevronDown, Building2, Check, Sun, Moon, Shield, BookMarked, Wallet, UserCheck, Package, Box, Truck,
-  FileSignature, Award,
+  FileSignature, Award, Briefcase, Calendar, Send,
 } from 'lucide-react';
 import { Link as RouterLink } from 'react-router-dom';
 
@@ -283,16 +283,45 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
 
       {/* Navigation — défile si le contenu dépasse la hauteur d'écran */}
       <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 10px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {/* Mode cabinet : message d'aide quand la nav PME est masquée */}
+        {/* Mode cabinet : nav cabinet dédiée (les menus PME sont masqués
+            car ils n'ont aucun sens sur le dossier propre du cabinet) */}
         {modeCabinet && (
-          <div style={{
-            padding: '12px 12px', marginBottom: 8,
-            background: `${C.accent}10`, border: `1px solid ${C.accent}30`, borderRadius: 10,
-            fontSize: 11, color: C.sub, lineHeight: 1.5,
-          }}>
-            <div style={{ fontWeight: 700, color: C.text, marginBottom: 4 }}>Espace cabinet</div>
-            Pour accéder à la comptabilité d'un client, sélectionnez son dossier dans le sélecteur ci-dessus ou depuis votre portail.
-          </div>
+          <>
+            <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: '0.1em', padding: '6px 8px 3px', textTransform: 'uppercase' }}>
+              Espace cabinet
+            </div>
+            {[
+              { to: '/cabinet',                 icon: Briefcase,  label: 'Portail' },
+              { to: '/cabinet#clients',         icon: Building2,  label: 'Mes clients PME' },
+              { to: '/cabinet#calendrier',      icon: Calendar,   label: 'Calendrier fiscal' },
+              { to: '/cabinet#invitations',     icon: Send,       label: 'Invitations' },
+            ].map(({ to, icon: Icon, label }) => (
+              <NavLink key={to} to={to} style={({ isActive }) => ({
+                display: 'flex', alignItems: 'center', gap: 9,
+                padding: '9px 10px', borderRadius: 9, textDecoration: 'none',
+                fontSize: 13, fontWeight: isActive ? 700 : 500,
+                color: isActive ? C.accent : C.sub,
+                background: isActive ? `${C.accent}15` : 'transparent',
+                transition: 'all 0.15s',
+                border: isActive ? `1px solid ${C.accent}30` : '1px solid transparent',
+              })}>
+                {({ isActive }) => (
+                  <>
+                    <Icon size={16} />
+                    <span style={{ flex: 1 }}>{label}</span>
+                    {isActive && <ChevronRight size={13} />}
+                  </>
+                )}
+              </NavLink>
+            ))}
+            <div style={{
+              marginTop: 16, padding: '10px 12px',
+              background: `${C.accent}10`, border: `1px solid ${C.accent}30`, borderRadius: 10,
+              fontSize: 10.5, color: C.sub, lineHeight: 1.5,
+            }}>
+              Pour ouvrir la comptabilité d'un client, sélectionnez son dossier dans le sélecteur ci-dessus.
+            </div>
+          </>
         )}
         {navVisibles.length > 0 && (
           <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: '0.1em', padding: '6px 8px 3px', textTransform: 'uppercase' }}>

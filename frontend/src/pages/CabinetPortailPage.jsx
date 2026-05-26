@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Award, Copy, Check, X, Building2, Users, Mail, MessageCircle,
   RefreshCw, UserPlus, Send, ExternalLink, Search,
@@ -70,6 +70,7 @@ export default function CabinetPortailPage() {
   const { dark } = useTheme();
   const { actuelle, entreprises, switchEntreprise, chargerEntreprises } = useEntreprise();
   const navigate = useNavigate();
+  const location = useLocation();
   const C = getC(dark);
 
   const [info, setInfo] = useState(null);
@@ -119,6 +120,17 @@ export default function CabinetPortailPage() {
   useEffect(() => {
     if (actuelle?.type_compte === 'cabinet_partenaire') fetchAll();
   }, [actuelle]);
+
+  // Scroll vers l'ancre passée dans l'URL (#clients, #calendrier,
+  // #invitations) une fois les données chargées et le DOM rendu.
+  useEffect(() => {
+    if (loading || !location.hash) return;
+    const id = location.hash.slice(1);
+    const el = document.getElementById(id);
+    if (el) {
+      setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    }
+  }, [loading, location.hash]);
 
   const invitationsPending = useMemo(() => invitations.filter(i => i.statut === 'pending'), [invitations]);
   const invitationsHistorique = useMemo(() => invitations.filter(i => i.statut !== 'pending'), [invitations]);
@@ -375,6 +387,7 @@ export default function CabinetPortailPage() {
         </div>
 
         {/* SECTION CLIENTS PME */}
+        <div id="clients" style={{ scrollMarginTop: 90 }} />
         <Section C={C} icon={Building2} accent={C.cabinet} title="Mes clients PME" count={clients.length}
           right={clients.length > 0 && (
             <div style={{ position: 'relative' }}>
@@ -455,6 +468,7 @@ export default function CabinetPortailPage() {
         </Section>
 
         {/* SECTION CALENDRIER FISCAL */}
+        <div id="calendrier" style={{ scrollMarginTop: 90 }} />
         <Section C={C} icon={Calendar} accent={C.info} title="Calendrier fiscal" count={echeances.length}>
           {echeances.length === 0 ? (
             <EmptyState C={C} icon={Calendar}
@@ -466,6 +480,7 @@ export default function CabinetPortailPage() {
         </Section>
 
         {/* SECTION INVITATIONS PENDING */}
+        <div id="invitations" style={{ scrollMarginTop: 90 }} />
         <Section C={C} icon={Activity} accent={C.info} title="Invitations en attente" count={invitationsPending.length}>
           {invitationsPending.length === 0 ? (
             <EmptyState C={C} icon={Send} text="Aucune invitation en attente" sub="Les invitations envoyées en attente d'activation apparaîtront ici" />
