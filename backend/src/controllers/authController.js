@@ -706,6 +706,7 @@ const getMesPermissions = async (req, res) => {
         role, can, voitChamps,
         entreprise_id: req.entrepriseId,
         is_custom: !!override,
+        via_cabinet: !!req.viaCabinet,
       },
     });
   } catch (err) {

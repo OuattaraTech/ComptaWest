@@ -62,11 +62,52 @@ async function resoudreMembre(req) {
     }
   }
 
-  if (result.rows.length === 0) {
-    return { ok: false, status: 403, message: 'Accès refusé à cette entreprise' };
+  if (result.rows.length > 0) {
+    return { ok: true, entrepriseId, membre: result.rows[0] };
   }
 
-  return { ok: true, entrepriseId, membre: result.rows[0] };
+  // ─── Fallback Programme Partenaires Cabinets (migration 029) ───────────
+  // Si l'utilisateur n'est pas membre direct de l'entreprise, on vérifie
+  // s'il est propriétaire/admin d'un cabinet partenaire connecté à cette
+  // PME via cabinet_connections active. Si oui, on synthétise un rôle
+  // 'expert_comptable' (rôle de révision compta, sans accès USERS ni
+  // écriture sur ENTREPRISE — le cabinet ne peut pas modifier la
+  // structure du dossier client).
+  try {
+    const cabAccess = await pool.query(`
+      SELECT e.id, e.nom, e.devise, e.taux_tva, e.pays, e.regime_fiscal
+        FROM cabinet_connections cc
+        JOIN entreprises cab ON cab.id = cc.cabinet_id
+                            AND cab.type_compte = 'cabinet_partenaire'
+        JOIN membres_entreprise me_cab ON me_cab.entreprise_id = cab.id
+          AND me_cab.utilisateur_id = $1
+          AND me_cab.role IN ('proprietaire', 'admin')
+          AND me_cab.actif = true
+        JOIN entreprises e ON e.id = cc.pme_id AND e.id = $2 AND e.actif = true
+       WHERE cc.statut = 'active'
+       LIMIT 1
+    `, [req.user.id, entrepriseId]);
+    if (cabAccess.rows.length > 0) {
+      return {
+        ok: true,
+        entrepriseId,
+        membre: {
+          ...cabAccess.rows[0],
+          role: 'expert_comptable',
+          permissions_override: null,
+          via_cabinet: true,
+        },
+      };
+    }
+  } catch (err) {
+    // 42P01 = table cabinet_connections inexistante (migration 029 non
+    // appliquée). Silencieux : on retombe sur le 403 final.
+    if (err.code !== '42P01') {
+      console.error('Erreur fallback cabinet_connections:', err.message);
+    }
+  }
+
+  return { ok: false, status: 403, message: 'Accès refusé à cette entreprise' };
 }
 
 /**
@@ -79,6 +120,9 @@ function attacherContexte(req, res, entrepriseId, membre) {
   // Override JSONB (peut être null = matrice rôle standard). Lu par
   // requirePermission() et getMesPermissions() pour décider qui peut faire quoi.
   req.permissionsOverride = membre.permissions_override || null;
+  // Flag d'accès via cabinet_connections (programme partenaires) plutôt
+  // que via membre direct. Utile pour l'audit log et le banner UI.
+  req.viaCabinet = !!membre.via_cabinet;
 }
 
 /**

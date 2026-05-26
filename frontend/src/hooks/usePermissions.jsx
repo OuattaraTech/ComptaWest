@@ -59,6 +59,7 @@ export const PermissionsProvider = ({ children }) => {
       can,
       peutVoirChamp,
       loading,
+      viaCabinet: !!data.via_cabinet,
       refresh: fetchPermissions,
     }}>
       {children}
@@ -71,7 +72,7 @@ export const usePermissions = () => {
   if (!ctx) {
     // Fallback : on renvoie un can() qui refuse tout pour ne pas planter
     // les composants qui s'utilisent en dehors du provider.
-    return { role: null, can: () => false, peutVoirChamp: () => true, loading: false, refresh: () => {} };
+    return { role: null, can: () => false, peutVoirChamp: () => true, loading: false, viaCabinet: false, refresh: () => {} };
   }
   return ctx;
 };
