@@ -138,6 +138,7 @@ const {
   getEntreprisePublicInfo,
   mettreAJourConnection, getEcheancesFiscales,
   getChargeClients, marquerEcheanceFaite, annulerEcheanceFaite,
+  getNotifications,
 } = require('../controllers/cabinetController');
 
 router.post('/cabinets/activer-partenariat', auth, entrepriseAccess(), activerPartenariat);
@@ -147,6 +148,7 @@ router.get('/cabinets/echeances-fiscales',   auth, entrepriseAccess(), getEchean
 router.post('/cabinets/echeances/marquer-faite',  auth, entrepriseAccess(), marquerEcheanceFaite);
 router.delete('/cabinets/echeances/marquer-faite', auth, entrepriseAccess(), annulerEcheanceFaite);
 router.get('/cabinets/charge-clients',       auth, entrepriseAccess(), getChargeClients);
+router.get('/cabinets/notifications',        auth, entrepriseAccess(), getNotifications);
 router.post('/cabinets/inviter-pme',         auth, entrepriseAccess(), authLimiter, inviterPme);
 router.get('/cabinets/invitations',          auth, entrepriseAccess(), getInvitations);
 router.delete('/cabinets/invitations/:id',   auth, entrepriseAccess(), revoquerInvitation);

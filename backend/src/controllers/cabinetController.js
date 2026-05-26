@@ -672,6 +672,108 @@ async function getChargeClients(req, res) {
   }
 }
 
+// ─── GET /api/cabinets/notifications ───────────────────────────────────────
+// Feed unifié des événements récents pour le cabinet :
+//   - Invitations PME acceptées (7 derniers jours)
+//   - Connexions PME nouvellement actives (7 derniers jours)
+//   - Échéances fiscales en retard et non marquées comme traitées
+// Retourne 20 max, triés par date desc. Front affiche pastille + liste.
+async function getNotifications(req, res) {
+  try {
+    const items = [];
+
+    // Invitations acceptées récentes
+    const invAcc = await pool.query(
+      `SELECT id, email_pme, nom_pme, updated_at AS at, 'invitation_acceptee' AS type
+         FROM cabinet_invitations
+        WHERE cabinet_id = $1 AND statut = 'accepted'
+          AND updated_at > NOW() - INTERVAL '7 days'
+        ORDER BY updated_at DESC LIMIT 10`,
+      [req.entrepriseId]
+    );
+    for (const r of invAcc.rows) {
+      items.push({
+        type: 'invitation_acceptee',
+        at: r.at,
+        titre: `${r.nom_pme || r.email_pme} a accepté votre invitation`,
+        sub: 'Vous avez maintenant accès à son dossier',
+      });
+    }
+
+    // Connexions récentes
+    const conn = await pool.query(
+      `SELECT cc.active_at AS at, p.nom AS pme_nom, p.id AS pme_id
+         FROM cabinet_connections cc
+         JOIN entreprises p ON p.id = cc.pme_id
+        WHERE cc.cabinet_id = $1 AND cc.statut = 'active'
+          AND cc.active_at > NOW() - INTERVAL '7 days'
+        ORDER BY cc.active_at DESC LIMIT 10`,
+      [req.entrepriseId]
+    );
+    for (const r of conn.rows) {
+      items.push({
+        type: 'connexion_nouvelle',
+        at: r.at,
+        titre: `${r.pme_nom} est désormais connecté à votre cabinet`,
+        sub: 'Dossier prêt à être révisé',
+        pme_id: r.pme_id,
+      });
+    }
+
+    // Échéances déjà dépassées et non traitées (calcule via le même
+    // moteur que getEcheancesFiscales mais ne garde que les retards)
+    // Pour simplifier, on lit les pme connectées et on regarde les
+    // échéances calendaires des 30 jours passés.
+    const aujourdhui = new Date(); aujourdhui.setHours(0, 0, 0, 0);
+    const il30j = new Date(); il30j.setDate(il30j.getDate() - 30);
+    const pmes = await pool.query(
+      `SELECT p.id, p.nom, p.regime_fiscal
+         FROM cabinet_connections cc
+         JOIN entreprises p ON p.id = cc.pme_id
+        WHERE cc.cabinet_id = $1 AND cc.statut = 'active'`,
+      [req.entrepriseId]
+    );
+    let traitees = new Set();
+    try {
+      const tr = await pool.query(
+        `SELECT pme_id, type, periode FROM cabinet_echeances_traitees WHERE cabinet_id = $1`,
+        [req.entrepriseId]
+      );
+      for (const r of tr.rows) traitees.add(`${r.pme_id}|${r.type}|${r.periode.toISOString().slice(0,10)}`);
+    } catch (err) { if (err.code !== '42P01') throw err; }
+
+    for (const pme of pmes.rows) {
+      // Pour chaque type récurrent mensuel (ITS), on vérifie les
+      // 15 du mois passés dans les 30j
+      const dates = [
+        new Date(aujourdhui.getFullYear(), aujourdhui.getMonth(), 15),
+        new Date(aujourdhui.getFullYear(), aujourdhui.getMonth() - 1, 15),
+      ];
+      for (const d of dates) {
+        if (d >= il30j && d < aujourdhui) {
+          const cle = `${pme.id}|ITS|${d.toISOString().slice(0,10)}`;
+          if (!traitees.has(cle)) {
+            items.push({
+              type: 'echeance_retard',
+              at: d.toISOString(),
+              titre: `ITS ${pme.nom} en retard`,
+              sub: `Échéance du ${d.toLocaleDateString('fr-FR')} non déclarée`,
+              pme_id: pme.id,
+            });
+          }
+        }
+      }
+    }
+
+    // Tri par date desc, top 20
+    items.sort((a, b) => new Date(b.at) - new Date(a.at));
+    res.json({ success: true, data: items.slice(0, 20) });
+  } catch (err) {
+    console.error('Erreur getNotifications:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
 // ─── PATCH /api/cabinets/connections/:id ───────────────────────────────────
 // Met à jour les tags et notes privées d'une connexion cabinet↔PME.
 // Annotations strictement internes au cabinet, invisibles pour la PME.
@@ -823,4 +925,5 @@ module.exports = {
   getChargeClients,
   marquerEcheanceFaite,
   annulerEcheanceFaite,
+  getNotifications,
 };

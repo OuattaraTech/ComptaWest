@@ -4,7 +4,7 @@ import {
   Award, Copy, Check, X, Building2, Users, Mail, MessageCircle,
   RefreshCw, UserPlus, Send, ExternalLink, Search,
   Sparkles, Activity, Trash2, ArrowRight, Edit3, Tag, Calendar, AlertTriangle, Clock,
-  AlertCircle, LayoutList, LayoutGrid, Filter, Download,
+  AlertCircle, LayoutList, LayoutGrid, Filter, Download, Bell,
 } from 'lucide-react';
 import api from '../utils/api.jsx';
 import toast from 'react-hot-toast';
@@ -120,6 +120,11 @@ export default function CabinetPortailPage() {
   const [clientADetacher, setClientADetacher] = useState(null);
   const [confirmDetach, setConfirmDetach] = useState('');
   const [showRaccourcis, setShowRaccourcis] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifLuesAt, setNotifLuesAt] = useState(() => localStorage.getItem('cw_cab_notif_lues') || '');
+  const [selection, setSelection] = useState(new Set());
+  const [confirmBatch, setConfirmBatch] = useState(false);
 
   useEffect(() => {
     if (actuelle && actuelle.type_compte !== 'cabinet_partenaire') {
@@ -131,18 +136,20 @@ export default function CabinetPortailPage() {
   const fetchAll = async (silent = false) => {
     if (silent) setRefreshing(true); else setLoading(true);
     try {
-      const [i, c, inv, ech, ch] = await Promise.all([
+      const [i, c, inv, ech, ch, nt] = await Promise.all([
         api.get('/cabinets/me'),
         api.get('/cabinets/mes-clients'),
         api.get('/cabinets/invitations'),
         api.get('/cabinets/echeances-fiscales'),
         api.get('/cabinets/charge-clients'),
+        api.get('/cabinets/notifications'),
       ]);
       setInfo(i.data.data);
       setClients(c.data.data);
       setInvitations(inv.data.data);
       setEcheances(ech.data.data);
       setCharge(ch.data.data || {});
+      setNotifications(nt.data.data || []);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Erreur de chargement');
     } finally {
@@ -293,6 +300,48 @@ export default function CabinetPortailPage() {
       return;
     }
     switchEntreprise(cible, pageDeclarationPour(type));
+  };
+
+  // Notifications non lues = celles dont la date est postérieure au
+  // dernier marquage lu. Persisté en localStorage.
+  const notifNonLues = useMemo(() => {
+    if (!notifLuesAt) return notifications.length;
+    return notifications.filter(n => new Date(n.at) > new Date(notifLuesAt)).length;
+  }, [notifications, notifLuesAt]);
+
+  const marquerToutesLues = () => {
+    const maintenant = new Date().toISOString();
+    setNotifLuesAt(maintenant);
+    localStorage.setItem('cw_cab_notif_lues', maintenant);
+  };
+
+  const toggleSelection = (connectionId) => {
+    setSelection(prev => {
+      const next = new Set(prev);
+      if (next.has(connectionId)) next.delete(connectionId);
+      else next.add(connectionId);
+      return next;
+    });
+  };
+  const toutSelectionner = () => {
+    setSelection(new Set(clientsFiltres.map(c => c.connection_id)));
+  };
+  const toutDeselectionner = () => setSelection(new Set());
+
+  const detacherBatch = async () => {
+    setActionLoading(true);
+    try {
+      const ids = [...selection];
+      await Promise.all(ids.map(id => api.delete(`/cabinets/connections/${id}`)));
+      toast.success(`${ids.length} client(s) détaché(s)`);
+      setSelection(new Set());
+      setConfirmBatch(false);
+      fetchAll(true);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur lors du détachement');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const exporterClientsCsv = () => {
@@ -469,7 +518,79 @@ export default function CabinetPortailPage() {
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
+            {/* CLOCHE DE NOTIFICATIONS */}
+            <button onClick={() => { setNotifOpen(o => !o); if (!notifOpen) marquerToutesLues(); }}
+              title={`${notifNonLues} notification(s) non lue(s)`}
+              style={{
+                position: 'relative',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 40, height: 40, borderRadius: 10,
+                background: C.surface, border: `1px solid ${C.border}`,
+                color: notifNonLues > 0 ? C.cabinet : C.sub, cursor: 'pointer',
+              }}>
+              <Bell size={16} />
+              {notifNonLues > 0 && (
+                <span style={{
+                  position: 'absolute', top: 4, right: 4,
+                  minWidth: 16, height: 16, padding: '0 4px', borderRadius: 8,
+                  background: C.danger, color: '#FFF',
+                  fontSize: 9.5, fontWeight: 800, fontFamily: fontMono,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: `2px solid ${C.surface}`,
+                }}>{notifNonLues > 9 ? '9+' : notifNonLues}</span>
+              )}
+            </button>
+            {/* Dropdown notifications */}
+            {notifOpen && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 60,
+                width: 360, maxHeight: 460, overflowY: 'auto',
+                background: C.surface, border: `1px solid ${C.borderStrong}`, borderRadius: 12,
+                boxShadow: dark ? '0 20px 48px rgba(0,0,0,0.5)' : '0 20px 48px rgba(0,0,0,0.15)',
+              }}>
+                <div style={{
+                  padding: '12px 16px', borderBottom: `1px solid ${C.border}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
+                  <span style={{ fontFamily: fontDisplay, fontSize: 14, fontWeight: 800, color: C.text }}>Notifications</span>
+                  <span style={{ fontSize: 10.5, color: C.muted }}>{notifications.length} récente(s)</span>
+                </div>
+                {notifications.length === 0 ? (
+                  <div style={{ padding: 28, textAlign: 'center', color: C.muted, fontSize: 12.5 }}>
+                    Aucune activité récente
+                  </div>
+                ) : notifications.map((n, idx) => {
+                  const icone = n.type === 'invitation_acceptee' ? Check
+                              : n.type === 'connexion_nouvelle' ? UserPlus
+                              : AlertTriangle;
+                  const couleur = n.type === 'echeance_retard' ? C.danger
+                                : n.type === 'invitation_acceptee' ? C.accent
+                                : C.info;
+                  const Ic = icone;
+                  return (
+                    <div key={idx} style={{
+                      padding: '12px 16px',
+                      borderBottom: idx < notifications.length - 1 ? `1px solid ${C.border}` : 'none',
+                      display: 'flex', alignItems: 'flex-start', gap: 10,
+                    }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                        background: `${couleur}18`, color: couleur,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}><Ic size={14} /></div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 600, color: C.text, lineHeight: 1.3 }}>{n.titre}</div>
+                        <div style={{ fontSize: 11, color: C.sub, marginTop: 2 }}>{n.sub}</div>
+                        <div style={{ fontSize: 10.5, color: C.muted, marginTop: 3, fontFamily: fontMono }}>
+                          {new Date(n.at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             <button onClick={() => fetchAll(true)} disabled={refreshing} style={{
               display: 'flex', alignItems: 'center', gap: 8,
               padding: '10px 16px', borderRadius: 10,
@@ -658,6 +779,8 @@ export default function CabinetPortailPage() {
               sub={clients.length === 0 ? 'Cliquez sur « Inviter une PME » pour ajouter votre premier client' : 'Ajustez ou réinitialisez les filtres'} />
           ) : vueCompacte ? (
             <TableCompacteClients C={C} clients={clientsFiltres} charge={charge}
+              selection={selection} onToggleSelect={toggleSelection}
+              onToutSelectionner={toutSelectionner} onToutDeselectionner={toutDeselectionner}
               onOuvrir={accederAuDossier} onAnnoter={ouvrirEditionAnnotations} onDetacher={detacherClient} />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -878,6 +1001,79 @@ export default function CabinetPortailPage() {
             <button onClick={enregistrerAnnotations} disabled={actionLoading} style={btnPrimary(C)}>
               {actionLoading ? 'Enregistrement…' : 'Enregistrer'}
               {!actionLoading && <Check size={14} />}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* BARRE FLOTTANTE DE SÉLECTION (batch actions) */}
+      {selection.size > 0 && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 150,
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '12px 18px', borderRadius: 14,
+          background: C.surface, border: `1px solid ${C.borderStrong}`,
+          boxShadow: dark ? '0 16px 48px rgba(0,0,0,0.6)' : '0 16px 48px rgba(0,0,0,0.18)',
+          maxWidth: '95vw',
+        }}>
+          <span style={{
+            padding: '4px 10px', borderRadius: 6,
+            background: `${C.cabinet}25`, color: C.cabinet,
+            fontFamily: fontMono, fontWeight: 800, fontSize: 12,
+          }}>{selection.size}</span>
+          <span style={{ fontSize: 13, color: C.text, fontWeight: 600 }}>
+            client(s) sélectionné(s)
+          </span>
+          <button onClick={() => setConfirmBatch(true)} className="cab-action" style={{
+            padding: '8px 14px', borderRadius: 9,
+            background: C.danger, border: 'none', color: '#FFF',
+            fontFamily: fontUI, fontWeight: 700, fontSize: 12.5,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+          }}>
+            <Trash2 size={12} /> Détacher la sélection
+          </button>
+          <button onClick={toutDeselectionner} style={{
+            padding: '8px 12px', borderRadius: 9,
+            background: 'transparent', border: `1px solid ${C.border}`, color: C.sub,
+            fontFamily: fontUI, fontWeight: 600, fontSize: 12, cursor: 'pointer',
+          }}>Annuler</button>
+        </div>
+      )}
+
+      {/* MODAL CONFIRMATION BATCH DÉTACHER */}
+      {confirmBatch && (
+        <Modal C={C} onClose={() => !actionLoading && setConfirmBatch(false)} large>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: `${C.danger}18`, border: `1px solid ${C.danger}40`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <AlertTriangle size={22} color={C.danger} strokeWidth={2.4} />
+            </div>
+            <div>
+              <h3 style={{ fontFamily: fontDisplay, fontSize: 20, fontWeight: 800, margin: 0, color: C.text }}>Détacher {selection.size} client(s)</h3>
+              <div style={{ fontSize: 12.5, color: C.sub, marginTop: 2 }}>Action irréversible et appliquée en série</div>
+            </div>
+          </div>
+          <div style={{ padding: 14, background: C.cardElev, border: `1px solid ${C.border}`, borderRadius: 11, fontSize: 13, color: C.sub, lineHeight: 1.6, maxHeight: 200, overflowY: 'auto' }}>
+            Liste à détacher :
+            <ul style={{ margin: '8px 0 0', paddingLeft: 20, color: C.text }}>
+              {clientsFiltres.filter(c => selection.has(c.connection_id)).map(c => (
+                <li key={c.connection_id}>{c.pme_nom}</li>
+              ))}
+            </ul>
+          </div>
+          <div style={{ marginTop: 14, fontSize: 11.5, color: C.muted }}>
+            Chaque PME garde son compte et ses données. Vous perdez l'accès à leur dossier.
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 22, justifyContent: 'flex-end' }}>
+            <button onClick={() => setConfirmBatch(false)} disabled={actionLoading} style={btnSecondary(C)}>Annuler</button>
+            <button onClick={detacherBatch} disabled={actionLoading} style={{
+              padding: '10px 18px', borderRadius: 10,
+              background: C.danger, border: 'none', color: '#FFF',
+              fontFamily: fontUI, fontWeight: 700, fontSize: 13,
+              cursor: actionLoading ? 'wait' : 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}>
+              {actionLoading ? 'Détachement…' : `Confirmer (${selection.size})`}
+              {!actionLoading && <Trash2 size={14} />}
             </button>
           </div>
         </Modal>
@@ -1171,12 +1367,18 @@ function FiltresBar({ C, recherche, setRecherche, filtreTag, setFiltreTag, tagsC
   );
 }
 
-function TableCompacteClients({ C, clients, charge, onOuvrir, onAnnoter, onDetacher }) {
+function TableCompacteClients({ C, clients, charge, selection, onToggleSelect, onToutSelectionner, onToutDeselectionner, onOuvrir, onAnnoter, onDetacher }) {
+  const tousSelectionnes = clients.length > 0 && clients.every(c => selection?.has(c.connection_id));
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflowX: 'auto' }}>
-      <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse', fontSize: 12.5 }}>
+      <table style={{ width: '100%', minWidth: 740, borderCollapse: 'collapse', fontSize: 12.5 }}>
         <thead>
           <tr style={{ background: C.cardElev, borderBottom: `1px solid ${C.border}` }}>
+            <th style={{ ...thStyle(C), width: 32, paddingRight: 0 }}>
+              <input type="checkbox" checked={tousSelectionnes}
+                onChange={() => tousSelectionnes ? onToutDeselectionner() : onToutSelectionner()}
+                style={{ cursor: 'pointer', accentColor: C.cabinet }} />
+            </th>
             <th style={thStyle(C)}>Client</th>
             <th style={thStyle(C)}>Régime</th>
             <th style={thStyle(C)}>Palier</th>
@@ -1187,8 +1389,18 @@ function TableCompacteClients({ C, clients, charge, onOuvrir, onAnnoter, onDetac
           </tr>
         </thead>
         <tbody>
-          {clients.map((c) => (
-            <tr key={c.connection_id} className="cab-row" style={{ borderBottom: `1px solid ${C.border}` }}>
+          {clients.map((c) => {
+            const sel = selection?.has(c.connection_id);
+            return (
+            <tr key={c.connection_id} className="cab-row" style={{
+              borderBottom: `1px solid ${C.border}`,
+              background: sel ? `${C.cabinet}10` : 'transparent',
+            }}>
+              <td style={{ padding: '10px 12px', paddingRight: 0 }}>
+                <input type="checkbox" checked={!!sel}
+                  onChange={() => onToggleSelect(c.connection_id)}
+                  style={{ cursor: 'pointer', accentColor: C.cabinet }} />
+              </td>
               <td style={{ padding: '10px 12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <Avatar C={C} nom={c.pme_nom} size={28} />
@@ -1226,7 +1438,8 @@ function TableCompacteClients({ C, clients, charge, onOuvrir, onAnnoter, onDetac
                 </div>
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>
