@@ -1569,36 +1569,38 @@ function KpiHero({ C, icon: Icon, accent, label, value, unit, sub, progress }) {
   return (
     <div className="cab-card" style={{
       position: 'relative', overflow: 'hidden',
-      padding: 22, borderRadius: 16,
+      padding: '14px 16px', borderRadius: 12,
       background: C.card, border: `1px solid ${C.border}`,
     }}>
       <div style={{
-        position: 'absolute', top: -40, right: -40,
-        width: 160, height: 160, borderRadius: '50%',
-        background: `radial-gradient(circle, ${accent}22, transparent 70%)`,
+        position: 'absolute', top: -30, right: -30,
+        width: 110, height: 110, borderRadius: '50%',
+        background: `radial-gradient(circle, ${accent}1A, transparent 70%)`,
         pointerEvents: 'none',
       }} />
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'relative' }}>
         <div style={{
-          width: 42, height: 42, borderRadius: 11,
+          width: 34, height: 34, borderRadius: 9, flexShrink: 0,
           background: `linear-gradient(135deg, ${accent}, ${accent}AA)`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: `0 8px 24px ${accent}40`,
+          boxShadow: `0 4px 14px ${accent}35`,
         }}>
-          <Icon size={20} color="#FFF" strokeWidth={2.2} />
+          <Icon size={16} color="#FFF" strokeWidth={2.2} />
         </div>
-        <div style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 6, textAlign: 'right' }}>{label}</div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <div style={{ fontFamily: fontDisplay, fontSize: 36, fontWeight: 800, color: C.text, letterSpacing: '-0.025em', lineHeight: 1 }}>{value}</div>
-        {unit && <div style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>{unit}</div>}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 9.5, fontWeight: 700, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+            <div style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 800, color: C.text, letterSpacing: '-0.02em', lineHeight: 1 }}>{value}</div>
+            {unit && <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>{unit}</div>}
+          </div>
+        </div>
       </div>
       {progress !== undefined && (
-        <div style={{ marginTop: 14, height: 4, background: C.cardElev, borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{ marginTop: 10, height: 3, background: C.cardElev, borderRadius: 2, overflow: 'hidden' }}>
           <div style={{ width: `${Math.min(100, progress)}%`, height: '100%', background: `linear-gradient(90deg, ${accent}, ${C.accent})`, borderRadius: 2 }} />
         </div>
       )}
-      {sub && <div style={{ marginTop: 12, fontSize: 11.5, color: C.sub }}>{sub}</div>}
+      {sub && <div style={{ marginTop: 8, fontSize: 10.5, color: C.sub, lineHeight: 1.4 }}>{sub}</div>}
     </div>
   );
 }
