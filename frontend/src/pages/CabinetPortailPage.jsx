@@ -137,23 +137,29 @@ export default function CabinetPortailPage() {
 
   const copier = (txt) => { navigator.clipboard.writeText(txt); toast.success('Copié'); };
 
-  // Bascule vers le dossier du client : recharge la liste d'entreprises
-  // (incluant les PME connectées via le cabinet — voir getMesEntreprises
-  // backend), trouve la PME ciblée, la sélectionne via switchEntreprise,
-  // puis navigue vers /dashboard où le cabinet retrouve tous les menus PME.
+  // Bascule vers le dossier du client. On récupère la liste fraîche
+  // d'entreprises via l'API (incluant les PME connectées au cabinet,
+  // cf. getMesEntreprises backend), on trouve la PME ciblée, on la
+  // sélectionne via switchEntreprise, puis on navigue vers /dashboard
+  // où le cabinet retrouve tous les menus PME.
   const accederAuDossier = async (pme_id, pme_nom) => {
     try {
-      const liste = await chargerEntreprises();
-      const cible = (liste || entreprises || []).find(e => e.id === pme_id);
+      const res = await api.get('/entreprises');
+      const liste = res.data?.data || [];
+      const cible = liste.find(e => e.id === pme_id);
       if (!cible) {
-        toast.error('Dossier introuvable. Vérifiez que la PME est bien connectée.');
+        toast.error('Dossier introuvable. La connexion cabinet↔PME n\'est peut-être plus active.');
         return;
       }
       switchEntreprise(cible);
-      toast.success(`Bascule vers ${pme_nom}`);
+      // Rafraîchir le contexte global pour que la sidebar et les autres
+      // pages voient bien la nouvelle liste d'entreprises.
+      chargerEntreprises();
+      toast.success(`Dossier ${pme_nom} ouvert`);
       navigate('/dashboard');
     } catch (err) {
-      toast.error('Impossible d\'accéder au dossier');
+      console.error('accederAuDossier:', err);
+      toast.error(err.response?.data?.message || 'Impossible d\'accéder au dossier');
     }
   };
 
