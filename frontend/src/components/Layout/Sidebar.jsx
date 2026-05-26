@@ -64,7 +64,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
   const { t } = useTranslation();
   const { user, logout } = useAuth();
   const { entreprises, actuelle, switchEntreprise, ajouterEntreprise } = useEntreprise();
-  const { can } = usePermissions();
+  const { can, viaCabinet } = usePermissions();
   const { canAccess, paliierMinimalPour } = useQuotas();
   const { dark, toggle } = useTheme();
 
@@ -84,10 +84,15 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
   const [newEntNom, setNewEntNom] = useState('');
   const [creating, setCreating] = useState(false);
 
-  // Mode cabinet : adopte la palette du portail (fond mesh gradient
-  // or/émeraude + accent or) pour une continuité visuelle entre la
-  // sidebar et la page /cabinet. Voir CabinetPortailPage.jsx getC().
+  // 3 modes de palette :
+  //  - cabinet  : sur son propre dossier → palette or pleine (continuité
+  //               visuelle avec /cabinet)
+  //  - intervention : sur une PME en intervention via cabinet_connection
+  //                   → palette PME (émeraude) MAIS halo or subtil +
+  //                   accent or pour signaler le contexte d'intervention
+  //  - pme      : PME standard → palette émeraude historique
   const modeCabinet = actuelle?.type_compte === 'cabinet_partenaire';
+  const modeIntervention = !modeCabinet && viaCabinet;
   const C = modeCabinet ? {
     bg:     dark
       ? 'radial-gradient(ellipse 100% 60% at 50% 0%, rgba(245,196,74,0.10), transparent 70%), #0B0D14'
@@ -101,6 +106,21 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
     gold:   '#F5C44A',
     inputBg: dark ? '#10131A' : '#F5F0DD',
     dropBg:  dark ? '#13161E' : '#FFFFFF',
+  } : modeIntervention ? {
+    // Sidebar PME mais avec halo or top + accent or : signal constant
+    // que le cabinet intervient sur cette PME, pas un membre interne.
+    bg:     dark
+      ? 'radial-gradient(ellipse 100% 30% at 50% 0%, rgba(245,196,74,0.10), transparent 70%), #0D1220'
+      : 'linear-gradient(180deg, #FFFDF6 0%, #FFFFFF 30%)',
+    border: dark ? '#2A2820' : '#EDE5C8',
+    accent: dark ? '#F5C44A' : '#D69A17',
+    text:   dark ? '#E8EDF5' : '#0F172A',
+    muted:  dark ? '#6B7A99' : '#64748B',
+    sub:    dark ? '#9BAACC' : '#475569',
+    hover:  dark ? '#1A1F2A' : '#FAF6E7',
+    gold:   '#F5C44A',
+    inputBg: dark ? '#0B0F1A' : '#FAFAF5',
+    dropBg:  dark ? '#1A2235' : '#FFFFFF',
   } : {
     bg:     dark ? '#0D1220' : '#FFFFFF',
     border: dark ? '#1E2D40' : '#E2EAF4',
@@ -234,9 +254,21 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
               <div style={{ fontSize: 12, fontWeight: 700, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {actuelle?.nom || t('common.select_placeholder')}
               </div>
-              <div style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, background: roleInfo.bg, color: roleInfo.color, display: 'inline-block', marginTop: 2 }}>
-                {t(`roles.${actuelle?.role || 'user'}`)}
-              </div>
+              {modeIntervention ? (
+                <div style={{
+                  fontSize: 9.5, padding: '2px 7px', borderRadius: 5,
+                  background: `${C.gold}25`, color: C.gold,
+                  border: `1px solid ${C.gold}55`,
+                  display: 'inline-block', marginTop: 3,
+                  fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase',
+                }} title="Vous intervenez en tant que cabinet partenaire externe">
+                  Intervention cabinet
+                </div>
+              ) : (
+                <div style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, background: roleInfo.bg, color: roleInfo.color, display: 'inline-block', marginTop: 2 }}>
+                  {t(`roles.${actuelle?.role || 'user'}`)}
+                </div>
+              )}
             </div>
             <ChevronDown size={13} color={C.muted} style={{ flexShrink: 0, transform: showSwitcher ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
           </button>
