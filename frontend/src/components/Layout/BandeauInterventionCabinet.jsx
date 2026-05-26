@@ -62,7 +62,7 @@ export default function BandeauInterventionCabinet() {
             Mode intervention cabinet — dossier <strong style={{ color: cabinet }}>{actuelle.nom}</strong>
           </div>
           <div style={{ fontSize: 11, color: sub, marginTop: 2, lineHeight: 1.3 }}>
-            Vous intervenez en tant qu'expert-comptable. Les utilisateurs et paramètres de la PME sont en lecture seule.
+            Vous avez accès complet à la révision (écritures, clôture, DSF, paie, factures, dépenses). Seules la gestion des utilisateurs et la raison sociale restent réservées à la PME.
           </div>
         </div>
       </div>
