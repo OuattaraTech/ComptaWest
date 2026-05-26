@@ -1,9 +1,9 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Award, Copy, Check, X, Building2, Users, Mail, MessageCircle,
   RefreshCw, UserPlus, Send, ExternalLink, Search,
-  Sparkles, Activity, Trash2,
+  Sparkles, Activity, Trash2, ArrowRight, Edit3, Tag, Calendar, AlertTriangle, Clock,
 } from 'lucide-react';
 import api from '../utils/api.jsx';
 import toast from 'react-hot-toast';
@@ -68,13 +68,14 @@ const gradientFromString = (str) => {
 
 export default function CabinetPortailPage() {
   const { dark } = useTheme();
-  const { actuelle } = useEntreprise();
+  const { actuelle, entreprises, switchEntreprise, chargerEntreprises } = useEntreprise();
   const navigate = useNavigate();
   const C = getC(dark);
 
   const [info, setInfo] = useState(null);
   const [clients, setClients] = useState([]);
   const [invitations, setInvitations] = useState([]);
+  const [echeances, setEcheances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -83,6 +84,9 @@ export default function CabinetPortailPage() {
   const [formInvit, setFormInvit] = useState({ email_pme: '', nom_pme: '', telephone_pme: '' });
   const REMISE_PARRAINAGE_PCT = 15;
   const [recherche, setRecherche] = useState('');
+  const [clientEnEdition, setClientEnEdition] = useState(null);
+  const [editTags, setEditTags] = useState('');
+  const [editNotes, setEditNotes] = useState('');
 
   useEffect(() => {
     if (actuelle && actuelle.type_compte !== 'cabinet_partenaire') {
@@ -94,14 +98,16 @@ export default function CabinetPortailPage() {
   const fetchAll = async (silent = false) => {
     if (silent) setRefreshing(true); else setLoading(true);
     try {
-      const [i, c, inv] = await Promise.all([
+      const [i, c, inv, ech] = await Promise.all([
         api.get('/cabinets/me'),
         api.get('/cabinets/mes-clients'),
         api.get('/cabinets/invitations'),
+        api.get('/cabinets/echeances-fiscales'),
       ]);
       setInfo(i.data.data);
       setClients(c.data.data);
       setInvitations(inv.data.data);
+      setEcheances(ech.data.data);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Erreur de chargement');
     } finally {
@@ -130,6 +136,50 @@ export default function CabinetPortailPage() {
   }, [clients, recherche]);
 
   const copier = (txt) => { navigator.clipboard.writeText(txt); toast.success('Copié'); };
+
+  // Bascule vers le dossier du client : recharge la liste d'entreprises
+  // (incluant les PME connectées via le cabinet — voir getMesEntreprises
+  // backend), trouve la PME ciblée, la sélectionne via switchEntreprise,
+  // puis navigue vers /dashboard où le cabinet retrouve tous les menus PME.
+  const accederAuDossier = async (pme_id, pme_nom) => {
+    try {
+      const liste = await chargerEntreprises();
+      const cible = (liste || entreprises || []).find(e => e.id === pme_id);
+      if (!cible) {
+        toast.error('Dossier introuvable. Vérifiez que la PME est bien connectée.');
+        return;
+      }
+      switchEntreprise(cible);
+      toast.success(`Bascule vers ${pme_nom}`);
+      navigate('/dashboard');
+    } catch (err) {
+      toast.error('Impossible d\'accéder au dossier');
+    }
+  };
+
+  const ouvrirEditionAnnotations = (c) => {
+    setClientEnEdition(c);
+    setEditTags((c.tags || []).join(', '));
+    setEditNotes(c.notes_privees || '');
+  };
+
+  const enregistrerAnnotations = async () => {
+    if (!clientEnEdition) return;
+    setActionLoading(true);
+    try {
+      const tags = editTags.split(',').map(t => t.trim()).filter(t => t.length > 0);
+      await api.patch(`/cabinets/connections/${clientEnEdition.connection_id}`, {
+        tags, notes_privees: editNotes || null,
+      });
+      toast.success('Annotations enregistrées');
+      setClientEnEdition(null);
+      fetchAll(true);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const inviterPme = async () => {
     if (!formInvit.email_pme.trim()) { toast.error('Email obligatoire'); return; }
@@ -352,26 +402,60 @@ export default function CabinetPortailPage() {
                       <span style={{ fontFamily: fontDisplay, fontSize: 15, fontWeight: 700, color: C.text }}>{c.pme_nom}</span>
                       {c.regime_fiscal && <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, padding: '2px 7px', borderRadius: 4, background: C.cardElev }}>{c.regime_fiscal}</span>}
                       {c.palier && <span style={{ fontSize: 10, fontWeight: 700, color: C.accent, padding: '2px 7px', borderRadius: 4, background: `${C.accent}18` }}>{c.palier.toUpperCase()}</span>}
+                      {(c.tags || []).map((tag, ti) => (
+                        <span key={ti} style={{
+                          fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+                          background: `${C.cabinet}18`, color: C.cabinet,
+                          border: `1px solid ${C.cabinet}40`, fontFamily: 'inherit',
+                        }}>{tag}</span>
+                      ))}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4, fontSize: 11.5, color: C.sub }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4, fontSize: 11.5, color: C.sub, flexWrap: 'wrap' }}>
                       {c.ncc && <span style={{ fontFamily: fontMono }}>NCC {c.ncc}</span>}
                       {c.secteur && <><span>·</span><span>{c.secteur}</span></>}
                       {c.remise_parrainage_pct > 0 && <><span>·</span><span>Remise <strong style={{ color: C.cabinet }}>{c.remise_parrainage_pct}%</strong></span></>}
                       <span>·</span>
                       <span>Connecté {formatDate(c.active_at)}</span>
                     </div>
+                    {c.notes_privees && (
+                      <div style={{
+                        marginTop: 8, padding: '6px 10px', background: C.cardElev,
+                        borderLeft: `3px solid ${C.cabinet}`, borderRadius: 6,
+                        fontSize: 11.5, color: C.sub, fontStyle: 'italic',
+                        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                      }}>« {c.notes_privees} »</div>
+                    )}
                   </div>
-                  <button onClick={() => detacherClient(c.connection_id, c.pme_nom)} className="cab-action" title="Détacher ce client" style={{
-                    width: 36, height: 36, borderRadius: 9,
-                    background: 'transparent', border: `1px solid ${C.border}`,
-                    color: C.muted, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Trash2 size={14} />
-                  </button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => ouvrirEditionAnnotations(c)} className="cab-action" title="Annoter (tags + notes)"
+                      style={iconBtn(C)}><Edit3 size={13} /></button>
+                    <button onClick={() => detacherClient(c.connection_id, c.pme_nom)} className="cab-action" title="Détacher"
+                      style={{ ...iconBtn(C), color: C.danger }}><Trash2 size={13} /></button>
+                    <button onClick={() => accederAuDossier(c.pme_id, c.pme_nom)} className="cab-action" style={{
+                      padding: '8px 14px', borderRadius: 9,
+                      background: `linear-gradient(135deg, ${C.cabinet}, ${C.accent})`,
+                      border: 'none', color: '#FFF', fontFamily: fontUI,
+                      fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      boxShadow: `0 4px 12px ${C.cabinetGlow}`,
+                    }}>
+                      Accéder au dossier <ArrowRight size={12} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
+          )}
+        </Section>
+
+        {/* SECTION CALENDRIER FISCAL */}
+        <Section C={C} icon={Calendar} accent={C.info} title="Calendrier fiscal" count={echeances.length}>
+          {echeances.length === 0 ? (
+            <EmptyState C={C} icon={Calendar}
+              text="Aucune échéance dans les 60 prochains jours"
+              sub={clients.length === 0 ? 'Invitez votre premier client pour voir son calendrier fiscal' : 'Vos clients sont à jour'} />
+          ) : (
+            <CalendrierFiscal C={C} echeances={echeances} onAccederDossier={accederAuDossier} />
           )}
         </Section>
 
@@ -456,6 +540,58 @@ export default function CabinetPortailPage() {
           Portail Cabinet Partenaire · ApeX · Support WhatsApp prioritaire 2h ouvrées
         </div>
       </div>
+
+      {/* MODAL ÉDITION ANNOTATIONS (tags + notes) */}
+      {clientEnEdition && (
+        <Modal C={C} onClose={() => !actionLoading && setClientEnEdition(null)} large>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+            <Avatar C={C} nom={clientEnEdition.pme_nom} size={44} />
+            <div>
+              <h3 style={{ fontFamily: fontDisplay, fontSize: 20, fontWeight: 800, margin: 0, color: C.text }}>Annotations privées</h3>
+              <div style={{ fontSize: 12.5, color: C.sub, marginTop: 2 }}>{clientEnEdition.pme_nom} · invisible pour la PME</div>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: C.sub, marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              Tags (séparés par virgule, max 10)
+            </label>
+            <input value={editTags} onChange={(e) => setEditTags(e.target.value)}
+              placeholder="VIP, urgent, paie, prospect…"
+              style={{
+                width: '100%', padding: '10px 12px', borderRadius: 10,
+                background: C.cardElev, border: `1px solid ${C.border}`,
+                color: C.text, fontFamily: fontUI, fontSize: 13.5,
+                outline: 'none', boxSizing: 'border-box',
+              }} />
+            <div style={{ fontSize: 10.5, color: C.muted, marginTop: 4 }}>Ex : « VIP, paie urgente » — apparaît en badges or sur la card du client.</div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: C.sub, marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              Notes privées
+            </label>
+            <textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)}
+              placeholder="ex: à relancer pour les pièces de février, dossier complexe, attendre dépôt DSF avant…"
+              rows={5}
+              style={{
+                width: '100%', padding: 12, borderRadius: 10,
+                background: C.cardElev, border: `1px solid ${C.border}`,
+                color: C.text, fontFamily: fontUI, fontSize: 13,
+                outline: 'none', resize: 'vertical', boxSizing: 'border-box',
+              }} />
+            <div style={{ fontSize: 10.5, color: C.muted, marginTop: 4 }}>Stockées uniquement pour votre cabinet. La PME ne les voit jamais.</div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 22, justifyContent: 'flex-end' }}>
+            <button onClick={() => setClientEnEdition(null)} disabled={actionLoading} style={btnSecondary(C)}>Annuler</button>
+            <button onClick={enregistrerAnnotations} disabled={actionLoading} style={btnPrimary(C)}>
+              {actionLoading ? 'Enregistrement…' : 'Enregistrer'}
+              {!actionLoading && <Check size={14} />}
+            </button>
+          </div>
+        </Modal>
+      )}
 
       {/* MODAL INVITER PME */}
       {modalInviter && (
@@ -576,6 +712,80 @@ export default function CabinetPortailPage() {
           </div>
         </Modal>
       )}
+    </div>
+  );
+}
+
+function CalendrierFiscal({ C, echeances, onAccederDossier }) {
+  // Groupement par mois (clé : "YYYY-MM")
+  const parMois = {};
+  for (const e of echeances) {
+    const cle = e.date.slice(0, 7);
+    if (!parMois[cle]) parMois[cle] = [];
+    parMois[cle].push(e);
+  }
+  const aujourdhui = new Date(); aujourdhui.setHours(0, 0, 0, 0);
+  const nomsMois = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+
+  const couleurType = {
+    ITS:  { bg: `${C.info}18`, color: C.info },
+    TVA:  { bg: `${C.cabinet}18`, color: C.cabinet },
+    CNPS: { bg: `${C.accent}18`, color: C.accent },
+    IS:   { bg: `${C.danger}18`, color: C.danger },
+    DSF:  { bg: `${C.warning}18`, color: C.warning },
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {Object.entries(parMois).map(([cle, items]) => {
+        const [y, m] = cle.split('-');
+        return (
+          <div key={cle}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>
+              {nomsMois[parseInt(m) - 1]} {y}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+              {items.map((e, idx) => {
+                const dDate = new Date(e.date + 'T00:00:00');
+                const joursRestants = Math.round((dDate - aujourdhui) / (1000 * 60 * 60 * 24));
+                const couleurStatut = joursRestants < 0 ? C.danger : joursRestants <= 7 ? C.warning : C.muted;
+                const labelStatut = joursRestants < 0 ? `${Math.abs(joursRestants)} j retard` : joursRestants === 0 ? "aujourd'hui" : joursRestants <= 7 ? `dans ${joursRestants} j` : `dans ${joursRestants} j`;
+                const c = couleurType[e.type] || { bg: `${C.muted}18`, color: C.muted };
+                return (
+                  <div key={`${e.pme_id}-${e.type}-${e.date}-${idx}`} className="cab-card" style={{
+                    padding: 14, background: C.card, border: `1px solid ${C.border}`,
+                    borderRadius: 11, display: 'flex', flexDirection: 'column', gap: 8,
+                    animationDelay: `${idx * 0.02}s`,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{
+                        fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 5,
+                        background: c.bg, color: c.color, letterSpacing: '0.04em',
+                      }}>{e.type}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: couleurStatut }}>
+                        {joursRestants < 0 ? <AlertTriangle size={11} /> : <Clock size={11} />}
+                        {labelStatut}
+                      </span>
+                    </div>
+                    <div style={{ fontFamily: 'inherit', fontSize: 12, color: C.text, lineHeight: 1.4 }}>{e.label}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
+                      <button onClick={() => onAccederDossier(e.pme_id, e.pme_nom)} style={{
+                        flex: 1, padding: 0, background: 'none', border: 'none',
+                        color: C.text, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600,
+                        textAlign: 'left', cursor: 'pointer',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }} title={`Accéder au dossier ${e.pme_nom}`}>{e.pme_nom}</button>
+                      <span style={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: C.muted }}>
+                        {new Date(e.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

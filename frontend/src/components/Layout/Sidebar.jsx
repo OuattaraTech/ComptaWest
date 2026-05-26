@@ -118,13 +118,22 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
   };
 
   const roleInfo = ROLE_COLORS[actuelle?.role] || ROLE_COLORS.user;
+  // Mode « espace cabinet » : quand le dossier sélectionné est celui du
+  // cabinet partenaire lui-même, on masque tous les modules PME (compta,
+  // factures, paie…) — ils n'ont aucun sens pour le cabinet sur SON
+  // propre dossier. Le cabinet n'accède aux modules PME qu'en switchant
+  // vers le dossier d'un client. Seuls Cabinet + Paramètres + Admin
+  // (si super_admin) restent visibles.
+  const modeCabinet = actuelle?.type_compte === 'cabinet_partenaire';
   // Section Administration : visible si au moins un item admin (audit log…)
   // est lisible. La matrice peut évoluer sans toucher à ce check.
-  const showAdminSection = adminItems.some(item => can(item.module, 'read'));
+  const showAdminSection = !modeCabinet && adminItems.some(item => can(item.module, 'read'));
   // Filtre des items principaux : on respecte la matrice de permissions.
   // Un item peut déclarer `module` (single) ou `modules` (OR) -> visible
   // si au moins un des modules est lisible.
-  const navVisibles = navItems.filter(item => {
+  // En mode cabinet : on retire les modules métier PME (les modules
+  // « cabinet_*  » resteraient ici s'ils existaient).
+  const navVisibles = modeCabinet ? [] : navItems.filter(item => {
     const candidats = item.modules || [item.module];
     return candidats.some(m => can(m, 'read'));
   });
@@ -274,9 +283,22 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
 
       {/* Navigation — défile si le contenu dépasse la hauteur d'écran */}
       <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 10px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: '0.1em', padding: '6px 8px 3px', textTransform: 'uppercase' }}>
-          {t('common.menu')}
-        </div>
+        {/* Mode cabinet : message d'aide quand la nav PME est masquée */}
+        {modeCabinet && (
+          <div style={{
+            padding: '12px 12px', marginBottom: 8,
+            background: `${C.accent}10`, border: `1px solid ${C.accent}30`, borderRadius: 10,
+            fontSize: 11, color: C.sub, lineHeight: 1.5,
+          }}>
+            <div style={{ fontWeight: 700, color: C.text, marginBottom: 4 }}>Espace cabinet</div>
+            Pour accéder à la comptabilité d'un client, sélectionnez son dossier dans le sélecteur ci-dessus ou depuis votre portail.
+          </div>
+        )}
+        {navVisibles.length > 0 && (
+          <div style={{ fontSize: 9, color: C.muted, fontWeight: 700, letterSpacing: '0.1em', padding: '6px 8px 3px', textTransform: 'uppercase' }}>
+            {t('common.menu')}
+          </div>
+        )}
         {navVisibles.map(({ to, icon: Icon, label, i18nKey, module }) => {
           // Détermine si ce module est verrouillé pour le palier actuel
           // (rôle OK car déjà filtré par navVisibles, mais formule non).

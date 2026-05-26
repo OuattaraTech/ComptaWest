@@ -26,18 +26,62 @@ const entrepriseRules = [
 // GET /api/entreprises
 const getMesEntreprises = async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT e.*, me.role,
+    // UNION de deux sources :
+    //   1. Entreprises où l'utilisateur est membre direct (PME standard ou cabinet)
+    //   2. PME connectées au(x) cabinet(s) partenaire(s) dont il est propriétaire
+    //      → permet au cabinet de switcher vers le dossier de ses clients PME
+    //        depuis le sélecteur d'entreprise. Rôle synthétique 'comptable'.
+    // Fallback rétrocompat : si la table cabinet_connections n'existe pas
+    // (migration 029 non appliquée), on ne charge que les entreprises directes.
+    let sql = `
+      SELECT e.*, me.role, false AS via_cabinet,
         (SELECT COUNT(*) FROM membres_entreprise m2 WHERE m2.entreprise_id = e.id AND m2.actif = true) AS nb_membres,
         (SELECT COUNT(*) FROM factures f WHERE f.entreprise_id = e.id AND f.type = 'facture') AS nb_factures,
         (SELECT COUNT(*) FROM clients c WHERE c.entreprise_id = e.id AND c.actif = true) AS nb_clients
        FROM entreprises e
        JOIN membres_entreprise me ON me.entreprise_id = e.id
        WHERE me.utilisateur_id = $1 AND me.actif = true AND e.actif = true
-       ORDER BY me.created_at ASC`,
-      [req.user.id]
-    );
-    res.json({ success: true, data: result.rows });
+      UNION
+      SELECT pme.*, 'comptable' AS role, true AS via_cabinet,
+        (SELECT COUNT(*) FROM membres_entreprise m2 WHERE m2.entreprise_id = pme.id AND m2.actif = true) AS nb_membres,
+        (SELECT COUNT(*) FROM factures f WHERE f.entreprise_id = pme.id AND f.type = 'facture') AS nb_factures,
+        (SELECT COUNT(*) FROM clients c WHERE c.entreprise_id = pme.id AND c.actif = true) AS nb_clients
+       FROM cabinet_connections cc
+       JOIN entreprises cab ON cab.id = cc.cabinet_id AND cab.type_compte = 'cabinet_partenaire'
+       JOIN membres_entreprise me_cab ON me_cab.entreprise_id = cab.id
+         AND me_cab.utilisateur_id = $1
+         AND me_cab.role IN ('proprietaire', 'admin')
+         AND me_cab.actif = true
+       JOIN entreprises pme ON pme.id = cc.pme_id AND pme.actif = true
+       WHERE cc.statut = 'active'
+    `;
+    let result;
+    try {
+      result = await pool.query(sql, [req.user.id]);
+    } catch (err) {
+      // 42P01 = relation inexistante (migration 029 non appliquée)
+      if (err.code === '42P01') {
+        const fallback = await pool.query(
+          `SELECT e.*, me.role, false AS via_cabinet,
+            (SELECT COUNT(*) FROM membres_entreprise m2 WHERE m2.entreprise_id = e.id AND m2.actif = true) AS nb_membres,
+            (SELECT COUNT(*) FROM factures f WHERE f.entreprise_id = e.id AND f.type = 'facture') AS nb_factures,
+            (SELECT COUNT(*) FROM clients c WHERE c.entreprise_id = e.id AND c.actif = true) AS nb_clients
+           FROM entreprises e
+           JOIN membres_entreprise me ON me.entreprise_id = e.id
+           WHERE me.utilisateur_id = $1 AND me.actif = true AND e.actif = true
+           ORDER BY me.created_at ASC`,
+          [req.user.id]
+        );
+        return res.json({ success: true, data: fallback.rows });
+      }
+      throw err;
+    }
+    // Tri : entreprise propre d'abord (membre direct), puis PME du cabinet
+    const rows = result.rows.sort((a, b) => {
+      if (a.via_cabinet !== b.via_cabinet) return a.via_cabinet ? 1 : -1;
+      return (a.nom || '').localeCompare(b.nom || '');
+    });
+    res.json({ success: true, data: rows });
   } catch (err) {
     console.error('Erreur getMesEntreprises:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });

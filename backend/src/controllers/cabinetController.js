@@ -151,6 +151,7 @@ async function getMesClients(req, res) {
     // qui ne regarde pas le cabinet partenaire.
     const r = await pool.query(
       `SELECT cc.id AS connection_id, cc.statut AS statut_connection, cc.active_at,
+              cc.tags, cc.notes_privees,
               p.id AS pme_id, p.nom AS pme_nom, p.ncc, p.regime_fiscal, p.secteur,
               p.remise_parrainage_pct,
               ab.palier
@@ -531,6 +532,122 @@ async function relancerInvitationsPending() {
   }
 }
 
+// ─── PATCH /api/cabinets/connections/:id ───────────────────────────────────
+// Met à jour les tags et notes privées d'une connexion cabinet↔PME.
+// Annotations strictement internes au cabinet, invisibles pour la PME.
+async function mettreAJourConnection(req, res) {
+  try {
+    const { tags, notes_privees } = req.body;
+    // Normalise les tags : array de strings non vides, trim, sans doublon
+    let tagsArr = null;
+    if (Array.isArray(tags)) {
+      tagsArr = [...new Set(tags
+        .map(t => typeof t === 'string' ? t.trim() : '')
+        .filter(t => t.length > 0 && t.length <= 30)
+      )].slice(0, 10);
+    }
+    const r = await pool.query(
+      `UPDATE cabinet_connections
+          SET tags = COALESCE($1, tags),
+              notes_privees = $2,
+              updated_at = NOW()
+        WHERE id = $3 AND cabinet_id = $4
+        RETURNING id, tags, notes_privees`,
+      [tagsArr, notes_privees ?? null, req.params.id, req.entrepriseId]
+    );
+    if (!r.rows[0]) {
+      return res.status(404).json({ success: false, message: 'Connexion introuvable' });
+    }
+    res.json({ success: true, data: r.rows[0] });
+  } catch (err) {
+    console.error('Erreur mettreAJourConnection:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+// ─── GET /api/cabinets/echeances-fiscales ──────────────────────────────────
+// Calcule les échéances DGI/CNPS des 60 prochains jours pour chaque PME
+// connectée au cabinet. Pure logique calendaire (pas de lecture de
+// déclarations existantes — version 1 informative). Côte d'Ivoire :
+//   - ITS    : 15 de CHAQUE mois (déclaration et versement)
+//   - TVA    : 15 de chaque mois (régime RNI assujetti)
+//   - CNPS   : 15 du mois suivant chaque trimestre civil
+//   - IS (acompte) : 15 mars, 15 juin, 15 sept, 15 déc (RNI)
+//   - DSF / liasse fiscale : 30 avril N+1 (RNI), 31 mai N+1 (autres)
+async function getEcheancesFiscales(req, res) {
+  try {
+    const cli = await pool.query(
+      `SELECT p.id AS pme_id, p.nom AS pme_nom, p.regime_fiscal
+         FROM cabinet_connections cc
+         JOIN entreprises p ON p.id = cc.pme_id
+        WHERE cc.cabinet_id = $1 AND cc.statut = 'active'`,
+      [req.entrepriseId]
+    );
+    const aujourdhui = new Date();
+    const limite = new Date();
+    limite.setDate(limite.getDate() + 60);
+
+    const echeances = [];
+    for (const pme of cli.rows) {
+      // ITS — le 15 de chaque mois (mois courant + suivants jusqu'à la limite)
+      for (let i = 0; i < 3; i++) {
+        const d = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth() + i, 15);
+        if (d >= aujourdhui && d <= limite) {
+          echeances.push({ pme_id: pme.pme_id, pme_nom: pme.pme_nom, type: 'ITS', label: 'Déclaration ITS mensuelle', date: d.toISOString().slice(0, 10), severite: 'mensuel' });
+        }
+      }
+      // TVA — le 15 de chaque mois pour RNI
+      if (pme.regime_fiscal === 'RNI') {
+        for (let i = 0; i < 3; i++) {
+          const d = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth() + i, 15);
+          if (d >= aujourdhui && d <= limite) {
+            echeances.push({ pme_id: pme.pme_id, pme_nom: pme.pme_nom, type: 'TVA', label: 'Déclaration TVA mensuelle', date: d.toISOString().slice(0, 10), severite: 'mensuel' });
+          }
+        }
+      }
+      // CNPS — trimestriel : 15 du mois suivant le trimestre civil clos
+      const trimestres = [
+        new Date(aujourdhui.getFullYear(), 3, 15),  // Q1 → 15 avril
+        new Date(aujourdhui.getFullYear(), 6, 15),  // Q2 → 15 juillet
+        new Date(aujourdhui.getFullYear(), 9, 15),  // Q3 → 15 octobre
+        new Date(aujourdhui.getFullYear() + 1, 0, 15), // Q4 → 15 janvier N+1
+      ];
+      for (const d of trimestres) {
+        if (d >= aujourdhui && d <= limite) {
+          echeances.push({ pme_id: pme.pme_id, pme_nom: pme.pme_nom, type: 'CNPS', label: 'Cotisations CNPS trimestrielles', date: d.toISOString().slice(0, 10), severite: 'trimestriel' });
+        }
+      }
+      // Acomptes IS — 15 mars/juin/sept/déc (RNI)
+      if (pme.regime_fiscal === 'RNI') {
+        const acomptes = [
+          new Date(aujourdhui.getFullYear(), 2, 15),
+          new Date(aujourdhui.getFullYear(), 5, 15),
+          new Date(aujourdhui.getFullYear(), 8, 15),
+          new Date(aujourdhui.getFullYear(), 11, 15),
+        ];
+        for (const d of acomptes) {
+          if (d >= aujourdhui && d <= limite) {
+            echeances.push({ pme_id: pme.pme_id, pme_nom: pme.pme_nom, type: 'IS', label: 'Acompte impôt sur les sociétés', date: d.toISOString().slice(0, 10), severite: 'trimestriel' });
+          }
+        }
+      }
+      // DSF / liasse fiscale — 30 avril N+1 (RNI), 31 mai N+1 (autres)
+      const dsfDate = pme.regime_fiscal === 'RNI'
+        ? new Date(aujourdhui.getFullYear(), 3, 30)
+        : new Date(aujourdhui.getFullYear(), 4, 31);
+      if (dsfDate >= aujourdhui && dsfDate <= limite) {
+        echeances.push({ pme_id: pme.pme_id, pme_nom: pme.pme_nom, type: 'DSF', label: 'États financiers annuels', date: dsfDate.toISOString().slice(0, 10), severite: 'annuel' });
+      }
+    }
+    // Tri chronologique
+    echeances.sort((a, b) => a.date.localeCompare(b.date));
+    res.json({ success: true, data: echeances });
+  } catch (err) {
+    console.error('Erreur getEcheancesFiscales:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
 module.exports = {
   activerPartenariat,
   getCabinetInfo,
@@ -543,4 +660,6 @@ module.exports = {
   accepterInvitationPme,
   relancerInvitationsPending,
   getEntreprisePublicInfo,
+  mettreAJourConnection,
+  getEcheancesFiscales,
 };
