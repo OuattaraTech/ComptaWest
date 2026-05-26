@@ -255,7 +255,10 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
                 </button>
               ))}
 
-              {!showNewEnt ? (
+              {/* Bouton « Nouvelle entreprise » masqué en mode cabinet :
+                  le cabinet ne crée pas d'entreprises à la main ; ses
+                  clients PME sont ajoutés via le portail (« Inviter une PME »). */}
+              {!modeCabinet && (!showNewEnt ? (
                 <button onClick={() => setShowNewEnt(true)} style={{
                   width: '100%', display: 'flex', alignItems: 'center', gap: 8,
                   padding: '10px 12px', border: 'none', borderTop: `1px solid ${C.border}`,
@@ -275,7 +278,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
                     </button>
                   </div>
                 </form>
-              )}
+              ))}
             </div>
           )}
         </div>
