@@ -26,8 +26,9 @@ export default function BandeauInterventionCabinet() {
       e => e.type_compte === 'cabinet_partenaire' && (e.role === 'proprietaire' || e.role === 'admin')
     );
     if (cab) {
-      switchEntreprise(cab);
-      navigate('/cabinet');
+      // switchEntreprise déclenche un full reload — ici on demande la
+      // redirection directe vers /cabinet pour atterrir sur le portail.
+      switchEntreprise(cab, '/cabinet');
     } else {
       navigate('/cabinet');
     }

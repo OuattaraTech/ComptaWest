@@ -45,10 +45,21 @@ export const EntrepriseProvider = ({ children }) => {
     else setLoading(false);
   }, [chargerEntreprises]);
 
-  const switchEntreprise = (entreprise) => {
+  const switchEntreprise = (entreprise, redirectTo = null) => {
     setActuelle(entreprise);
     localStorage.setItem('cw_entreprise_id', entreprise.id);
     api.defaults.headers.common['X-Entreprise-Id'] = entreprise.id;
+    // Full reload du contexte applicatif après un switch d'entreprise.
+    // Sans ça, les hooks dépendant du contexte (usePermissions, useQuotas,
+    // pages métier qui ont déjà fetché leurs données) restent sur l'ancien
+    // contexte → l'utilisateur doit recharger manuellement. Un reload
+    // explicite garantit que toutes les requêtes repartent avec le bon
+    // X-Entreprise-Id et que tous les états React redémarrent propres.
+    if (redirectTo) {
+      window.location.href = redirectTo;
+    } else {
+      window.location.reload();
+    }
   };
 
   const ajouterEntreprise = async (data) => {

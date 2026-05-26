@@ -163,12 +163,11 @@ export default function CabinetPortailPage() {
         toast.error('Dossier introuvable. La connexion cabinet↔PME n\'est peut-être plus active.');
         return;
       }
-      switchEntreprise(cible);
-      // Rafraîchir le contexte global pour que la sidebar et les autres
-      // pages voient bien la nouvelle liste d'entreprises.
-      chargerEntreprises();
+      // switchEntreprise déclenche un full reload vers /dashboard pour
+      // que le nouveau contexte (permissions, quotas, données page) soit
+      // correctement chargé. Pas besoin de navigate manuel.
       toast.success(`Dossier ${pme_nom} ouvert`);
-      navigate('/dashboard');
+      switchEntreprise(cible, '/dashboard');
     } catch (err) {
       console.error('accederAuDossier:', err);
       toast.error(err.response?.data?.message || 'Impossible d\'accéder au dossier');
