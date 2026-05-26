@@ -384,47 +384,42 @@ export default function CabinetPortailPage() {
 
       <div style={{ maxWidth: 1440, margin: '0 auto', padding: '32px 40px 64px' }}>
 
-        {/* HERO CODE PARRAIN */}
+        {/* BANDEAU CODE PARRAIN — compact (info statique, ne doit pas
+            dominer le fold ; les KPIs et le calendrier passent au-dessus) */}
         <div className="cab-card" style={{
-          position: 'relative', overflow: 'hidden',
-          padding: '28px 32px', borderRadius: 18,
-          background: `linear-gradient(135deg, ${C.cabinet}12, ${C.accent}08)`,
+          display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+          padding: '10px 14px', borderRadius: 12,
+          background: `linear-gradient(90deg, ${C.cabinet}12, ${C.accent}08)`,
           border: `1px solid ${C.cabinet}40`,
-          marginBottom: 24,
+          marginBottom: 20,
         }}>
-          <div style={{ position: 'absolute', top: -60, right: -60, width: 240, height: 240, borderRadius: '50%', background: `radial-gradient(circle, ${C.cabinet}25, transparent 70%)`, pointerEvents: 'none' }} />
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 32, flexWrap: 'wrap', position: 'relative' }}>
-            <div style={{ flex: '1 1 320px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <Sparkles size={14} color={C.cabinet} />
-                <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.12em', color: C.cabinet, textTransform: 'uppercase' }}>Votre code parrain unique</span>
-              </div>
-              <div style={{ fontFamily: fontMono, fontSize: 44, fontWeight: 800, color: C.text, letterSpacing: '0.02em', lineHeight: 1.1 }}>{info.code_parrain}</div>
-              <div style={{ fontSize: 13, color: C.sub, marginTop: 10, lineHeight: 1.5 }}>
-                Signature de votre cabinet. À mentionner dans vos communications, sur votre site,
-                vos cartes de visite. Les PME que vous parrainez bénéficient automatiquement d'une remise.
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
-              <button onClick={() => copier(info.code_parrain)} className="cab-action" style={{
-                padding: '12px 18px', borderRadius: 11,
-                background: C.surface, border: `1px solid ${C.border}`,
-                color: C.text, fontFamily: fontUI, fontWeight: 600, fontSize: 13,
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-              }}>
-                <Copy size={14} /> Copier le code
-              </button>
-              <button onClick={() => setModalInviter(true)} className="cab-action" style={{
-                padding: '12px 20px', borderRadius: 11,
-                background: `linear-gradient(135deg, ${C.cabinet}, ${C.accent})`,
-                border: 'none', color: '#FFF',
-                fontFamily: fontUI, fontWeight: 700, fontSize: 13,
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
-                boxShadow: `0 6px 20px ${C.cabinetGlow}`,
-              }}>
-                <Send size={14} /> Inviter une PME
-              </button>
-            </div>
+          <div style={{
+            width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+            background: `${C.cabinet}25`, color: C.cabinet,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Award size={14} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.1em', color: C.muted, textTransform: 'uppercase' }}>
+              Code parrain
+            </span>
+            <span style={{ fontFamily: fontMono, fontSize: 15, fontWeight: 800, color: C.text, letterSpacing: '0.04em' }}>
+              {info.code_parrain}
+            </span>
+          </div>
+          <button onClick={() => copier(info.code_parrain)} className="cab-action"
+            title="Copier le code parrain"
+            style={{
+              width: 28, height: 28, borderRadius: 7,
+              background: C.surface, border: `1px solid ${C.border}`,
+              color: C.sub, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+            <Copy size={12} />
+          </button>
+          <div style={{ flex: 1, fontSize: 11.5, color: C.sub, lineHeight: 1.4, minWidth: 180 }}>
+            Signature de votre cabinet — à mentionner sur vos communications. Les PME parrainées bénéficient automatiquement d'une remise.
           </div>
         </div>
 
