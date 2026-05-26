@@ -80,7 +80,8 @@ export default function CabinetPortailPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [modalInviter, setModalInviter] = useState(false);
   const [resultatInvit, setResultatInvit] = useState(null);
-  const [formInvit, setFormInvit] = useState({ email_pme: '', nom_pme: '', telephone_pme: '', remise_proposee_pct: 15 });
+  const [formInvit, setFormInvit] = useState({ email_pme: '', nom_pme: '', telephone_pme: '' });
+  const REMISE_PARRAINAGE_PCT = 15;
   const [recherche, setRecherche] = useState('');
 
   useEffect(() => {
@@ -138,7 +139,7 @@ export default function CabinetPortailPage() {
       const { data } = await api.post('/cabinets/inviter-pme', formInvit);
       setResultatInvit({ ...data.data, nom_cabinet: info.nom });
       setModalInviter(false);
-      setFormInvit({ email_pme: '', nom_pme: '', telephone_pme: '', remise_proposee_pct: 15 });
+      setFormInvit({ email_pme: '', nom_pme: '', telephone_pme: '' });
       fetchAll(true);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Erreur');
@@ -173,7 +174,7 @@ export default function CabinetPortailPage() {
     if (!invitation.telephone_pme) return null;
     const phone = invitation.telephone_pme.replace(/[^\d+]/g, '').replace(/^\+/, '');
     const lien = `${window.location.origin}/rejoindre/${invitation.token}`;
-    const msg = `Bonjour${invitation.nom_pme ? ' ' + invitation.nom_pme : ''},\n\n${info.nom} vous invite à rejoindre ApeX (logiciel de gestion comptable SYSCOHADA) avec une remise de ${invitation.remise_proposee_pct}% la 1ère année.\n\nActivez votre compte : ${lien}\n\nÀ très vite !`;
+    const msg = `Bonjour${invitation.nom_pme ? ' ' + invitation.nom_pme : ''},\n\n${info.nom} vous invite à rejoindre ApeX (logiciel de gestion comptable SYSCOHADA) avec une remise de ${REMISE_PARRAINAGE_PCT}% la 1ère année.\n\nActivez votre compte : ${lien}\n\nÀ très vite !`;
     return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
   };
 
@@ -489,23 +490,29 @@ export default function CabinetPortailPage() {
               value={formInvit.telephone_pme} onChange={(v) => setFormInvit(f => ({ ...f, telephone_pme: v }))}
               hint="Permet de générer un lien wa.me" />
           </div>
-          <div style={{ marginTop: 12 }}>
-            <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: C.sub, marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Remise proposée à la PME (1ère année)</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <input type="range" min="0" max="50" value={formInvit.remise_proposee_pct}
-                onChange={(e) => setFormInvit(f => ({ ...f, remise_proposee_pct: parseInt(e.target.value) }))}
-                style={{ flex: 1, accentColor: C.cabinet }} />
-              <div style={{ width: 70, textAlign: 'center', padding: '8px 12px', background: C.cardElev, border: `1px solid ${C.border}`, borderRadius: 10, fontFamily: fontMono, fontWeight: 700, color: C.cabinet, fontSize: 14 }}>
-                -{formInvit.remise_proposee_pct}%
-              </div>
+          <div style={{
+            marginTop: 14, padding: 14,
+            background: `linear-gradient(135deg, ${C.cabinet}14, ${C.cabinet}05)`,
+            border: `1px solid ${C.cabinet}40`, borderRadius: 11,
+            display: 'flex', alignItems: 'center', gap: 14,
+          }}>
+            <div style={{
+              minWidth: 64, padding: '10px 12px', textAlign: 'center',
+              background: C.surface, border: `1px solid ${C.cabinet}55`, borderRadius: 10,
+              fontFamily: fontMono, fontWeight: 800, color: C.cabinet, fontSize: 18,
+            }}>
+              -{REMISE_PARRAINAGE_PCT}%
+            </div>
+            <div style={{ fontSize: 12, color: C.sub, lineHeight: 1.5 }}>
+              <strong style={{ color: C.text }}>Remise ApeX la 1ère année</strong> — appliquée automatiquement à toutes les PME que vous parrainez. Valeur définie par ApeX, non modifiable.
             </div>
           </div>
 
-          <div style={{ marginTop: 16, padding: 14, background: C.cardElev, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12, color: C.sub, lineHeight: 1.6 }}>
+          <div style={{ marginTop: 14, padding: 14, background: C.cardElev, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12, color: C.sub, lineHeight: 1.6 }}>
             La PME reçoit un email signé de <strong style={{ color: C.text }}>{info.nom}</strong>.
-            Au clic, elle définit son mot de passe, son compte ApeX est créé avec le palier de son choix
-            (remise <strong style={{ color: C.cabinet }}>-{formInvit.remise_proposee_pct}%</strong>) et votre cabinet
-            est automatiquement connecté à son dossier.
+            Au clic, elle définit son mot de passe, son compte ApeX est créé avec le palier
+            de son choix (remise <strong style={{ color: C.cabinet }}>-{REMISE_PARRAINAGE_PCT}%</strong> appliquée)
+            et votre cabinet est automatiquement connecté à son dossier.
           </div>
 
           <div style={{ display: 'flex', gap: 10, marginTop: 22, justifyContent: 'flex-end' }}>

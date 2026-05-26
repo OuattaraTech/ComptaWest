@@ -167,10 +167,13 @@ async function getMesClients(req, res) {
 // ─── POST /api/cabinets/inviter-pme ─────────────────────────────────────────
 async function inviterPme(req, res) {
   try {
-    const { email_pme, nom_pme, telephone_pme, remise_proposee_pct } = req.body;
+    const { email_pme, nom_pme, telephone_pme } = req.body;
     if (!email_pme) {
       return res.status(400).json({ success: false, message: 'Email de la PME requis' });
     }
+    // Remise fixée par ApeX, non négociable côté cabinet (décision commerciale
+    // centralisée du super-admin). Toute valeur envoyée dans req.body est ignorée.
+    const REMISE_PARRAINAGE_PCT = 15;
 
     // Vérifie que c'est bien un cabinet partenaire
     const cab = await pool.query(
@@ -186,7 +189,6 @@ async function inviterPme(req, res) {
     // Si la PME existe déjà sur ApeX (par email d'un user), proposer une demande de connexion
     // V1 : on crée toujours une nouvelle invitation, la résolution se fera au moment du clic
     const token = genererTokenInvitation();
-    const remise = Math.min(50, Math.max(0, parseInt(remise_proposee_pct) || 15));
 
     const inv = await pool.query(
       `INSERT INTO cabinet_invitations
@@ -194,11 +196,11 @@ async function inviterPme(req, res) {
           remise_proposee_pct, cree_par)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
       [req.entrepriseId, email_pme.toLowerCase().trim(),
-       nom_pme || null, telephone_pme || null, token, remise, req.user.id]
+       nom_pme || null, telephone_pme || null, token, REMISE_PARRAINAGE_PCT, req.user.id]
     );
 
     logAudit(req, 'INVITE', 'cabinet_invitation', inv.rows[0].id,
-      { email: email_pme, remise });
+      { email: email_pme, remise: REMISE_PARRAINAGE_PCT });
 
     // Envoi de l'email d'invitation (Resend si configuré, sinon log)
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -210,7 +212,7 @@ async function inviterPme(req, res) {
       to: email_pme,
       ...tplInvitationPme({
         cabinet_nom, lien_invitation: lienInvitation,
-        remise_pct: remise, nom_pme,
+        remise_pct: REMISE_PARRAINAGE_PCT, nom_pme,
       }),
       tags: { type: 'invitation_pme', cabinet_id: req.entrepriseId },
     });
