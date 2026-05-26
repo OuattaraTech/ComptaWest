@@ -41,6 +41,16 @@ export const PermissionsProvider = ({ children }) => {
 
   useEffect(() => { fetchPermissions(); }, [fetchPermissions]);
 
+  // Flag global lu par l'intercepteur axios (utils/api.jsx) pour adapter
+  // les comportements automatiques (ex: pas de modal d'upgrade sur 402
+  // si on intervient via cabinet — ce n'est pas au cabinet de décider du
+  // palier de la PME). Stocké en localStorage pour être accessible hors
+  // React.
+  useEffect(() => {
+    if (data.via_cabinet) localStorage.setItem('cw_via_cabinet', '1');
+    else localStorage.removeItem('cw_via_cabinet');
+  }, [data.via_cabinet]);
+
   const can = useCallback((module, action) => {
     const actions = data.can?.[module];
     return Array.isArray(actions) && actions.includes(action);

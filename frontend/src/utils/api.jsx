@@ -63,18 +63,27 @@ api.interceptors.response.use(
       // toast (évite le double « 403 » + « Erreur chargement X »).
       err.handled = true;
     } else if (status === 402 && !silent) {
-      // Payment Required = quota d'abonnement atteint. On ouvre le modal
-      // d'upgrade plutôt qu'un simple toast, avec les détails du backend
-      // (type_quota, palier_actuel, usage, plafond) pour un message
-      // contextuel précis. Le .catch local peut skipper sa propre alerte.
+      // Payment Required = quota d'abonnement atteint. Comportement
+      // différent selon le contexte :
+      //  - Cabinet en intervention (flag cw_via_cabinet posé par
+      //    usePermissions) : toast informatif uniquement, pas de modal
+      //    d'upgrade (ce n'est pas au cabinet de décider du palier de
+      //    sa PME cliente).
+      //  - Sinon : modal d'upgrade contextuel avec détails backend.
       const data = err.response?.data || {};
-      ouvrirUpgradeModal({
-        type_quota: data.type_quota,
-        palier_actuel: data.palier_actuel,
-        usage: data.usage,
-        plafond: data.plafond,
-        message: data.message,
-      });
+      if (localStorage.getItem('cw_via_cabinet') === '1') {
+        showOnce('402-cabinet',
+          'Cette action n\'est pas incluse dans la formule actuelle de la PME. Suggérez à votre client de passer à un palier supérieur.'
+        );
+      } else {
+        ouvrirUpgradeModal({
+          type_quota: data.type_quota,
+          palier_actuel: data.palier_actuel,
+          usage: data.usage,
+          plafond: data.plafond,
+          message: data.message,
+        });
+      }
       err.handled = true;
     } else if ((!err.response || status >= 500) && !silent) {
       showOnce('5xx', t('common.server_error', 'Connexion temporairement interrompue avec nos serveurs. Vos données sont bien en sécurité, l\'opération n\'a simplement pas pu être enregistrée. Patientez quelques secondes puis réessayez, ou rechargez la page si le problème persiste.'));
