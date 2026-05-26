@@ -52,11 +52,25 @@ export const EntrepriseProvider = ({ children }) => {
     // Full reload du contexte applicatif après un switch d'entreprise.
     // Sans ça, les hooks dépendant du contexte (usePermissions, useQuotas,
     // pages métier qui ont déjà fetché leurs données) restent sur l'ancien
-    // contexte → l'utilisateur doit recharger manuellement. Un reload
-    // explicite garantit que toutes les requêtes repartent avec le bon
-    // X-Entreprise-Id et que tous les états React redémarrent propres.
-    if (redirectTo) {
-      window.location.href = redirectTo;
+    // contexte → l'utilisateur doit recharger manuellement.
+    //
+    // Si l'appelant n'a pas précisé redirectTo, on choisit la cible
+    // automatiquement selon le type d'entreprise :
+    //   - cabinet_partenaire → /cabinet (les routes PME n'ont pas de sens)
+    //   - pme + on est actuellement sur /cabinet → /dashboard
+    //   - pme + ailleurs → reload sur la page courante
+    // Évite d'atterrir sur une page incohérente avec le nouveau contexte.
+    let cible = redirectTo;
+    if (!cible) {
+      const path = window.location.pathname;
+      if (entreprise.type_compte === 'cabinet_partenaire') {
+        cible = '/cabinet';
+      } else if (path === '/cabinet' || path.startsWith('/cabinet/') || path === '/admin') {
+        cible = '/dashboard';
+      }
+    }
+    if (cible) {
+      window.location.href = cible;
     } else {
       window.location.reload();
     }
