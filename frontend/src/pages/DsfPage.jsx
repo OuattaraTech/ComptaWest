@@ -197,6 +197,7 @@ export default function DsfPage() {
                 { k: 'actif',    l: 'Bilan ACTIF',          n: 'N°10' },
                 { k: 'passif',   l: 'Bilan PASSIF',         n: 'N°11' },
                 { k: 'resultat', l: 'Compte de résultat',   n: 'N°4' },
+                { k: 'tafire',   l: 'TAFIRE',               n: 'N°6' },
               ].map(({ k, l, n }) => (
                 <button key={k} onClick={() => setTab(k)} style={{
                   padding: '12px 18px', background: 'transparent', border: 'none',
@@ -216,6 +217,7 @@ export default function DsfPage() {
             {tab === 'actif'    && <TableauActif C={C} bilan={liasse.bilan_actif} />}
             {tab === 'passif'   && <TableauPassif C={C} bilan={liasse.bilan_passif} />}
             {tab === 'resultat' && <TableauResultat C={C} cr={liasse.compte_resultat} />}
+            {tab === 'tafire'   && <TableauTafire C={C} tafire={liasse.tafire} exPrev={liasse.exercice_precedent} />}
           </>
         )}
       </div>
@@ -329,6 +331,67 @@ function TableauResultat({ C, cr }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function TableauTafire({ C, tafire, exPrev }) {
+  return (
+    <div>
+      {tafire.avertissement && (
+        <div style={{
+          padding: '12px 16px', marginBottom: 14, borderRadius: 11,
+          background: `${C.warning}14`, border: `1px solid ${C.warning}50`,
+          display: 'flex', alignItems: 'center', gap: 10,
+          fontSize: 12.5, color: C.text,
+        }}>
+          <AlertTriangle size={16} color={C.warning} />
+          {tafire.avertissement}
+        </div>
+      )}
+      {exPrev && !tafire.avertissement && (
+        <div style={{
+          padding: '10px 14px', marginBottom: 14, borderRadius: 10,
+          background: C.cardElev, border: `1px solid ${C.border}`,
+          fontSize: 11.5, color: C.sub,
+        }}>
+          Variations calculées par rapport à l'exercice <strong style={{ color: C.text }}>{exPrev.libelle}</strong>.
+          {Math.abs(tafire.ecart || 0) > 1
+            ? <> <span style={{ color: C.danger }}>· Écart TAFIRE : {fmt(tafire.ecart)} FCFA</span></>
+            : <> <span style={{ color: C.accent }}>· Équilibre vérifié ✓</span></>}
+        </div>
+      )}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, fontFamily: fontUI, minWidth: 580 }}>
+          <thead>
+            <tr style={{ background: `${C.accent}10`, borderBottom: `1px solid ${C.border}` }}>
+              <th style={thStyle(C)}>Réf.</th>
+              <th style={thStyle(C)}>Libellé</th>
+              <th style={{ ...thStyle(C), textAlign: 'right' }}>Montant</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tafire.lignes.map((l, idx) => l.section ? (
+              <tr key={idx} style={{ background: `${C.accent}10`, borderTop: `1px solid ${C.border}` }}>
+                <td colSpan={3} style={{ padding: '12px', fontWeight: 800, color: C.total, letterSpacing: '0.04em' }}>
+                  {l.libelle}
+                </td>
+              </tr>
+            ) : (
+              <tr key={idx} style={{
+                borderBottom: `1px solid ${C.border}`,
+                background: l.surligne ? `${C.warning}12` : (l.total ? C.cardElev : 'transparent'),
+              }}>
+                <td style={{ ...tdStyle(C), fontFamily: fontMono, color: l.total ? C.total : C.muted, fontWeight: l.total ? 800 : 600 }}>{l.ref}</td>
+                <td style={{ ...tdStyle(C), paddingLeft: l.niveau === 1 ? 24 : 12, fontWeight: l.total ? 700 : 500, color: l.total ? C.text : C.sub }}>{l.libelle}</td>
+                <td style={{ ...tdStyleN(C), fontWeight: l.total ? 800 : 600, color: l.soustrait ? C.danger : (l.total ? C.total : C.text) }}>
+                  {l.valeur === null ? '' : (l.soustrait && l.valeur > 0 ? '(' + fmt(l.valeur) + ')' : fmt(l.valeur))}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

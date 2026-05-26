@@ -70,7 +70,7 @@ async function getPdfDSF(req, res) {
 }
 
 function buildPdfDoc(data) {
-  const { entreprise, exercice, compte_resultat, bilan_actif, bilan_passif, equilibre } = data;
+  const { entreprise, exercice, compte_resultat, bilan_actif, bilan_passif, tafire, equilibre } = data;
   const ent = entreprise;
   const periode = `du ${String(exercice.date_debut).slice(0, 10)} au ${String(exercice.date_fin).slice(0, 10)}`;
 
@@ -185,7 +185,43 @@ function buildPdfDoc(data) {
 
     ...headerEntreprise('FORMULAIRE N°4 — COMPTE DE RÉSULTAT'),
     tableauResultat,
-  ];
+    { text: '', pageBreak: 'after' },
+
+    ...headerEntreprise('FORMULAIRE N°6 — TAFIRE (Tableau Financier des Ressources et Emplois)'),
+    ...(tafire.avertissement
+      ? [{ text: '⚠ ' + tafire.avertissement, fontSize: 9, color: '#B45309', italics: true, margin: [0, 0, 0, 10] }]
+      : []),
+    {
+      table: {
+        widths: ['auto', '*', 'auto'],
+        headerRows: 1,
+        body: [
+          [
+            { text: 'Réf.', bold: true, fontSize: 8, fillColor: '#F0FDF4' },
+            { text: 'Libellé', bold: true, fontSize: 8, fillColor: '#F0FDF4' },
+            { text: 'Montant', bold: true, fontSize: 8, alignment: 'right', fillColor: '#F0FDF4' },
+          ],
+          ...tafire.lignes.map(l => l.section ? [
+            { text: l.ref, fontSize: 8, color: '#0F8A6E', bold: true, fillColor: '#F0FDF4' },
+            { text: l.libelle, fontSize: 9, bold: true, color: '#0F8A6E', fillColor: '#F0FDF4', colSpan: 2 },
+            {},
+          ] : [
+            { text: l.ref, fontSize: 8, color: l.total ? '#0F8A6E' : '#6B7280', bold: !!l.total },
+            { text: l.libelle, fontSize: 8.5, bold: !!l.total, fillColor: l.surligne ? '#FEF3C7' : null, margin: [l.niveau === 1 ? 10 : 0, 0, 0, 0] },
+            { text: l.valeur === null ? '' : fmt(l.valeur), fontSize: 8.5, alignment: 'right', bold: !!l.total, fillColor: l.surligne ? '#FEF3C7' : null },
+          ]),
+        ],
+      },
+      layout: { hLineColor: () => '#E5E7EB', vLineColor: () => '#E5E7EB' },
+    },
+    !tafire.avertissement && Math.abs(tafire.ecart || 0) > 1
+      ? { text: `⚠ Écart TAFIRE : ${fmt(tafire.ecart)} FCFA — vérifier la cohérence des soldes N-1`,
+          fontSize: 9, color: '#DC2626', italics: true, margin: [0, 10, 0, 0] }
+      : !tafire.avertissement
+      ? { text: '✓ TAFIRE équilibré · Ressources – Emplois = Variation trésorerie',
+          fontSize: 9, color: '#10B981', italics: true, margin: [0, 10, 0, 0] }
+      : null,
+  ].filter(Boolean);
 
   return {
     pageSize: 'A4',

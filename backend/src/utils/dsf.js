@@ -382,9 +382,181 @@ function calculerBilanPassif(balance, resultatNet) {
 }
 
 /**
+ * TAFIRE — Tableau Financier des Ressources et Emplois (Form N°6)
+ *
+ * Montre comment l'entreprise a financé ses besoins durant l'exercice.
+ * Structure SYSCOHADA :
+ *   I.  CAFG (Capacité d'Autofinancement Globale) — depuis le compte de résultat
+ *   II. Autofinancement = CAFG - dividendes distribués
+ *   III. Emplois économiques (investissements + variations BFE/BFHAO)
+ *   IV. Ressources nettes (capital, emprunts, cessions, subventions)
+ *   V.  Variation de trésorerie (équilibre Ressources - Emplois)
+ *
+ * Nécessite la balance de N-1 pour calculer les variations. Si absente,
+ * on retourne uniquement la CAFG avec un avertissement.
+ */
+function calculerTafire(balanceN, balanceNMoinsUn, cr) {
+  // ─── I. CAFG (méthode soustractive depuis l'EBE) ─────────────────────────
+  // CAFG = EBE + transferts charges + produits financ. + produits HAO encaissables
+  //        - frais financ. - charges HAO décaissables - participation - IS
+  const ebe = cr.indicateurs.ebe;
+  const transfertsExpl = sommeMouvement(balanceN, ['781'], 'C');
+  const revenusFinanc  = sommeMouvement(balanceN, ['77'], 'C');
+  const transfertsHAO  = sommeMouvement(balanceN, ['848'], 'C'); // Transferts HAO
+  const produitsHAOEnc = sommeMouvement(balanceN, ['82','84'], 'C'); // hors plus-value cession
+  const fraisFinanc    = sommeMouvement(balanceN, ['67'], 'D');
+  const chargesHAODec  = sommeMouvement(balanceN, ['83'], 'D'); // hors valeur comptable cessions
+  const participation  = sommeMouvement(balanceN, ['87'], 'D');
+  const impotsResult   = sommeMouvement(balanceN, ['891','895'], 'D');
+
+  const cafg = ebe + transfertsExpl + revenusFinanc + transfertsHAO + produitsHAOEnc
+             - fraisFinanc - chargesHAODec - participation - impotsResult;
+
+  // ─── II. Autofinancement ─────────────────────────────────────────────────
+  // Dividendes distribués pendant l'exercice (mouvement créditeur 11 / 465)
+  const dividendes = sommeMouvement(balanceN, ['465'], 'D');
+  const autofinancement = cafg - dividendes;
+
+  // Sans balance N-1, on ne peut pas calculer les variations
+  if (!balanceNMoinsUn) {
+    return {
+      titre: 'TAFIRE — Tableau Financier des Ressources et Emplois',
+      avertissement: 'Exercice précédent introuvable — variations non calculables. Seule la CAFG est affichée.',
+      lignes: [
+        { ref: 'AA', libelle: 'EBE', valeur: ebe, niveau: 1 },
+        { ref: 'AB', libelle: '+ Transferts de charges d\'exploitation', valeur: transfertsExpl, niveau: 1 },
+        { ref: 'AC', libelle: '+ Revenus financiers et assimilés', valeur: revenusFinanc, niveau: 1 },
+        { ref: 'AD', libelle: '+ Produits HAO encaissables', valeur: produitsHAOEnc + transfertsHAO, niveau: 1 },
+        { ref: 'AE', libelle: '- Frais financiers', valeur: fraisFinanc, niveau: 1, soustrait: true },
+        { ref: 'AF', libelle: '- Charges HAO décaissables', valeur: chargesHAODec, niveau: 1, soustrait: true },
+        { ref: 'AG', libelle: '- Participation des travailleurs', valeur: participation, niveau: 1, soustrait: true },
+        { ref: 'AH', libelle: '- Impôts sur le résultat', valeur: impotsResult, niveau: 1, soustrait: true },
+        { ref: 'AI', libelle: 'CAFG', valeur: cafg, niveau: 0, total: true, surligne: true },
+        { ref: 'AJ', libelle: '- Distributions de dividendes', valeur: dividendes, niveau: 1, soustrait: true },
+        { ref: 'AK', libelle: 'AUTOFINANCEMENT', valeur: autofinancement, niveau: 0, total: true, surligne: true, final: true },
+      ],
+      cafg, autofinancement,
+      partiel: true, // indique au front qu'on est en mode dégradé
+    };
+  }
+
+  // ─── III. Emplois économiques ────────────────────────────────────────────
+  // Investissements = variation des immobilisations brutes
+  const immoIncorpN  = sommeSolde(balanceN, ['21'], 'D');
+  const immoIncorpNM = sommeSolde(balanceNMoinsUn, ['21'], 'D');
+  const dImmoIncorp  = immoIncorpN - immoIncorpNM;
+
+  const immoCorpN  = sommeSolde(balanceN, ['22','23','24'], 'D');
+  const immoCorpNM = sommeSolde(balanceNMoinsUn, ['22','23','24'], 'D');
+  const dImmoCorp  = immoCorpN - immoCorpNM;
+
+  const immoFinancN  = sommeSolde(balanceN, ['26','27'], 'D');
+  const immoFinancNM = sommeSolde(balanceNMoinsUn, ['26','27'], 'D');
+  const dImmoFinanc  = immoFinancN - immoFinancNM;
+
+  const investissements = Math.max(0, dImmoIncorp) + Math.max(0, dImmoCorp) + Math.max(0, dImmoFinanc);
+
+  // Variation BFE = ΔStocks + ΔClients - ΔFournisseurs exploitation - ΔDettes sociales/fiscales
+  const stocksN  = sommeSolde(balanceN, ['31','32','33','34','35','36','37','38'], 'D');
+  const stocksNM = sommeSolde(balanceNMoinsUn, ['31','32','33','34','35','36','37','38'], 'D');
+  const clientsN  = sommeSolde(balanceN, ['41'], 'D');
+  const clientsNM = sommeSolde(balanceNMoinsUn, ['41'], 'D');
+  const fournExpN  = sommeSolde(balanceN, ['40'], 'C');
+  const fournExpNM = sommeSolde(balanceNMoinsUn, ['40'], 'C');
+  const dettesSocFiscN  = sommeSolde(balanceN, ['42','43','44'], 'C');
+  const dettesSocFiscNM = sommeSolde(balanceNMoinsUn, ['42','43','44'], 'C');
+
+  const dBFE = (stocksN - stocksNM) + (clientsN - clientsNM)
+             - (fournExpN - fournExpNM) - (dettesSocFiscN - dettesSocFiscNM);
+
+  // Variation BFHAO (Besoin de Financement Hors Activités Ordinaires)
+  const creancesHAON  = sommeSolde(balanceN, ['485'], 'D');
+  const creancesHAONM = sommeSolde(balanceNMoinsUn, ['485'], 'D');
+  const dettesHAON    = sommeSolde(balanceN, ['481','482','484'], 'C');
+  const dettesHAONM   = sommeSolde(balanceNMoinsUn, ['481','482','484'], 'C');
+  const dBFHAO        = (creancesHAON - creancesHAONM) - (dettesHAON - dettesHAONM);
+
+  const emploisTotaux = investissements + Math.max(0, dBFE) + Math.max(0, dBFHAO);
+
+  // ─── IV. Ressources nettes ───────────────────────────────────────────────
+  const capitalN  = sommeSolde(balanceN, ['101','102','103','104'], 'C');
+  const capitalNM = sommeSolde(balanceNMoinsUn, ['101','102','103','104'], 'C');
+  const augmCapital = Math.max(0, capitalN - capitalNM);
+
+  const subvN  = sommeSolde(balanceN, ['14'], 'C');
+  const subvNM = sommeSolde(balanceNMoinsUn, ['14'], 'C');
+  const subvInvest = Math.max(0, subvN - subvNM);
+
+  const empruntsN  = sommeSolde(balanceN, ['16','17'], 'C');
+  const empruntsNM = sommeSolde(balanceNMoinsUn, ['16','17'], 'C');
+  const empruntsDelta = empruntsN - empruntsNM;
+  const nouveauxEmprunts = Math.max(0, empruntsDelta);
+  const remboursementsEmprunts = Math.max(0, -empruntsDelta);
+
+  // Cessions d'immobilisations : produits 82 (cession HAO) ≈ recettes
+  const cessionsImmo = sommeMouvement(balanceN, ['82'], 'C');
+
+  const ressourcesTotales = autofinancement + augmCapital + subvInvest + nouveauxEmprunts + cessionsImmo
+                          - remboursementsEmprunts;
+
+  // ─── V. Variation de trésorerie ──────────────────────────────────────────
+  const tresoActifN  = sommeSolde(balanceN, ['50','51','52','53','54','55','57'], 'D');
+  const tresoActifNM = sommeSolde(balanceNMoinsUn, ['50','51','52','53','54','55','57'], 'D');
+  const tresoPassifN  = sommeSolde(balanceN, ['56'], 'C');
+  const tresoPassifNM = sommeSolde(balanceNMoinsUn, ['56'], 'C');
+  const dTresorerie = (tresoActifN - tresoActifNM) - (tresoPassifN - tresoPassifNM);
+
+  // Vérif : Ressources - Emplois - ΔTrésorerie ≈ 0
+  const ecart = ressourcesTotales - emploisTotaux - dTresorerie;
+
+  return {
+    titre: 'TAFIRE — Tableau Financier des Ressources et Emplois',
+    lignes: [
+      // CAFG
+      { ref: 'AA', libelle: 'EBE', valeur: ebe, niveau: 1 },
+      { ref: 'AB', libelle: '+ Transferts de charges d\'exploitation', valeur: transfertsExpl, niveau: 1 },
+      { ref: 'AC', libelle: '+ Revenus financiers', valeur: revenusFinanc, niveau: 1 },
+      { ref: 'AD', libelle: '+ Produits HAO encaissables', valeur: produitsHAOEnc + transfertsHAO, niveau: 1 },
+      { ref: 'AE', libelle: '- Frais financiers', valeur: fraisFinanc, niveau: 1, soustrait: true },
+      { ref: 'AF', libelle: '- Charges HAO décaissables', valeur: chargesHAODec, niveau: 1, soustrait: true },
+      { ref: 'AG', libelle: '- Participation', valeur: participation, niveau: 1, soustrait: true },
+      { ref: 'AH', libelle: '- Impôts sur le résultat', valeur: impotsResult, niveau: 1, soustrait: true },
+      { ref: 'AI', libelle: 'CAFG', valeur: cafg, niveau: 0, total: true, surligne: true },
+      { ref: 'AJ', libelle: '- Distributions de dividendes', valeur: dividendes, niveau: 1, soustrait: true },
+      { ref: 'AK', libelle: 'AUTOFINANCEMENT (AF)', valeur: autofinancement, niveau: 0, total: true, surligne: true },
+      // Emplois
+      { ref: 'BA', libelle: 'EMPLOIS ÉCONOMIQUES', valeur: null, niveau: 0, section: true },
+      { ref: 'BB', libelle: 'Investissements incorporels', valeur: Math.max(0, dImmoIncorp), niveau: 1 },
+      { ref: 'BC', libelle: 'Investissements corporels', valeur: Math.max(0, dImmoCorp), niveau: 1 },
+      { ref: 'BD', libelle: 'Investissements financiers', valeur: Math.max(0, dImmoFinanc), niveau: 1 },
+      { ref: 'BE', libelle: 'Variation BFE (besoin financement exploitation)', valeur: Math.max(0, dBFE), niveau: 1 },
+      { ref: 'BF', libelle: 'Variation BFHAO', valeur: Math.max(0, dBFHAO), niveau: 1 },
+      { ref: 'BG', libelle: 'TOTAL EMPLOIS', valeur: emploisTotaux, niveau: 0, total: true, surligne: true },
+      // Ressources
+      { ref: 'CA', libelle: 'RESSOURCES NETTES DE FINANCEMENT', valeur: null, niveau: 0, section: true },
+      { ref: 'CB', libelle: 'Autofinancement', valeur: autofinancement, niveau: 1 },
+      { ref: 'CC', libelle: 'Augmentations de capital', valeur: augmCapital, niveau: 1 },
+      { ref: 'CD', libelle: 'Subventions d\'investissement reçues', valeur: subvInvest, niveau: 1 },
+      { ref: 'CE', libelle: 'Nouveaux emprunts', valeur: nouveauxEmprunts, niveau: 1 },
+      { ref: 'CF', libelle: '- Remboursements d\'emprunts', valeur: remboursementsEmprunts, niveau: 1, soustrait: true },
+      { ref: 'CG', libelle: 'Cessions d\'immobilisations', valeur: cessionsImmo, niveau: 1 },
+      { ref: 'CH', libelle: 'TOTAL RESSOURCES', valeur: ressourcesTotales, niveau: 0, total: true, surligne: true },
+      // Variation trésorerie
+      { ref: 'DA', libelle: 'VARIATION DE TRÉSORERIE', valeur: dTresorerie, niveau: 0, total: true, surligne: true, final: true },
+    ],
+    cafg,
+    autofinancement,
+    emplois: emploisTotaux,
+    ressources: ressourcesTotales,
+    variation_tresorerie: dTresorerie,
+    ecart,
+  };
+}
+
+/**
  * Génère la liasse DSF complète d'un exercice.
- * Retourne { entreprise, exercice, compte_resultat, bilan_actif, bilan_passif, equilibre }
- * où `equilibre` est l'écart ACTIF - PASSIF (devrait être 0 si la compta est équilibrée).
+ * Retourne { entreprise, exercice, compte_resultat, bilan_actif, bilan_passif,
+ *            tafire, equilibre }
  */
 async function genererLiasseDSF(entrepriseId, exerciceId) {
   // Infos entreprise + exercice
@@ -409,12 +581,36 @@ async function genererLiasseDSF(entrepriseId, exerciceId) {
 
   const equilibre = bilanActif.total_net - bilanPassif.total;
 
+  // Pour le TAFIRE : charger la balance de l'exercice N-1 si elle existe
+  // (exercice précédent, identifié par date_fin la plus proche < date_debut N).
+  let balanceNMoinsUn = null;
+  let exerciceNMoinsUn = null;
+  try {
+    const exPrev = await pool.query(
+      `SELECT id, libelle FROM exercices
+        WHERE entreprise_id = $1 AND date_fin < $2
+        ORDER BY date_fin DESC LIMIT 1`,
+      [entrepriseId, ex.date_debut]
+    );
+    if (exPrev.rows[0]) {
+      exerciceNMoinsUn = exPrev.rows[0];
+      balanceNMoinsUn = await chargerBalance(entrepriseId, exPrev.rows[0].id);
+    }
+  } catch (err) {
+    // Si la requête échoue, on continue sans N-1 (mode dégradé géré dans calculerTafire)
+    console.warn('Chargement exercice N-1 échoué:', err.message);
+  }
+
+  const tafire = calculerTafire(balance, balanceNMoinsUn, compteResultat);
+
   return {
     entreprise: ent,
     exercice: ex,
+    exercice_precedent: exerciceNMoinsUn,
     compte_resultat: compteResultat,
     bilan_actif: bilanActif,
     bilan_passif: bilanPassif,
+    tafire,
     equilibre,
   };
 }
@@ -424,5 +620,6 @@ module.exports = {
   calculerCompteResultat,
   calculerBilanActif,
   calculerBilanPassif,
+  calculerTafire,
   genererLiasseDSF,
 };
