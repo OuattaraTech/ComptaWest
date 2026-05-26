@@ -146,11 +146,14 @@ async function getCabinetInfo(req, res) {
 // ─── GET /api/cabinets/mes-clients ──────────────────────────────────────────
 async function getMesClients(req, res) {
   try {
+    // Volontairement : pas de prix_mensuel_fcfa ni statut_abonnement dans
+    // la réponse. Le MRR par client est une donnée commerciale d'ApeX
+    // qui ne regarde pas le cabinet partenaire.
     const r = await pool.query(
       `SELECT cc.id AS connection_id, cc.statut AS statut_connection, cc.active_at,
               p.id AS pme_id, p.nom AS pme_nom, p.ncc, p.regime_fiscal, p.secteur,
               p.remise_parrainage_pct,
-              ab.palier, ab.prix_mensuel_fcfa, ab.statut AS statut_abonnement
+              ab.palier
          FROM cabinet_connections cc
          JOIN entreprises p ON p.id = cc.pme_id
          LEFT JOIN abonnements ab ON ab.entreprise_id = p.id

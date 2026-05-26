@@ -2,8 +2,8 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Award, Copy, Check, X, Building2, Users, Mail, MessageCircle,
-  RefreshCw, UserPlus, Send, ExternalLink, AlertCircle, Search,
-  TrendingUp, Sparkles, Activity, Phone, Trash2, ArrowUpRight,
+  RefreshCw, UserPlus, Send, ExternalLink, Search,
+  Sparkles, Activity, Trash2,
 } from 'lucide-react';
 import api from '../utils/api.jsx';
 import toast from 'react-hot-toast';
@@ -119,7 +119,6 @@ export default function CabinetPortailPage() {
   const tauxConv = invitations.length > 0
     ? Math.round((invitations.filter(i => i.statut === 'accepted').length / invitations.length) * 1000) / 10
     : 0;
-  const mrrGenere = clients.reduce((s, c) => s + (c.prix_mensuel_fcfa || 0), 0);
 
   const clientsFiltres = useMemo(() => {
     const q = recherche.trim().toLowerCase();
@@ -300,7 +299,7 @@ export default function CabinetPortailPage() {
         </div>
 
         {/* HERO KPIs */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 32 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 32 }}>
           <KpiHero C={C} icon={Users} accent={C.cabinet}
             label="Clients PME actifs"
             value={formatNum(info.nb_clients_actifs)}
@@ -317,11 +316,6 @@ export default function CabinetPortailPage() {
             unit="%"
             sub={`${invitations.filter(i => i.statut === 'accepted').length} acceptées sur ${invitations.length}`}
             progress={tauxConv} />
-          <KpiHero C={C} icon={TrendingUp} accent={C.cabinet}
-            label="MRR clients"
-            value={formatNum(mrrGenere)}
-            unit="FCFA / mois"
-            sub={clients.length > 0 ? `Moyenne ${formatNum(Math.round(mrrGenere / clients.length))} FCFA / client` : 'Pas encore de revenus'} />
         </div>
 
         {/* SECTION CLIENTS PME */}
@@ -347,7 +341,7 @@ export default function CabinetPortailPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {clientsFiltres.map((c, idx) => (
                 <div key={c.connection_id} className="cab-card cab-row" style={{
-                  display: 'grid', gridTemplateColumns: '44px 1fr auto auto', gap: 16,
+                  display: 'grid', gridTemplateColumns: '44px 1fr auto', gap: 16,
                   padding: 16, background: C.card, border: `1px solid ${C.border}`,
                   borderRadius: 12, alignItems: 'center',
                   animationDelay: `${idx * 0.04}s`,
@@ -366,10 +360,6 @@ export default function CabinetPortailPage() {
                       <span>·</span>
                       <span>Connecté {formatDate(c.active_at)}</span>
                     </div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontFamily: fontMono, fontSize: 14, fontWeight: 700, color: C.text }}>{formatNum(c.prix_mensuel_fcfa || 0)}</div>
-                    <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>FCFA/mois</div>
                   </div>
                   <button onClick={() => detacherClient(c.connection_id, c.pme_nom)} className="cab-action" title="Détacher ce client" style={{
                     width: 36, height: 36, borderRadius: 9,
