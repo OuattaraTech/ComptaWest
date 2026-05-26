@@ -4,7 +4,7 @@ import {
   Award, Copy, Check, X, Building2, Users, Mail, MessageCircle,
   RefreshCw, UserPlus, Send, ExternalLink, Search,
   Sparkles, Activity, Trash2, ArrowRight, Edit3, Tag, Calendar, AlertTriangle, Clock,
-  AlertCircle, LayoutList, LayoutGrid, Filter,
+  AlertCircle, LayoutList, LayoutGrid, Filter, Download,
 } from 'lucide-react';
 import api from '../utils/api.jsx';
 import toast from 'react-hot-toast';
@@ -60,6 +60,27 @@ const formatDate = (s) => new Date(s).toLocaleDateString('fr-FR', { day: '2-digi
 const formatDateLong = (s) => new Date(s).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
 const initiale = (s) => (s || '?').trim().charAt(0).toUpperCase();
 
+// Échappe une cellule CSV : double-quote si elle contient virgule/saut/guillemet
+const cellCsv = (v) => {
+  if (v === null || v === undefined) return '';
+  const s = String(v);
+  if (/[",\n;]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+};
+// Télécharge un texte sous forme de fichier (Blob + a.download)
+const downloadFile = (filename, content, mime = 'text/csv;charset=utf-8') => {
+  // BOM UTF-8 pour qu'Excel ouvre proprement les accents français
+  const blob = new Blob(['﻿' + content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
 const gradientFromString = (str) => {
   let h = 0;
   for (let i = 0; i < (str || '').length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
@@ -96,6 +117,9 @@ export default function CabinetPortailPage() {
   const [clientEnEdition, setClientEnEdition] = useState(null);
   const [editTags, setEditTags] = useState('');
   const [editNotes, setEditNotes] = useState('');
+  const [clientADetacher, setClientADetacher] = useState(null);
+  const [confirmDetach, setConfirmDetach] = useState('');
+  const [showRaccourcis, setShowRaccourcis] = useState(false);
 
   useEffect(() => {
     if (actuelle && actuelle.type_compte !== 'cabinet_partenaire') {
@@ -148,6 +172,44 @@ export default function CabinetPortailPage() {
       setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
     }
   }, [loading, location.hash]);
+
+  // Raccourcis clavier (power-users). Ignorés quand on est dans un input
+  // ou un textarea, ou si une modal bloquante est ouverte.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+      if (modalInviter || resultatInvit || clientEnEdition || clientADetacher) return;
+      switch (e.key) {
+        case '/':
+          e.preventDefault();
+          document.querySelector('input[placeholder*="NCC"]')?.focus();
+          break;
+        case 'n': case 'N':
+          e.preventDefault();
+          setModalInviter(true);
+          break;
+        case 'r': case 'R':
+          e.preventDefault();
+          fetchAll(true);
+          break;
+        case 'c': case 'C':
+          e.preventDefault();
+          setVueCompacte(v => !v);
+          break;
+        case '?':
+          e.preventDefault();
+          setShowRaccourcis(true);
+          break;
+        case 'Escape':
+          setShowRaccourcis(false);
+          break;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [modalInviter, resultatInvit, clientEnEdition, clientADetacher]);
 
   const invitationsPending = useMemo(() => invitations.filter(i => i.statut === 'pending'), [invitations]);
   const invitationsHistorique = useMemo(() => invitations.filter(i => i.statut !== 'pending'), [invitations]);
@@ -233,6 +295,43 @@ export default function CabinetPortailPage() {
     switchEntreprise(cible, pageDeclarationPour(type));
   };
 
+  const exporterClientsCsv = () => {
+    const lignes = ['Nom PME,NCC,Régime fiscal,Secteur,Palier,Tags,Charge,Date de connexion,Notes'];
+    for (const c of clientsFiltres) {
+      const ch = charge[c.pme_id]?.total || 0;
+      lignes.push([
+        cellCsv(c.pme_nom),
+        cellCsv(c.ncc),
+        cellCsv(c.regime_fiscal),
+        cellCsv(c.secteur),
+        cellCsv(c.palier),
+        cellCsv((c.tags || []).join('; ')),
+        cellCsv(ch),
+        cellCsv(c.active_at?.slice(0, 10)),
+        cellCsv((c.notes_privees || '').replace(/\n/g, ' / ')),
+      ].join(','));
+    }
+    const date = new Date().toISOString().slice(0, 10);
+    downloadFile(`apex-clients-${info.code_parrain}-${date}.csv`, lignes.join('\n'));
+    toast.success(`${clientsFiltres.length} client(s) exporté(s)`);
+  };
+
+  const exporterCalendrierCsv = () => {
+    const lignes = ['Date,Type,Libellé,PME,Sévérité'];
+    for (const e of echeances) {
+      lignes.push([
+        cellCsv(e.date),
+        cellCsv(e.type),
+        cellCsv(e.label),
+        cellCsv(e.pme_nom),
+        cellCsv(e.severite),
+      ].join(','));
+    }
+    const date = new Date().toISOString().slice(0, 10);
+    downloadFile(`apex-calendrier-${info.code_parrain}-${date}.csv`, lignes.join('\n'));
+    toast.success(`${echeances.length} échéance(s) exportée(s)`);
+  };
+
   const marquerEcheanceFaite = async (e) => {
     try {
       await api.post('/cabinets/echeances/marquer-faite', { pme_id: e.pme_id, type: e.type, periode: e.date });
@@ -288,14 +387,28 @@ export default function CabinetPortailPage() {
     }
   };
 
-  const detacherClient = async (connectionId, nomPme) => {
-    if (!confirm(`Détacher ${nomPme} de votre dossier ?\n\nLa PME garde son compte ApeX mais vous perdez l'accès à ses données.`)) return;
+  const detacherClient = (connectionId, nomPme) => {
+    // Ouvre une modal de confirmation premium (saisie du nom de la PME)
+    // au lieu d'un confirm() natif. L'action étant destructive
+    // (perte de l'accès au dossier, révocation des invitations…), on
+    // exige une confirmation explicite par typing.
+    setClientADetacher({ connection_id: connectionId, pme_nom: nomPme });
+    setConfirmDetach('');
+  };
+
+  const confirmerDetacher = async () => {
+    if (!clientADetacher) return;
+    setActionLoading(true);
     try {
-      await api.delete(`/cabinets/connections/${connectionId}`);
-      toast.success(`${nomPme} détaché`);
+      await api.delete(`/cabinets/connections/${clientADetacher.connection_id}`);
+      toast.success(`${clientADetacher.pme_nom} détaché de votre cabinet`);
+      setClientADetacher(null);
+      setConfirmDetach('');
       fetchAll(true);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Erreur');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -338,9 +451,9 @@ export default function CabinetPortailPage() {
         background: dark ? 'rgba(8, 9, 13, 0.85)' : 'rgba(244, 245, 241, 0.85)',
         backdropFilter: 'blur(20px)',
         borderBottom: `1px solid ${C.border}`,
-        padding: '20px 40px',
+        padding: 'clamp(14px, 2.5vw, 22px) clamp(16px, 4vw, 40px)',
       }}>
-        <div style={{ maxWidth: 1440, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24 }}>
+        <div style={{ maxWidth: 1440, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <div style={{ position: 'relative' }}>
               <Avatar C={C} nom={info.nom} size={48} />
@@ -382,7 +495,7 @@ export default function CabinetPortailPage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 1440, margin: '0 auto', padding: '32px 40px 64px' }}>
+      <div style={{ maxWidth: 1440, margin: '0 auto', padding: 'clamp(20px, 3vw, 32px) clamp(16px, 4vw, 40px) 64px' }}>
 
         {/* BANDEAU CODE PARRAIN — compact (info statique, ne doit pas
             dominer le fold ; les KPIs et le calendrier passent au-dessus) */}
@@ -423,8 +536,75 @@ export default function CabinetPortailPage() {
           </div>
         </div>
 
+        {/* ONBOARDING — affiché si cabinet vide (aucun client + aucune invitation) */}
+        {clients.length === 0 && invitations.length === 0 && (
+          <div className="cab-card" style={{
+            position: 'relative', overflow: 'hidden',
+            padding: 'clamp(28px, 4vw, 48px)', borderRadius: 18,
+            background: `linear-gradient(135deg, ${C.cabinet}15, ${C.accent}08)`,
+            border: `1px solid ${C.cabinet}50`,
+            marginBottom: 24, textAlign: 'center',
+          }}>
+            <div style={{ position: 'absolute', top: -80, right: -80, width: 280, height: 280, borderRadius: '50%', background: `radial-gradient(circle, ${C.cabinet}25, transparent 70%)`, pointerEvents: 'none' }} />
+            <div style={{ position: 'relative', maxWidth: 560, margin: '0 auto' }}>
+              <div style={{
+                width: 64, height: 64, borderRadius: 16, margin: '0 auto 18px',
+                background: `linear-gradient(135deg, ${C.cabinet}, ${C.accent})`,
+                color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: `0 12px 32px ${C.cabinetGlow}`,
+              }}>
+                <Sparkles size={30} strokeWidth={2.2} />
+              </div>
+              <h2 style={{ fontFamily: fontDisplay, fontSize: 26, fontWeight: 800, margin: 0, color: C.text, letterSpacing: '-0.02em' }}>
+                Bienvenue dans votre portail cabinet
+              </h2>
+              <p style={{ fontSize: 14, color: C.sub, marginTop: 10, marginBottom: 24, lineHeight: 1.6 }}>
+                Vous êtes prêt à accompagner vos premiers clients PME. Invitez-les en quelques secondes
+                et votre cabinet sera automatiquement connecté à leur dossier comptable.
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 28, textAlign: 'left' }}>
+                {[
+                  { n: 1, t: 'Invitez', d: 'Saisissez nom + email de votre client PME' },
+                  { n: 2, t: 'PME accepte', d: 'Elle reçoit un mail signé de votre cabinet et active son compte' },
+                  { n: 3, t: 'Vous accédez', d: 'Vous travaillez sur son dossier comme expert-comptable' },
+                ].map(s => (
+                  <div key={s.n} style={{
+                    padding: 14, background: C.card,
+                    border: `1px solid ${C.border}`, borderRadius: 11,
+                  }}>
+                    <div style={{
+                      width: 24, height: 24, borderRadius: 6,
+                      background: `${C.cabinet}20`, color: C.cabinet,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontWeight: 800, fontSize: 12, marginBottom: 8,
+                    }}>{s.n}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{s.t}</div>
+                    <div style={{ fontSize: 11.5, color: C.sub, marginTop: 4, lineHeight: 1.4 }}>{s.d}</div>
+                  </div>
+                ))}
+              </div>
+
+              <button onClick={() => setModalInviter(true)} className="cab-action" style={{
+                padding: '14px 28px', borderRadius: 12,
+                background: `linear-gradient(135deg, ${C.cabinet}, ${C.accent})`,
+                border: 'none', color: '#FFF',
+                fontFamily: fontUI, fontWeight: 700, fontSize: 14,
+                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8,
+                boxShadow: `0 8px 24px ${C.cabinetGlow}`,
+              }}>
+                <Send size={15} /> Inviter votre premier client
+              </button>
+              <div style={{ marginTop: 14, fontSize: 11, color: C.muted }}>
+                Code parrain : <span style={{ fontFamily: fontMono, color: C.cabinet, fontWeight: 700 }}>{info.code_parrain}</span>
+                {' · '}Astuce : appuyez sur <kbd style={{ fontFamily: fontMono, padding: '1px 6px', background: C.cardElev, border: `1px solid ${C.border}`, borderRadius: 4, fontSize: 10 }}>N</kbd> à tout moment pour inviter
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* HERO KPIs */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 32 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 32 }}>
           <KpiHero C={C} icon={Users} accent={C.cabinet}
             label="Clients PME actifs"
             value={formatNum(info.nb_clients_actifs)}
@@ -449,7 +629,7 @@ export default function CabinetPortailPage() {
           title="Mes clients PME"
           count={`${clientsFiltres.length}${clientsFiltres.length !== clients.length ? ` / ${clients.length}` : ''}`}
           right={clients.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <button onClick={() => setTriParCharge(t => !t)} title="Trier par charge décroissante"
                 style={{ ...iconBtn(C), width: 'auto', padding: '0 10px', fontSize: 11.5, fontWeight: 600, color: triParCharge ? C.cabinet : C.sub, background: triParCharge ? `${C.cabinet}18` : C.cardElev, border: `1px solid ${triParCharge ? C.cabinet + '55' : C.border}` }}>
                 <AlertCircle size={12} /> Charge
@@ -457,6 +637,10 @@ export default function CabinetPortailPage() {
               <button onClick={() => setVueCompacte(v => !v)} title="Basculer cards / table compacte"
                 style={iconBtn(C)}>
                 {vueCompacte ? <LayoutGrid size={13} /> : <LayoutList size={13} />}
+              </button>
+              <button onClick={exporterClientsCsv} title="Exporter en CSV"
+                style={iconBtn(C)}>
+                <Download size={13} />
               </button>
             </div>
           )}
@@ -479,13 +663,13 @@ export default function CabinetPortailPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {clientsFiltres.map((c, idx) => (
                 <div key={c.connection_id} className="cab-card cab-row" style={{
-                  display: 'grid', gridTemplateColumns: '44px 1fr auto', gap: 16,
+                  display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 16,
                   padding: 16, background: C.card, border: `1px solid ${C.border}`,
-                  borderRadius: 12, alignItems: 'center',
+                  borderRadius: 12,
                   animationDelay: `${idx * 0.04}s`,
                 }}>
                   <Avatar C={C} nom={c.pme_nom} size={44} />
-                  <div style={{ minWidth: 0 }}>
+                  <div style={{ flex: '1 1 280px', minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                       <span style={{ fontFamily: fontDisplay, fontSize: 15, fontWeight: 700, color: C.text }}>{c.pme_nom}</span>
                       <ChargeBadge C={C} charge={charge[c.pme_id]} />
@@ -515,7 +699,7 @@ export default function CabinetPortailPage() {
                       }}>« {c.notes_privees} »</div>
                     )}
                   </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginLeft: 'auto' }}>
                     <button onClick={() => ouvrirEditionAnnotations(c)} className="cab-action" title="Annoter (tags + notes)"
                       style={iconBtn(C)}><Edit3 size={13} /></button>
                     <button onClick={() => detacherClient(c.connection_id, c.pme_nom)} className="cab-action" title="Détacher"
@@ -539,7 +723,13 @@ export default function CabinetPortailPage() {
 
         {/* SECTION CALENDRIER FISCAL */}
         <div id="calendrier" style={{ scrollMarginTop: 90 }} />
-        <Section C={C} icon={Calendar} accent={C.info} title="Calendrier fiscal" count={echeances.length}>
+        <Section C={C} icon={Calendar} accent={C.info} title="Calendrier fiscal" count={echeances.length}
+          right={echeances.length > 0 && (
+            <button onClick={exporterCalendrierCsv} title="Exporter le calendrier en CSV"
+              style={iconBtn(C)}>
+              <Download size={13} />
+            </button>
+          )}>
           {echeances.length === 0 ? (
             <EmptyState C={C} icon={Calendar}
               text="Aucune échéance dans les 60 prochains jours"
@@ -631,6 +821,13 @@ export default function CabinetPortailPage() {
 
         <div style={{ marginTop: 48, padding: 20, textAlign: 'center', color: C.muted, fontSize: 11.5 }}>
           Portail Cabinet Partenaire · ApeX · Support WhatsApp prioritaire 2h ouvrées
+          {' · '}
+          <button onClick={() => setShowRaccourcis(true)} style={{
+            background: 'none', border: 'none', color: C.muted, fontFamily: 'inherit',
+            fontSize: 11.5, cursor: 'pointer', textDecoration: 'underline',
+          }} title="Afficher les raccourcis clavier (?)">
+            Raccourcis clavier
+          </button>
         </div>
       </div>
 
@@ -681,6 +878,102 @@ export default function CabinetPortailPage() {
             <button onClick={enregistrerAnnotations} disabled={actionLoading} style={btnPrimary(C)}>
               {actionLoading ? 'Enregistrement…' : 'Enregistrer'}
               {!actionLoading && <Check size={14} />}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL RACCOURCIS CLAVIER */}
+      {showRaccourcis && (
+        <Modal C={C} onClose={() => setShowRaccourcis(false)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: `${C.cabinet}18`, color: C.cabinet, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              ⌨
+            </div>
+            <h3 style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 800, margin: 0, color: C.text }}>Raccourcis clavier</h3>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              { k: '/', desc: 'Focus sur la recherche clients' },
+              { k: 'N', desc: 'Inviter une PME' },
+              { k: 'R', desc: 'Rafraîchir les données' },
+              { k: 'C', desc: 'Basculer vue cards / table compacte' },
+              { k: '?', desc: 'Afficher cette aide' },
+              { k: 'Esc', desc: 'Fermer une modal' },
+            ].map(({ k, desc }) => (
+              <div key={k} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '10px 14px', background: C.cardElev, borderRadius: 9,
+                border: `1px solid ${C.border}`,
+              }}>
+                <span style={{ fontSize: 13, color: C.text }}>{desc}</span>
+                <kbd style={{
+                  fontFamily: fontMono, fontSize: 12, fontWeight: 700,
+                  padding: '3px 9px', borderRadius: 6,
+                  background: C.surface, border: `1px solid ${C.border}`,
+                  color: C.cabinet, minWidth: 32, textAlign: 'center',
+                }}>{k}</kbd>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 14, fontSize: 11, color: C.muted, textAlign: 'center' }}>
+            Les raccourcis sont désactivés quand vous tapez dans un champ.
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL DÉTACHER CLIENT — confirmation par saisie du nom */}
+      {clientADetacher && (
+        <Modal C={C} onClose={() => !actionLoading && setClientADetacher(null)} large>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: `${C.danger}18`, border: `1px solid ${C.danger}40`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <AlertTriangle size={22} color={C.danger} strokeWidth={2.4} />
+            </div>
+            <div>
+              <h3 style={{ fontFamily: fontDisplay, fontSize: 20, fontWeight: 800, margin: 0, color: C.text }}>Détacher ce client</h3>
+              <div style={{ fontSize: 12.5, color: C.sub, marginTop: 2 }}>Action irréversible</div>
+            </div>
+          </div>
+
+          <div style={{ padding: 16, background: C.cardElev, border: `1px solid ${C.border}`, borderRadius: 11, fontSize: 13, color: C.sub, lineHeight: 1.6, marginBottom: 16 }}>
+            En détachant <strong style={{ color: C.text }}>{clientADetacher.pme_nom}</strong> :
+            <ul style={{ margin: '10px 0 0', paddingLeft: 20, color: C.text }}>
+              <li>Vous perdez l'accès à son dossier (compta, factures, paie, etc.)</li>
+              <li>Toutes les invitations pending vers cette PME sont révoquées</li>
+              <li>La PME garde son compte ApeX et toutes ses données — elle continue de fonctionner normalement</li>
+              <li>Pour vous reconnecter, il faudra l'inviter à nouveau et qu'elle accepte</li>
+            </ul>
+          </div>
+
+          <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: C.sub, marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            Pour confirmer, saisissez « <span style={{ color: C.text, fontFamily: fontMono }}>{clientADetacher.pme_nom}</span> »
+          </label>
+          <input value={confirmDetach} onChange={(e) => setConfirmDetach(e.target.value)}
+            placeholder={clientADetacher.pme_nom}
+            autoFocus
+            style={{
+              width: '100%', padding: '11px 14px', borderRadius: 10,
+              background: C.cardElev, border: `1px solid ${confirmDetach === clientADetacher.pme_nom ? C.danger : C.border}`,
+              color: C.text, fontFamily: fontUI, fontSize: 14,
+              outline: 'none', boxSizing: 'border-box',
+            }} />
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 22, justifyContent: 'flex-end' }}>
+            <button onClick={() => setClientADetacher(null)} disabled={actionLoading} style={btnSecondary(C)}>Annuler</button>
+            <button onClick={confirmerDetacher}
+              disabled={actionLoading || confirmDetach !== clientADetacher.pme_nom}
+              style={{
+                padding: '10px 18px', borderRadius: 10,
+                background: confirmDetach === clientADetacher.pme_nom ? C.danger : C.cardElev,
+                border: 'none',
+                color: confirmDetach === clientADetacher.pme_nom ? '#FFF' : C.muted,
+                fontFamily: fontUI, fontWeight: 700, fontSize: 13,
+                cursor: confirmDetach === clientADetacher.pme_nom && !actionLoading ? 'pointer' : 'not-allowed',
+                opacity: confirmDetach === clientADetacher.pme_nom ? 1 : 0.6,
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+              }}>
+              {actionLoading ? 'Détachement…' : 'Confirmer le détachement'}
+              {!actionLoading && confirmDetach === clientADetacher.pme_nom && <Trash2 size={14} />}
             </button>
           </div>
         </Modal>
@@ -880,8 +1173,8 @@ function FiltresBar({ C, recherche, setRecherche, filtreTag, setFiltreTag, tagsC
 
 function TableCompacteClients({ C, clients, charge, onOuvrir, onAnnoter, onDetacher }) {
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflowX: 'auto' }}>
+      <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse', fontSize: 12.5 }}>
         <thead>
           <tr style={{ background: C.cardElev, borderBottom: `1px solid ${C.border}` }}>
             <th style={thStyle(C)}>Client</th>
