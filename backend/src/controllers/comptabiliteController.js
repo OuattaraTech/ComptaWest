@@ -837,6 +837,33 @@ const cloturerExercice = async (req, res) => {
   }
 };
 
+// ─── SUGGESTIONS DE CLÔTURE AUTOMATIQUES ───────────────────────────────────
+const { genererSuggestionsCloture, enregistrerSuggestions } = require('../utils/clotureAuto');
+
+const getSuggestionsCloture = async (req, res) => {
+  try {
+    const suggestions = await genererSuggestionsCloture(req.entrepriseId, req.params.id);
+    res.json({ success: true, data: suggestions });
+  } catch (err) {
+    console.error('Erreur getSuggestionsCloture:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+const enregistrerSuggestionsCloture = async (req, res) => {
+  try {
+    const { suggestions } = req.body;
+    if (!Array.isArray(suggestions) || suggestions.length === 0) {
+      return res.status(400).json({ success: false, message: 'Aucune suggestion à enregistrer' });
+    }
+    const count = await enregistrerSuggestions(req.entrepriseId, req.params.id, req.user.id, suggestions);
+    res.json({ success: true, message: `${count} écriture(s) créée(s) dans le journal OD`, count });
+  } catch (err) {
+    console.error('Erreur enregistrerSuggestionsCloture:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   getPlanComptable, getJournaux, getExercices,
   getEcritures, getEcritureById,
@@ -845,4 +872,5 @@ module.exports = {
   exportJournalTxt, exportJournalExcel,
   exportGrandLivreTxt, exportGrandLivreExcel,
   getClotureChecks, cloturerExercice,
+  getSuggestionsCloture, enregistrerSuggestionsCloture,
 };

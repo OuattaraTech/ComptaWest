@@ -46,6 +46,7 @@ const {
   exportJournalTxt, exportJournalExcel,
   exportGrandLivreTxt, exportGrandLivreExcel,
   getClotureChecks, cloturerExercice,
+  getSuggestionsCloture, enregistrerSuggestionsCloture,
 } = require('../controllers/comptabiliteController');
 const {
   getOperateurs, getComptes, getCompteById, createCompte, updateCompte, archiveCompte,
@@ -332,11 +333,18 @@ router.get('/rapports/bilan/pdf', auth, can(MODULES.RAPPORTS, ACTIONS.READ), get
 router.get('/rapports/facture/:id/pdf', auth, can(MODULES.FACTURES, ACTIONS.READ), getFacturePDF);
 
 // ─── DSF (liasse fiscale SYSCOHADA) — Lot DSF-1 ────────────────────────────
-const { listerExercices: dsfListerExercices, getDataDSF, getPdfDSF, getCsvDSF } = require('../controllers/dsfController');
-router.get('/dsf/exercices',         auth, can(MODULES.CLOTURE, ACTIONS.READ), dsfListerExercices);
-router.get('/dsf/:exerciceId/data',  auth, can(MODULES.CLOTURE, ACTIONS.READ), getDataDSF);
-router.get('/dsf/:exerciceId/pdf',   auth, can(MODULES.CLOTURE, ACTIONS.READ), getPdfDSF);
-router.get('/dsf/:exerciceId/csv',   auth, can(MODULES.CLOTURE, ACTIONS.READ), getCsvDSF);
+const {
+  listerExercices: dsfListerExercices, getDataDSF, getPdfDSF, getCsvDSF,
+  getAnnexesManuelles, saveAnnexeManuelle,
+} = require('../controllers/dsfController');
+router.get('/dsf/exercices',                            auth, can(MODULES.CLOTURE, ACTIONS.READ), dsfListerExercices);
+router.get('/dsf/:exerciceId/data',                     auth, can(MODULES.CLOTURE, ACTIONS.READ), getDataDSF);
+router.get('/dsf/:exerciceId/pdf',                      auth, can(MODULES.CLOTURE, ACTIONS.READ), getPdfDSF);
+router.get('/dsf/:exerciceId/csv',                      auth, can(MODULES.CLOTURE, ACTIONS.READ), getCsvDSF);
+router.get('/dsf/:exerciceId/annexes-manuelles',        auth, can(MODULES.CLOTURE, ACTIONS.READ),   getAnnexesManuelles);
+// Annexes manuelles = saisies déclaratives (pas des écritures compta) :
+// autorisées au proprietaire, admin et expert-comptable.
+router.put('/dsf/:exerciceId/annexes-manuelles/:type',  auth, entrepriseAccess(['proprietaire','admin','expert_comptable']), saveAnnexeManuelle);
 
 // ─── AUDIT LOG ─────────────────────────────────────────────────────────────
 router.get('/audit-log', auth, can(MODULES.AUDIT_LOG, ACTIONS.READ), getAuditLog);
@@ -346,6 +354,12 @@ router.get('/comptabilite/plan',         auth, can(MODULES.ECRITURES, ACTIONS.RE
 router.get('/comptabilite/journaux',     auth, can(MODULES.ECRITURES, ACTIONS.READ), getJournaux);
 router.get('/comptabilite/exercices',    auth, can(MODULES.CLOTURE,   ACTIONS.READ), getExercices);
 router.get('/comptabilite/exercices/:id/pre-cloture', auth, can(MODULES.CLOTURE, ACTIONS.READ),   getClotureChecks);
+router.get('/comptabilite/exercices/:id/suggestions-cloture',  auth, can(MODULES.CLOTURE, ACTIONS.READ),   getSuggestionsCloture);
+// Enregistrer les suggestions = passer des écritures dans le journal OD :
+// autorisé au propriétaire (cas TPE où le dirigeant est aussi comptable),
+// admin et expert-comptable. La VRAIE clôture (RAN + verrouillage) reste
+// exclusive à l'EC via cloturerExercice ci-dessus.
+router.post('/comptabilite/exercices/:id/suggestions-cloture', auth, entrepriseAccess(['proprietaire','admin','expert_comptable']), enregistrerSuggestionsCloture);
 // Clôture annuelle : exclusivité expert_comptable (matrice cloture.create)
 router.post('/comptabilite/exercices/:id/cloturer',   auth, can(MODULES.CLOTURE, ACTIONS.CREATE), cloturerExercice);
 router.get('/comptabilite/ecritures',    auth, can(MODULES.ECRITURES, ACTIONS.READ),   getEcritures);

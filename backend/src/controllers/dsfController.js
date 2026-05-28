@@ -70,7 +70,7 @@ async function getPdfDSF(req, res) {
 }
 
 function buildPdfDoc(data) {
-  const { entreprise, exercice, compte_resultat, bilan_actif, bilan_passif, tafire, annexes, equilibre } = data;
+  const { entreprise, exercice, compte_resultat, bilan_actif, bilan_passif, tafire, annexes, annexes_manuelles = {}, equilibre } = data;
   const ent = entreprise;
   const periode = `du ${String(exercice.date_debut).slice(0, 10)} au ${String(exercice.date_fin).slice(0, 10)}`;
 
@@ -350,6 +350,9 @@ function buildPdfDoc(data) {
       },
       layout: { hLineColor: () => '#E5E7EB', vLineColor: () => '#E5E7EB' },
     },
+
+    // ─── PAGE 7+ : Annexes manuelles si saisies ──────────────────────────
+    ...buildAnnexesManuellesPdf(annexes_manuelles, headerEntreprise),
   ].filter(Boolean);
 
   return {
@@ -364,6 +367,146 @@ function buildPdfDoc(data) {
       ],
     }),
   };
+}
+
+// Construit les pages PDF des annexes manuelles saisies par l'EC.
+// Tolère les contenus partiels ou vides. Une seule page par bloc présent.
+function buildAnnexesManuellesPdf(annexesManuelles, headerEntreprise) {
+  const out = [];
+  const has = (key) => annexesManuelles && annexesManuelles[key]
+    && Object.keys(annexesManuelles[key]).length > 0;
+  const any = ['commissaires_aux_comptes','credit_bail','engagements_hors_bilan','litiges','ca_par_activite'].some(has);
+  if (!any) return out;
+
+  out.push({ text: '', pageBreak: 'after' });
+  out.push(...headerEntreprise('ANNEXES COMPLÉMENTAIRES'));
+
+  if (has('commissaires_aux_comptes')) {
+    const c = annexesManuelles.commissaires_aux_comptes;
+    out.push({ text: 'Commissaires aux comptes', fontSize: 11, bold: true, color: '#0F8A6E', margin: [0, 0, 0, 6] });
+    out.push({
+      table: {
+        widths: ['*', 'auto'],
+        body: [
+          [{ text: 'Cabinet / Identité', fontSize: 9 }, { text: c.noms || '—', fontSize: 9.5, bold: true, alignment: 'right' }],
+          [{ text: 'Mission', fontSize: 9 }, { text: c.mission || '—', fontSize: 9.5, alignment: 'right' }],
+          [{ text: 'Honoraires de l\'exercice (FCFA)', fontSize: 9 }, { text: fmt(c.honoraires || 0), fontSize: 9.5, bold: true, alignment: 'right' }],
+        ],
+      },
+      layout: { hLineColor: () => '#E5E7EB', vLineColor: () => '#E5E7EB' },
+    });
+  }
+
+  if (has('credit_bail')) {
+    const cb = annexesManuelles.credit_bail;
+    const contrats = Array.isArray(cb.contrats) ? cb.contrats : [];
+    out.push({ text: 'Crédit-bail / Location-acquisition', fontSize: 11, bold: true, color: '#0F8A6E', margin: [0, 16, 0, 6] });
+    if (contrats.length === 0) {
+      out.push({ text: 'Aucun contrat en cours.', fontSize: 9, italics: true, color: '#6B7280' });
+    } else {
+      out.push({
+        table: {
+          widths: ['*', 'auto', 'auto', 'auto', 'auto'],
+          headerRows: 1,
+          body: [
+            [
+              { text: 'Désignation', fontSize: 8, bold: true, fillColor: '#F0FDF4' },
+              { text: 'Durée (mois)', fontSize: 8, bold: true, alignment: 'right', fillColor: '#F0FDF4' },
+              { text: 'Mensualité', fontSize: 8, bold: true, alignment: 'right', fillColor: '#F0FDF4' },
+              { text: 'Restant', fontSize: 8, bold: true, alignment: 'right', fillColor: '#F0FDF4' },
+              { text: 'Val. résiduelle', fontSize: 8, bold: true, alignment: 'right', fillColor: '#F0FDF4' },
+            ],
+            ...contrats.map(c => [
+              { text: c.designation || '', fontSize: 9 },
+              { text: c.duree || '', fontSize: 9, alignment: 'right' },
+              { text: fmt(c.mensualite || 0), fontSize: 9, alignment: 'right' },
+              { text: c.restant || '', fontSize: 9, alignment: 'right' },
+              { text: fmt(c.valeur_residuelle || 0), fontSize: 9, alignment: 'right' },
+            ]),
+          ],
+        },
+        layout: { hLineColor: () => '#E5E7EB', vLineColor: () => '#E5E7EB' },
+      });
+    }
+  }
+
+  if (has('engagements_hors_bilan')) {
+    const e = annexesManuelles.engagements_hors_bilan;
+    out.push({ text: 'Engagements hors bilan', fontSize: 11, bold: true, color: '#0F8A6E', margin: [0, 16, 0, 6] });
+    out.push({
+      table: {
+        widths: ['*', 'auto'],
+        body: [
+          [{ text: 'Avals, cautions, garanties données', fontSize: 9 }, { text: fmt(e.avals_cautions_garanties_donnees || 0), fontSize: 9.5, alignment: 'right' }],
+          [{ text: 'Avals, cautions, garanties reçues', fontSize: 9 }, { text: fmt(e.avals_cautions_garanties_recues || 0), fontSize: 9.5, alignment: 'right' }],
+          [{ text: 'Autres engagements', fontSize: 9 }, { text: e.autres || '—', fontSize: 9.5, alignment: 'right' }],
+        ],
+      },
+      layout: { hLineColor: () => '#E5E7EB', vLineColor: () => '#E5E7EB' },
+    });
+  }
+
+  if (has('litiges')) {
+    const li = annexesManuelles.litiges;
+    const items = Array.isArray(li.litiges) ? li.litiges : [];
+    out.push({ text: 'Litiges et risques', fontSize: 11, bold: true, color: '#0F8A6E', margin: [0, 16, 0, 6] });
+    if (items.length === 0) {
+      out.push({ text: 'Aucun litige déclaré.', fontSize: 9, italics: true, color: '#6B7280' });
+    } else {
+      out.push({
+        table: {
+          widths: ['*', '*', 'auto', 'auto'],
+          headerRows: 1,
+          body: [
+            [
+              { text: 'Partie adverse', fontSize: 8, bold: true, fillColor: '#F0FDF4' },
+              { text: 'Nature', fontSize: 8, bold: true, fillColor: '#F0FDF4' },
+              { text: 'Montant demandé', fontSize: 8, bold: true, alignment: 'right', fillColor: '#F0FDF4' },
+              { text: 'Provision', fontSize: 8, bold: true, alignment: 'right', fillColor: '#F0FDF4' },
+            ],
+            ...items.map(l => [
+              { text: l.partie || '', fontSize: 9 },
+              { text: l.nature || '', fontSize: 9 },
+              { text: fmt(l.montant_demande || 0), fontSize: 9, alignment: 'right' },
+              { text: fmt(l.provision || 0), fontSize: 9, alignment: 'right' },
+            ]),
+          ],
+        },
+        layout: { hLineColor: () => '#E5E7EB', vLineColor: () => '#E5E7EB' },
+      });
+    }
+  }
+
+  if (has('ca_par_activite')) {
+    const ca = annexesManuelles.ca_par_activite;
+    const items = Array.isArray(ca.activites) ? ca.activites : [];
+    out.push({ text: 'Ventilation du chiffre d\'affaires par activité', fontSize: 11, bold: true, color: '#0F8A6E', margin: [0, 16, 0, 6] });
+    if (items.length === 0) {
+      out.push({ text: 'Aucune ventilation déclarée.', fontSize: 9, italics: true, color: '#6B7280' });
+    } else {
+      out.push({
+        table: {
+          widths: ['*', 'auto', 'auto'],
+          headerRows: 1,
+          body: [
+            [
+              { text: 'Activité', fontSize: 8, bold: true, fillColor: '#F0FDF4' },
+              { text: 'CA (FCFA)', fontSize: 8, bold: true, alignment: 'right', fillColor: '#F0FDF4' },
+              { text: '%', fontSize: 8, bold: true, alignment: 'right', fillColor: '#F0FDF4' },
+            ],
+            ...items.map(a => [
+              { text: a.libelle || '', fontSize: 9 },
+              { text: fmt(a.montant || 0), fontSize: 9, alignment: 'right' },
+              { text: (a.pct || 0) + ' %', fontSize: 9, alignment: 'right' },
+            ]),
+          ],
+        },
+        layout: { hLineColor: () => '#E5E7EB', vLineColor: () => '#E5E7EB' },
+      });
+    }
+  }
+
+  return out;
 }
 
 // ─── GET /api/dsf/:exerciceId/csv ──────────────────────────────────────────
@@ -486,7 +629,78 @@ function buildCsvExport(data) {
   lignes.push(`Dettes_sociales,${Math.round(cd.dettes_sociales)}`);
   lignes.push(`Autres_dettes,${Math.round(cd.autres_dettes)}`);
 
+  // Annexes manuelles
+  const am = data.annexes_manuelles || {};
+  if (Object.keys(am).length > 0) {
+    lignes.push('');
+    lignes.push('# ANNEXES MANUELLES (saisies par l\'EC)');
+    for (const [type, contenu] of Object.entries(am)) {
+      lignes.push(`# ${cellCsv(type)}`);
+      lignes.push(`Clef,Valeur`);
+      // Sérialisation simple : 1 ligne par clé top-level. Les tableaux
+      // sont aplatis en JSON.
+      for (const [k, v] of Object.entries(contenu || {})) {
+        const val = typeof v === 'object' ? JSON.stringify(v) : String(v);
+        lignes.push([cellCsv(k), cellCsv(val)].join(','));
+      }
+    }
+  }
+
   return lignes.join('\n');
 }
 
-module.exports = { listerExercices, getDataDSF, getPdfDSF, getCsvDSF };
+// ─── ANNEXES MANUELLES (CRUD) ──────────────────────────────────────────────
+const TYPES_ANNEXES = [
+  'commissaires_aux_comptes',
+  'credit_bail',
+  'engagements_hors_bilan',
+  'litiges',
+  'ca_par_activite',
+];
+
+// GET /api/dsf/:exerciceId/annexes-manuelles → toutes les annexes saisies
+async function getAnnexesManuelles(req, res) {
+  try {
+    const r = await pool.query(
+      `SELECT type, contenu, modifie_at FROM dsf_annexes_manuelles
+        WHERE entreprise_id = $1 AND exercice_id = $2`,
+      [req.entrepriseId, req.params.exerciceId]
+    );
+    const map = {};
+    for (const t of TYPES_ANNEXES) map[t] = null;
+    for (const row of r.rows) map[row.type] = { contenu: row.contenu, modifie_at: row.modifie_at };
+    res.json({ success: true, data: map });
+  } catch (err) {
+    if (err.code === '42P01') return res.json({ success: true, data: {} }); // migration 034 non appliquée
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+// PUT /api/dsf/:exerciceId/annexes-manuelles/:type
+async function saveAnnexeManuelle(req, res) {
+  try {
+    const { type } = req.params;
+    if (!TYPES_ANNEXES.includes(type)) {
+      return res.status(400).json({ success: false, message: 'Type d\'annexe invalide' });
+    }
+    const contenu = req.body?.contenu ?? {};
+    await pool.query(
+      `INSERT INTO dsf_annexes_manuelles (entreprise_id, exercice_id, type, contenu, modifie_par)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (exercice_id, type) DO UPDATE
+         SET contenu = EXCLUDED.contenu,
+             modifie_par = EXCLUDED.modifie_par,
+             modifie_at = NOW()`,
+      [req.entrepriseId, req.params.exerciceId, type, contenu, req.user.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Erreur saveAnnexeManuelle:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+module.exports = {
+  listerExercices, getDataDSF, getPdfDSF, getCsvDSF,
+  getAnnexesManuelles, saveAnnexeManuelle,
+};

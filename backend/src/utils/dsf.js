@@ -74,7 +74,20 @@ function sommeMouvement(balance, prefixes, sens) {
  * COMPTE DE RÉSULTAT — Form N°4 SYSCOHADA révisé
  * Structure en cascade : marge → CA → VA → EBE → REX → RAO → RHAO → RNet
  */
-function calculerCompteResultat(balance) {
+function calculerCompteResultat(balance, balanceNMoinsUn = null) {
+  // Recalcule les mêmes valeurs sur N-1 si fourni, pour comparatif.
+  const crNM = balanceNMoinsUn ? calculerCompteResultatBrut(balanceNMoinsUn) : null;
+  const cr = calculerCompteResultatBrut(balance);
+  if (crNM) {
+    // Injecte les valeurs N-1 dans chaque ligne (matching par ref)
+    const mapNM = Object.fromEntries(crNM.lignes.map(l => [l.ref, l.valeur]));
+    cr.lignes = cr.lignes.map(l => ({ ...l, n_moins_un: mapNM[l.ref] ?? 0 }));
+    cr.has_n_moins_un = true;
+  }
+  return cr;
+}
+
+function calculerCompteResultatBrut(balance) {
   // Ventes de marchandises (701) et achats associés (601, 6031)
   const ventesMarchandises = sommeMouvement(balance, ['701'], 'C');
   const achatsMarchandises = sommeMouvement(balance, ['601'], 'D');
@@ -208,7 +221,18 @@ function calculerCompteResultat(balance) {
  * BILAN ACTIF — Form N°10 SYSCOHADA révisé
  * Brut / Amortissement / Net pour les immobilisations.
  */
-function calculerBilanActif(balance) {
+function calculerBilanActif(balance, balanceNMoinsUn = null) {
+  const baNM = balanceNMoinsUn ? calculerBilanActifBrut(balanceNMoinsUn) : null;
+  const ba = calculerBilanActifBrut(balance);
+  if (baNM) {
+    const mapNM = Object.fromEntries(baNM.lignes.map(l => [l.ref, l.net]));
+    ba.lignes = ba.lignes.map(l => ({ ...l, net_n_moins_un: mapNM[l.ref] ?? 0 }));
+    ba.has_n_moins_un = true;
+  }
+  return ba;
+}
+
+function calculerBilanActifBrut(balance) {
   // Immobilisations incorporelles (20, 21 brut ; 280, 281 amort)
   const incorpBrut    = sommeSolde(balance, ['21'], 'D');
   const incorpAmort   = sommeSolde(balance, ['28','29'].map(p => p + '1').concat(['281','291']), 'C');
@@ -299,7 +323,18 @@ function calculerBilanActif(balance) {
 /**
  * BILAN PASSIF — Form N°11 SYSCOHADA révisé
  */
-function calculerBilanPassif(balance, resultatNet) {
+function calculerBilanPassif(balance, resultatNet, balanceNMoinsUn = null, resultatNetNMoinsUn = 0) {
+  const bpNM = balanceNMoinsUn ? calculerBilanPassifBrut(balanceNMoinsUn, resultatNetNMoinsUn) : null;
+  const bp = calculerBilanPassifBrut(balance, resultatNet);
+  if (bpNM) {
+    const mapNM = Object.fromEntries(bpNM.lignes.map(l => [l.ref, l.valeur]));
+    bp.lignes = bp.lignes.map(l => ({ ...l, n_moins_un: mapNM[l.ref] ?? 0 }));
+    bp.has_n_moins_un = true;
+  }
+  return bp;
+}
+
+function calculerBilanPassifBrut(balance, resultatNet) {
   // Capitaux propres
   const capital            = sommeSolde(balance, ['101','102','103','104'], 'C');
   const capitalNonAppele   = sommeSolde(balance, ['109'], 'D'); // débiteur = à soustraire
@@ -708,14 +743,9 @@ async function genererLiasseDSF(entrepriseId, exerciceId) {
   if (!ex) throw new Error('Exercice introuvable');
 
   const balance = await chargerBalance(entrepriseId, exerciceId);
-  const compteResultat = calculerCompteResultat(balance);
-  const bilanActif     = calculerBilanActif(balance);
-  const bilanPassif    = calculerBilanPassif(balance, compteResultat.indicateurs.resultat_net);
 
-  const equilibre = bilanActif.total_net - bilanPassif.total;
-
-  // Pour le TAFIRE : charger la balance de l'exercice N-1 si elle existe
-  // (exercice précédent, identifié par date_fin la plus proche < date_debut N).
+  // Charger N-1 d'abord, pour pouvoir enrichir tous les calculs avec
+  // la comparaison N-1 (bilans + compte de résultat + TAFIRE + annexes).
   let balanceNMoinsUn = null;
   let exerciceNMoinsUn = null;
   try {
@@ -730,12 +760,35 @@ async function genererLiasseDSF(entrepriseId, exerciceId) {
       balanceNMoinsUn = await chargerBalance(entrepriseId, exPrev.rows[0].id);
     }
   } catch (err) {
-    // Si la requête échoue, on continue sans N-1 (mode dégradé géré dans calculerTafire)
     console.warn('Chargement exercice N-1 échoué:', err.message);
   }
 
+  // Compte de résultat N + comparatif N-1
+  const compteResultat = calculerCompteResultat(balance, balanceNMoinsUn);
+  // Pour le bilan PASSIF, on a besoin du résultat net N-1 aussi
+  const crNM = balanceNMoinsUn ? calculerCompteResultatBrut(balanceNMoinsUn) : null;
+  const resultatNetNMoinsUn = crNM ? crNM.indicateurs.resultat_net : 0;
+
+  const bilanActif  = calculerBilanActif(balance, balanceNMoinsUn);
+  const bilanPassif = calculerBilanPassif(balance, compteResultat.indicateurs.resultat_net, balanceNMoinsUn, resultatNetNMoinsUn);
+
+  const equilibre = bilanActif.total_net - bilanPassif.total;
+
   const tafire  = calculerTafire(balance, balanceNMoinsUn, compteResultat);
   const annexes = await calculerAnnexes(balance, balanceNMoinsUn, entrepriseId, ex, pool);
+
+  // Annexes manuelles saisies par l'EC (migration 034). Tolère son absence.
+  let annexesManuelles = {};
+  try {
+    const r = await pool.query(
+      `SELECT type, contenu FROM dsf_annexes_manuelles
+        WHERE entreprise_id = $1 AND exercice_id = $2`,
+      [entrepriseId, exerciceId]
+    );
+    for (const row of r.rows) annexesManuelles[row.type] = row.contenu;
+  } catch (err) {
+    if (err.code !== '42P01') console.warn('annexes manuelles indisponibles:', err.message);
+  }
 
   return {
     entreprise: ent,
@@ -746,6 +799,7 @@ async function genererLiasseDSF(entrepriseId, exerciceId) {
     bilan_passif: bilanPassif,
     tafire,
     annexes,
+    annexes_manuelles: annexesManuelles,
     equilibre,
   };
 }

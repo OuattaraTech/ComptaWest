@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   FileText, Download, Lock, AlertTriangle, Check, Calendar, Building2,
   TrendingUp, FileSignature, ChevronDown, BookOpen, Users, Briefcase, Package,
+  Wand2, ChevronRight,
 } from 'lucide-react';
 import api from '../utils/api.jsx';
 import toast from 'react-hot-toast';
@@ -192,6 +193,9 @@ export default function DsfPage() {
               </div>
             </div>
 
+            {/* SUGGESTIONS DE CLÔTURE AUTO */}
+            <SuggestionsClotureBloc C={C} exerciceId={exerciceId} onAppliquees={() => api.get(`/dsf/${exerciceId}/data`).then(r => setLiasse(r.data.data))} />
+
             {/* MINI-KPIs */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 24 }}>
               <KpiMini C={C} icon={TrendingUp} label="Chiffre d'affaires" valeur={liasse.compte_resultat.indicateurs.chiffre_affaires} accent={C.accent} />
@@ -204,11 +208,12 @@ export default function DsfPage() {
             {/* TABS */}
             <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: `1px solid ${C.border}` }}>
               {[
-                { k: 'actif',    l: 'Bilan ACTIF',          n: 'N°10' },
-                { k: 'passif',   l: 'Bilan PASSIF',         n: 'N°11' },
-                { k: 'resultat', l: 'Compte de résultat',   n: 'N°4' },
-                { k: 'tafire',   l: 'TAFIRE',               n: 'N°6' },
-                { k: 'annexes',  l: 'Annexes',              n: 'N°3-12' },
+                { k: 'actif',     l: 'Bilan ACTIF',         n: 'N°10' },
+                { k: 'passif',    l: 'Bilan PASSIF',        n: 'N°11' },
+                { k: 'resultat',  l: 'Compte de résultat',  n: 'N°4' },
+                { k: 'tafire',    l: 'TAFIRE',              n: 'N°6' },
+                { k: 'annexes',   l: 'Annexes',             n: 'N°3-12' },
+                { k: 'manuelles', l: 'Annexes manuelles',   n: 'N°5-30' },
               ].map(({ k, l, n }) => (
                 <button key={k} onClick={() => setTab(k)} style={{
                   padding: '12px 18px', background: 'transparent', border: 'none',
@@ -230,6 +235,7 @@ export default function DsfPage() {
             {tab === 'resultat' && <TableauResultat C={C} cr={liasse.compte_resultat} />}
             {tab === 'tafire'   && <TableauTafire C={C} tafire={liasse.tafire} exPrev={liasse.exercice_precedent} />}
             {tab === 'annexes'  && <TableauAnnexes C={C} annexes={liasse.annexes} />}
+            {tab === 'manuelles' && <AnnexesManuellesForm C={C} exerciceId={exerciceId} onSaved={() => api.get(`/dsf/${exerciceId}/data`).then(r => setLiasse(r.data.data))} />}
           </>
         )}
       </div>
@@ -258,31 +264,41 @@ function KpiMini({ C, icon: Icon, label, valeur, accent }) {
 }
 
 function TableauActif({ C, bilan }) {
+  const cmp = bilan.has_n_moins_un;
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, fontFamily: fontUI, minWidth: 720 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, fontFamily: fontUI, minWidth: cmp ? 860 : 720 }}>
         <thead>
           <tr style={{ background: `${C.accent}10`, borderBottom: `1px solid ${C.border}` }}>
             <th style={thStyle(C)}>Réf.</th>
             <th style={thStyle(C)}>Libellé</th>
             <th style={{ ...thStyle(C), textAlign: 'right' }}>Brut</th>
             <th style={{ ...thStyle(C), textAlign: 'right' }}>Amort./Prov.</th>
-            <th style={{ ...thStyle(C), textAlign: 'right' }}>Net</th>
+            <th style={{ ...thStyle(C), textAlign: 'right' }}>Net N</th>
+            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>Net N-1</th>}
+            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>Variation</th>}
           </tr>
         </thead>
         <tbody>
-          {bilan.lignes.map((l, idx) => (
-            <tr key={idx} style={{
-              borderBottom: `1px solid ${C.border}`,
-              background: l.surligne ? `${C.warning}12` : (l.total ? C.cardElev : 'transparent'),
-            }}>
-              <td style={{ ...tdStyle(C), fontFamily: fontMono, color: l.total ? C.total : C.muted, fontWeight: l.total ? 800 : 600 }}>{l.ref}</td>
-              <td style={{ ...tdStyle(C), fontWeight: l.total ? 700 : 500, color: l.total ? C.text : C.sub }}>{l.libelle}</td>
-              <td style={{ ...tdStyleN(C), fontWeight: l.total ? 800 : 500 }}>{fmt(l.brut)}</td>
-              <td style={{ ...tdStyleN(C), fontWeight: l.total ? 800 : 500, color: C.muted }}>{l.amort ? fmt(l.amort) : '—'}</td>
-              <td style={{ ...tdStyleN(C), fontWeight: l.total ? 800 : 600, color: l.total ? C.total : C.text }}>{fmt(l.net)}</td>
-            </tr>
-          ))}
+          {bilan.lignes.map((l, idx) => {
+            const variation = cmp ? l.net - l.net_n_moins_un : 0;
+            return (
+              <tr key={idx} style={{
+                borderBottom: `1px solid ${C.border}`,
+                background: l.surligne ? `${C.warning}12` : (l.total ? C.cardElev : 'transparent'),
+              }}>
+                <td style={{ ...tdStyle(C), fontFamily: fontMono, color: l.total ? C.total : C.muted, fontWeight: l.total ? 800 : 600 }}>{l.ref}</td>
+                <td style={{ ...tdStyle(C), fontWeight: l.total ? 700 : 500, color: l.total ? C.text : C.sub }}>{l.libelle}</td>
+                <td style={{ ...tdStyleN(C), fontWeight: l.total ? 800 : 500 }}>{fmt(l.brut)}</td>
+                <td style={{ ...tdStyleN(C), fontWeight: l.total ? 800 : 500, color: C.muted }}>{l.amort ? fmt(l.amort) : '—'}</td>
+                <td style={{ ...tdStyleN(C), fontWeight: l.total ? 800 : 600, color: l.total ? C.total : C.text }}>{fmt(l.net)}</td>
+                {cmp && <td style={{ ...tdStyleN(C), color: C.muted }}>{fmt(l.net_n_moins_un)}</td>}
+                {cmp && <td style={{ ...tdStyleN(C), color: variation > 0 ? C.accent : (variation < 0 ? C.danger : C.muted), fontWeight: 600 }}>
+                  {variation > 0 ? '+' : ''}{fmt(variation)}
+                </td>}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -290,27 +306,37 @@ function TableauActif({ C, bilan }) {
 }
 
 function TableauPassif({ C, bilan }) {
+  const cmp = bilan.has_n_moins_un;
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, fontFamily: fontUI, minWidth: 580 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, fontFamily: fontUI, minWidth: cmp ? 720 : 580 }}>
         <thead>
           <tr style={{ background: `${C.accent}10`, borderBottom: `1px solid ${C.border}` }}>
             <th style={thStyle(C)}>Réf.</th>
             <th style={thStyle(C)}>Libellé</th>
-            <th style={{ ...thStyle(C), textAlign: 'right' }}>Montant net</th>
+            <th style={{ ...thStyle(C), textAlign: 'right' }}>Montant N</th>
+            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>Montant N-1</th>}
+            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>Variation</th>}
           </tr>
         </thead>
         <tbody>
-          {bilan.lignes.map((l, idx) => (
-            <tr key={idx} style={{
-              borderBottom: `1px solid ${C.border}`,
-              background: l.surligne ? `${C.warning}12` : (l.total ? C.cardElev : 'transparent'),
-            }}>
-              <td style={{ ...tdStyle(C), fontFamily: fontMono, color: l.total ? C.total : C.muted, fontWeight: l.total ? 800 : 600 }}>{l.ref}</td>
-              <td style={{ ...tdStyle(C), paddingLeft: l.niveau === 1 ? 24 : 12, fontWeight: l.total ? 700 : 500, color: l.total ? C.text : C.sub }}>{l.libelle}</td>
-              <td style={{ ...tdStyleN(C), fontWeight: l.total ? 800 : 600, color: l.total ? C.total : C.text }}>{fmt(l.valeur)}</td>
-            </tr>
-          ))}
+          {bilan.lignes.map((l, idx) => {
+            const variation = cmp ? l.valeur - l.n_moins_un : 0;
+            return (
+              <tr key={idx} style={{
+                borderBottom: `1px solid ${C.border}`,
+                background: l.surligne ? `${C.warning}12` : (l.total ? C.cardElev : 'transparent'),
+              }}>
+                <td style={{ ...tdStyle(C), fontFamily: fontMono, color: l.total ? C.total : C.muted, fontWeight: l.total ? 800 : 600 }}>{l.ref}</td>
+                <td style={{ ...tdStyle(C), paddingLeft: l.niveau === 1 ? 24 : 12, fontWeight: l.total ? 700 : 500, color: l.total ? C.text : C.sub }}>{l.libelle}</td>
+                <td style={{ ...tdStyleN(C), fontWeight: l.total ? 800 : 600, color: l.total ? C.total : C.text }}>{fmt(l.valeur)}</td>
+                {cmp && <td style={{ ...tdStyleN(C), color: C.muted }}>{fmt(l.n_moins_un)}</td>}
+                {cmp && <td style={{ ...tdStyleN(C), color: variation > 0 ? C.accent : (variation < 0 ? C.danger : C.muted), fontWeight: 600 }}>
+                  {variation > 0 ? '+' : ''}{fmt(variation)}
+                </td>}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -318,29 +344,41 @@ function TableauPassif({ C, bilan }) {
 }
 
 function TableauResultat({ C, cr }) {
+  const cmp = cr.has_n_moins_un;
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, fontFamily: fontUI, minWidth: 580 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, fontFamily: fontUI, minWidth: cmp ? 720 : 580 }}>
         <thead>
           <tr style={{ background: `${C.accent}10`, borderBottom: `1px solid ${C.border}` }}>
             <th style={thStyle(C)}>Réf.</th>
             <th style={thStyle(C)}>Libellé</th>
-            <th style={{ ...thStyle(C), textAlign: 'right' }}>Montant</th>
+            <th style={{ ...thStyle(C), textAlign: 'right' }}>Montant N</th>
+            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>Montant N-1</th>}
+            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>Variation</th>}
           </tr>
         </thead>
         <tbody>
-          {cr.lignes.map((l, idx) => (
-            <tr key={idx} style={{
-              borderBottom: `1px solid ${C.border}`,
-              background: l.surligne ? `${C.warning}12` : (l.total ? C.cardElev : 'transparent'),
-            }}>
-              <td style={{ ...tdStyle(C), fontFamily: fontMono, color: l.total ? C.total : C.muted, fontWeight: l.total ? 800 : 600 }}>{l.ref}</td>
-              <td style={{ ...tdStyle(C), paddingLeft: l.niveau === 1 ? 24 : 12, fontWeight: l.total ? 700 : 500, color: l.total ? C.text : C.sub }}>{l.libelle}</td>
-              <td style={{ ...tdStyleN(C), fontWeight: l.total ? 800 : 600, color: l.soustrait ? C.danger : (l.total ? C.total : C.text) }}>
-                {l.soustrait && l.valeur > 0 ? '(' + fmt(l.valeur) + ')' : fmt(l.valeur)}
-              </td>
-            </tr>
-          ))}
+          {cr.lignes.map((l, idx) => {
+            const variation = cmp ? l.valeur - l.n_moins_un : 0;
+            return (
+              <tr key={idx} style={{
+                borderBottom: `1px solid ${C.border}`,
+                background: l.surligne ? `${C.warning}12` : (l.total ? C.cardElev : 'transparent'),
+              }}>
+                <td style={{ ...tdStyle(C), fontFamily: fontMono, color: l.total ? C.total : C.muted, fontWeight: l.total ? 800 : 600 }}>{l.ref}</td>
+                <td style={{ ...tdStyle(C), paddingLeft: l.niveau === 1 ? 24 : 12, fontWeight: l.total ? 700 : 500, color: l.total ? C.text : C.sub }}>{l.libelle}</td>
+                <td style={{ ...tdStyleN(C), fontWeight: l.total ? 800 : 600, color: l.soustrait ? C.danger : (l.total ? C.total : C.text) }}>
+                  {l.soustrait && l.valeur > 0 ? '(' + fmt(l.valeur) + ')' : fmt(l.valeur)}
+                </td>
+                {cmp && <td style={{ ...tdStyleN(C), color: C.muted }}>
+                  {l.soustrait && l.n_moins_un > 0 ? '(' + fmt(l.n_moins_un) + ')' : fmt(l.n_moins_un)}
+                </td>}
+                {cmp && <td style={{ ...tdStyleN(C), color: variation > 0 ? C.accent : (variation < 0 ? C.danger : C.muted), fontWeight: 600 }}>
+                  {variation > 0 ? '+' : ''}{fmt(variation)}
+                </td>}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -404,6 +442,350 @@ function TableauTafire({ C, tafire, exPrev }) {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function SuggestionsClotureBloc({ C, exerciceId, onAppliquees }) {
+  const [suggestions, setSuggestions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selection, setSelection] = useState(new Set());
+  const [enregistrement, setEnregistrement] = useState(false);
+  const [ouvert, setOuvert] = useState(true);
+
+  useEffect(() => {
+    if (!exerciceId) return;
+    setLoading(true);
+    api.get(`/comptabilite/exercices/${exerciceId}/suggestions-cloture`)
+      .then(r => {
+        setSuggestions(r.data.data || []);
+        // Pré-sélectionne toutes les suggestions avec écriture (pas les alertes)
+        const initialSel = new Set();
+        for (const s of r.data.data || []) {
+          if (s.ecriture) initialSel.add(s.id);
+        }
+        setSelection(initialSel);
+      })
+      .catch(() => setSuggestions([]))
+      .finally(() => setLoading(false));
+  }, [exerciceId]);
+
+  const toggle = (id) => {
+    setSelection(s => {
+      const n = new Set(s);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  };
+
+  const appliquer = async () => {
+    const aEnregistrer = suggestions.filter(s => selection.has(s.id) && s.ecriture);
+    if (aEnregistrer.length === 0) {
+      toast.error('Aucune suggestion sélectionnée');
+      return;
+    }
+    setEnregistrement(true);
+    try {
+      const r = await api.post(`/comptabilite/exercices/${exerciceId}/suggestions-cloture`, { suggestions: aEnregistrer });
+      toast.success(r.data.message || 'Écritures enregistrées');
+      setSuggestions([]);
+      setSelection(new Set());
+      onAppliquees && onAppliquees();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur');
+    } finally {
+      setEnregistrement(false);
+    }
+  };
+
+  if (loading) return null;
+  if (suggestions.length === 0) return null;
+
+  const aEnregistrerCount = suggestions.filter(s => selection.has(s.id) && s.ecriture).length;
+
+  return (
+    <div style={{
+      marginBottom: 24, borderRadius: 12,
+      background: C.card, border: `1px solid ${C.warning}50`,
+      overflow: 'hidden',
+    }}>
+      <button onClick={() => setOuvert(o => !o)} style={{
+        width: '100%', padding: '12px 16px',
+        display: 'flex', alignItems: 'center', gap: 12,
+        background: `${C.warning}12`, border: 'none',
+        cursor: 'pointer', textAlign: 'left',
+      }}>
+        <div style={{ width: 32, height: 32, borderRadius: 9, background: C.warning, color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Wand2 size={16} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: C.text, fontFamily: fontDisplay }}>
+            {suggestions.length} suggestion(s) de clôture pré-DSF
+          </div>
+          <div style={{ fontSize: 11, color: C.sub, marginTop: 2 }}>
+            Écritures auto-détectées à passer avant la liasse — provisions douteux, régularisation TVA, alertes.
+          </div>
+        </div>
+        <ChevronRight size={16} color={C.muted} style={{ transform: ouvert ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+      </button>
+
+      {ouvert && (
+        <div style={{ padding: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {suggestions.map((s) => {
+              const couleur = s.type === 'alerte' ? C.warning : (s.type === 'provision' ? C.danger : C.accent);
+              return (
+                <div key={s.id} style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 12,
+                  padding: 14, background: C.cardElev,
+                  border: `1px solid ${selection.has(s.id) ? couleur + '60' : C.border}`,
+                  borderRadius: 10, transition: 'border-color 0.15s',
+                }}>
+                  {s.ecriture && (
+                    <input type="checkbox" checked={selection.has(s.id)} onChange={() => toggle(s.id)}
+                      style={{ marginTop: 3, cursor: 'pointer', accentColor: couleur }} />
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{s.titre}</span>
+                      <span style={{
+                        fontSize: 9.5, fontWeight: 800, padding: '2px 7px', borderRadius: 4,
+                        background: `${couleur}18`, color: couleur,
+                        letterSpacing: '0.04em', textTransform: 'uppercase',
+                      }}>{s.type}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: C.sub, marginTop: 4, lineHeight: 1.5 }}>{s.explication}</div>
+                    {s.ecriture && (
+                      <div style={{ marginTop: 8, padding: 10, background: C.bg, border: `1px dashed ${C.border}`, borderRadius: 8, fontSize: 11, fontFamily: fontMono }}>
+                        <div style={{ color: C.muted, marginBottom: 4 }}>{s.ecriture.libelle}</div>
+                        {s.ecriture.lignes.map((ln, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                            <span><span style={{ color: C.muted }}>{ln.compte}</span> {ln.libelle}</span>
+                            <span style={{ color: ln.debit > 0 ? C.danger : C.accent, fontWeight: 700 }}>
+                              {ln.debit > 0 ? `D ${fmt(ln.debit)}` : `C ${fmt(ln.credit)}`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {aEnregistrerCount > 0 && (
+            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={appliquer} disabled={enregistrement} style={{
+                padding: '10px 18px', borderRadius: 10,
+                background: `linear-gradient(135deg, ${C.accent}, ${C.total})`,
+                border: 'none', color: '#FFF',
+                fontFamily: fontUI, fontWeight: 700, fontSize: 13,
+                cursor: enregistrement ? 'wait' : 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+              }}>
+                {enregistrement ? 'Enregistrement…' : `Passer les ${aEnregistrerCount} écriture(s) sélectionnée(s) en OD`}
+                {!enregistrement && <Check size={14} />}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AnnexesManuellesForm({ C, exerciceId, onSaved }) {
+  const [data, setData] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [savingType, setSavingType] = useState(null);
+
+  useEffect(() => {
+    api.get(`/dsf/${exerciceId}/annexes-manuelles`)
+      .then(r => {
+        const out = {};
+        for (const [k, v] of Object.entries(r.data.data || {})) {
+          out[k] = v ? v.contenu : {};
+        }
+        setData(out);
+      })
+      .catch(() => setData({}))
+      .finally(() => setLoading(false));
+  }, [exerciceId]);
+
+  const save = async (type) => {
+    setSavingType(type);
+    try {
+      await api.put(`/dsf/${exerciceId}/annexes-manuelles/${type}`, { contenu: data[type] || {} });
+      toast.success('Annexe enregistrée');
+      onSaved && onSaved();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur');
+    } finally {
+      setSavingType(null);
+    }
+  };
+
+  const setField = (type, field, value) => {
+    setData(d => ({ ...d, [type]: { ...(d[type] || {}), [field]: value } }));
+  };
+  const setArrayItem = (type, arrayField, idx, item) => {
+    setData(d => {
+      const arr = [...((d[type] || {})[arrayField] || [])];
+      arr[idx] = item;
+      return { ...d, [type]: { ...(d[type] || {}), [arrayField]: arr } };
+    });
+  };
+  const addArrayItem = (type, arrayField, defaults) => {
+    setData(d => {
+      const arr = [...((d[type] || {})[arrayField] || []), defaults];
+      return { ...d, [type]: { ...(d[type] || {}), [arrayField]: arr } };
+    });
+  };
+  const removeArrayItem = (type, arrayField, idx) => {
+    setData(d => {
+      const arr = ((d[type] || {})[arrayField] || []).filter((_, i) => i !== idx);
+      return { ...d, [type]: { ...(d[type] || {}), [arrayField]: arr } };
+    });
+  };
+
+  if (loading) return <div style={{ padding: 40, color: C.muted, textAlign: 'center' }}>Chargement…</div>;
+
+  const inp = {
+    padding: '8px 10px', borderRadius: 8,
+    background: C.cardElev, border: `1px solid ${C.border}`,
+    color: C.text, fontFamily: fontUI, fontSize: 12.5, outline: 'none', width: '100%', boxSizing: 'border-box',
+  };
+  const lbl = { fontSize: 10.5, fontWeight: 700, color: C.sub, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 4, display: 'block' };
+  const btnPrim = (saving) => ({
+    padding: '8px 14px', borderRadius: 8,
+    background: `linear-gradient(135deg, ${C.accent}, ${C.total})`,
+    border: 'none', color: '#FFF', fontFamily: fontUI, fontSize: 12, fontWeight: 700,
+    cursor: saving ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+  });
+  const btnGhost = {
+    padding: '6px 10px', borderRadius: 6,
+    background: 'transparent', border: `1px solid ${C.border}`,
+    color: C.sub, fontFamily: fontUI, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ padding: 14, background: `${C.warning}10`, border: `1px solid ${C.warning}40`, borderRadius: 10, fontSize: 11.5, color: C.sub, lineHeight: 1.5 }}>
+        Ces annexes ne sont pas calculables depuis la compta. Renseignez-les manuellement pour qu'elles apparaissent dans le PDF et le CSV exportés.
+      </div>
+
+      {/* Commissaires aux comptes */}
+      <SectionAnnexe C={C} icon={FileSignature} titre="N°15 — Commissaires aux comptes">
+        <div style={{ padding: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={lbl}>Cabinet / Identité</label>
+            <input value={data.commissaires_aux_comptes?.noms || ''} onChange={e => setField('commissaires_aux_comptes', 'noms', e.target.value)}
+              placeholder="ex: Cabinet X & Associés" style={inp} />
+          </div>
+          <div>
+            <label style={lbl}>Mission</label>
+            <input value={data.commissaires_aux_comptes?.mission || ''} onChange={e => setField('commissaires_aux_comptes', 'mission', e.target.value)}
+              placeholder="ex: Commissariat aux comptes" style={inp} />
+          </div>
+          <div>
+            <label style={lbl}>Honoraires (FCFA)</label>
+            <input type="number" value={data.commissaires_aux_comptes?.honoraires || ''} onChange={e => setField('commissaires_aux_comptes', 'honoraires', Number(e.target.value))}
+              placeholder="0" style={inp} />
+          </div>
+        </div>
+        <div style={{ padding: '0 14px 14px', textAlign: 'right' }}>
+          <button onClick={() => save('commissaires_aux_comptes')} disabled={savingType === 'commissaires_aux_comptes'} style={btnPrim(savingType === 'commissaires_aux_comptes')}>
+            <Check size={12} /> {savingType === 'commissaires_aux_comptes' ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
+      </SectionAnnexe>
+
+      {/* Crédit-bail */}
+      <SectionAnnexe C={C} icon={Briefcase} titre="N°5 — Crédit-bail / Location-acquisition">
+        <div style={{ padding: 14 }}>
+          {(data.credit_bail?.contrats || []).map((c, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
+              <input value={c.designation || ''} onChange={e => setArrayItem('credit_bail', 'contrats', i, { ...c, designation: e.target.value })} placeholder="Désignation" style={inp} />
+              <input type="number" value={c.duree || ''} onChange={e => setArrayItem('credit_bail', 'contrats', i, { ...c, duree: Number(e.target.value) })} placeholder="Durée (mois)" style={inp} />
+              <input type="number" value={c.mensualite || ''} onChange={e => setArrayItem('credit_bail', 'contrats', i, { ...c, mensualite: Number(e.target.value) })} placeholder="Mensualité" style={inp} />
+              <input type="number" value={c.restant || ''} onChange={e => setArrayItem('credit_bail', 'contrats', i, { ...c, restant: Number(e.target.value) })} placeholder="Restant (mois)" style={inp} />
+              <input type="number" value={c.valeur_residuelle || ''} onChange={e => setArrayItem('credit_bail', 'contrats', i, { ...c, valeur_residuelle: Number(e.target.value) })} placeholder="Val. résiduelle" style={inp} />
+              <button onClick={() => removeArrayItem('credit_bail', 'contrats', i)} style={{ ...btnGhost, color: C.danger }}>×</button>
+            </div>
+          ))}
+          <button onClick={() => addArrayItem('credit_bail', 'contrats', { designation: '', duree: 0, mensualite: 0, restant: 0, valeur_residuelle: 0 })} style={{ ...btnGhost, marginTop: 8 }}>+ Ajouter un contrat</button>
+        </div>
+        <div style={{ padding: '0 14px 14px', textAlign: 'right' }}>
+          <button onClick={() => save('credit_bail')} disabled={savingType === 'credit_bail'} style={btnPrim(savingType === 'credit_bail')}>
+            <Check size={12} /> Enregistrer
+          </button>
+        </div>
+      </SectionAnnexe>
+
+      {/* Engagements hors bilan */}
+      <SectionAnnexe C={C} icon={AlertTriangle} titre="N°27 — Engagements hors bilan">
+        <div style={{ padding: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <label style={lbl}>Avals, cautions, garanties données (FCFA)</label>
+            <input type="number" value={data.engagements_hors_bilan?.avals_cautions_garanties_donnees || ''} onChange={e => setField('engagements_hors_bilan', 'avals_cautions_garanties_donnees', Number(e.target.value))} style={inp} />
+          </div>
+          <div>
+            <label style={lbl}>Avals, cautions, garanties reçues (FCFA)</label>
+            <input type="number" value={data.engagements_hors_bilan?.avals_cautions_garanties_recues || ''} onChange={e => setField('engagements_hors_bilan', 'avals_cautions_garanties_recues', Number(e.target.value))} style={inp} />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={lbl}>Autres engagements (description libre)</label>
+            <textarea value={data.engagements_hors_bilan?.autres || ''} onChange={e => setField('engagements_hors_bilan', 'autres', e.target.value)}
+              rows={3} style={{ ...inp, resize: 'vertical' }} placeholder="ex: nantissement, sûretés réelles, contrats en cours…" />
+          </div>
+        </div>
+        <div style={{ padding: '0 14px 14px', textAlign: 'right' }}>
+          <button onClick={() => save('engagements_hors_bilan')} disabled={savingType === 'engagements_hors_bilan'} style={btnPrim(savingType === 'engagements_hors_bilan')}>
+            <Check size={12} /> Enregistrer
+          </button>
+        </div>
+      </SectionAnnexe>
+
+      {/* Litiges */}
+      <SectionAnnexe C={C} icon={AlertTriangle} titre="N°32 — Litiges et risques">
+        <div style={{ padding: 14 }}>
+          {(data.litiges?.litiges || []).map((l, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
+              <input value={l.partie || ''} onChange={e => setArrayItem('litiges', 'litiges', i, { ...l, partie: e.target.value })} placeholder="Partie adverse" style={inp} />
+              <input value={l.nature || ''} onChange={e => setArrayItem('litiges', 'litiges', i, { ...l, nature: e.target.value })} placeholder="Nature du litige" style={inp} />
+              <input type="number" value={l.montant_demande || ''} onChange={e => setArrayItem('litiges', 'litiges', i, { ...l, montant_demande: Number(e.target.value) })} placeholder="Montant demandé" style={inp} />
+              <input type="number" value={l.provision || ''} onChange={e => setArrayItem('litiges', 'litiges', i, { ...l, provision: Number(e.target.value) })} placeholder="Provision constituée" style={inp} />
+              <button onClick={() => removeArrayItem('litiges', 'litiges', i)} style={{ ...btnGhost, color: C.danger }}>×</button>
+            </div>
+          ))}
+          <button onClick={() => addArrayItem('litiges', 'litiges', { partie: '', nature: '', montant_demande: 0, provision: 0 })} style={{ ...btnGhost, marginTop: 8 }}>+ Ajouter un litige</button>
+        </div>
+        <div style={{ padding: '0 14px 14px', textAlign: 'right' }}>
+          <button onClick={() => save('litiges')} disabled={savingType === 'litiges'} style={btnPrim(savingType === 'litiges')}>
+            <Check size={12} /> Enregistrer
+          </button>
+        </div>
+      </SectionAnnexe>
+
+      {/* CA par activité */}
+      <SectionAnnexe C={C} icon={TrendingUp} titre="N°23 — Ventilation du CA par activité">
+        <div style={{ padding: 14 }}>
+          {(data.ca_par_activite?.activites || []).map((a, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 80px auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
+              <input value={a.libelle || ''} onChange={e => setArrayItem('ca_par_activite', 'activites', i, { ...a, libelle: e.target.value })} placeholder="ex: Vente marchandises" style={inp} />
+              <input type="number" value={a.montant || ''} onChange={e => setArrayItem('ca_par_activite', 'activites', i, { ...a, montant: Number(e.target.value) })} placeholder="CA (FCFA)" style={inp} />
+              <input type="number" value={a.pct || ''} onChange={e => setArrayItem('ca_par_activite', 'activites', i, { ...a, pct: Number(e.target.value) })} placeholder="%" style={inp} />
+              <button onClick={() => removeArrayItem('ca_par_activite', 'activites', i)} style={{ ...btnGhost, color: C.danger }}>×</button>
+            </div>
+          ))}
+          <button onClick={() => addArrayItem('ca_par_activite', 'activites', { libelle: '', montant: 0, pct: 0 })} style={{ ...btnGhost, marginTop: 8 }}>+ Ajouter une activité</button>
+        </div>
+        <div style={{ padding: '0 14px 14px', textAlign: 'right' }}>
+          <button onClick={() => save('ca_par_activite')} disabled={savingType === 'ca_par_activite'} style={btnPrim(savingType === 'ca_par_activite')}>
+            <Check size={12} /> Enregistrer
+          </button>
+        </div>
+      </SectionAnnexe>
     </div>
   );
 }
