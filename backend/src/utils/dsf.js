@@ -70,6 +70,19 @@ function sommeMouvement(balance, prefixes, sens) {
   return total;
 }
 
+// Somme uniquement des comptes racines (sans subdivision). Sert à
+// récupérer les saisies "paresseuses" sur compte 60 (au lieu de 601/602).
+// Match exact, pas startsWith.
+function sommeRacineSeule(balance, racines, sens) {
+  let total = 0;
+  for (const [num, sol] of balance) {
+    if (racines.includes(num)) {
+      total += sens === 'D' ? sol.debit - sol.credit : sol.credit - sol.debit;
+    }
+  }
+  return total;
+}
+
 /**
  * COMPTE DE RÉSULTAT — Form N°4 SYSCOHADA révisé
  * Structure en cascade : marge → CA → VA → EBE → REX → RAO → RHAO → RNet
@@ -89,6 +102,10 @@ function calculerCompteResultat(balance, balanceNMoinsUn = null) {
 
 function calculerCompteResultatBrut(balance) {
   // Ventes de marchandises (701) et achats associés (601, 6031)
+  // Note : `sommeMouvement(['60'], 'D')` matcherait aussi 601 → on le
+  // gère séparément plus bas pour éviter les doublons. Si l'utilisateur
+  // saisit en racine `60` (sans subdivision), c'est traité comme
+  // « autres achats » (RE) pour ne pas être ignoré.
   const ventesMarchandises = sommeMouvement(balance, ['701'], 'C');
   const achatsMarchandises = sommeMouvement(balance, ['601'], 'D');
   const varStockMarch      = sommeMouvement(balance, ['6031'], 'D'); // peut être négative
@@ -112,7 +129,13 @@ function calculerCompteResultatBrut(balance) {
   // Consommations
   const achatsMatieres     = sommeMouvement(balance, ['602'], 'D');
   const varStockMatieres   = sommeMouvement(balance, ['6032','6033'], 'D');
-  const autresAchats       = sommeMouvement(balance, ['604','605','608'], 'D');
+  // Autres achats : 604, 605, 608 + compte racine '60' saisi sans
+  // subdivision. Seul '60' nécessite sommeRacineSeule car achatsMarchandises
+  // = ['601'] et achatsMatieres = ['602'] ne matchent pas '60' racine.
+  // Les autres préfixes (61, 62…) sont déjà captés par leurs startsWith
+  // respectifs (transports, servicesExterieurs).
+  const autresAchats       = sommeMouvement(balance, ['604','605','608'], 'D')
+                           + sommeRacineSeule(balance, ['60'], 'D');
   const varStockAutres     = sommeMouvement(balance, ['6034'], 'D');
   const transports         = sommeMouvement(balance, ['61'], 'D');
   const servicesExterieurs = sommeMouvement(balance, ['62','63'], 'D');
@@ -373,8 +396,14 @@ function calculerBilanPassifBrut(balance, resultatNet) {
   const banquesEscompte  = sommeSolde(balance, ['564'], 'C');
   const banquesTreso     = sommeSolde(balance, ['565'], 'C');
   const banquesDecouvert = sommeSolde(balance, ['561','562','563'], 'C');
+  // Comptes de trésorerie ACTIVE qui présentent un solde CRÉDITEUR
+  // (anormal : caisse négative, banque à découvert non typée 56x…).
+  // Les rapatrier en trésorerie passif évite qu'ils disparaissent
+  // du bilan et déséquilibrent. Le diagnostic d'écart les signale en
+  // « comptes inversés » pour correction.
+  const tresoActiveInversee = sommeSolde(balance, ['50','51','52','53','54','55','57'], 'C');
 
-  const totalTresoreriePassif = banquesEscompte + banquesTreso + banquesDecouvert;
+  const totalTresoreriePassif = banquesEscompte + banquesTreso + banquesDecouvert + tresoActiveInversee;
 
   const ecartConvPassif = sommeSolde(balance, ['479'], 'C');
 
