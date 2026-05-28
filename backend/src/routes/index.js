@@ -335,13 +335,14 @@ router.get('/rapports/facture/:id/pdf', auth, can(MODULES.FACTURES, ACTIONS.READ
 // ─── DSF (liasse fiscale SYSCOHADA) — Lot DSF-1 ────────────────────────────
 const {
   listerExercices: dsfListerExercices, getDataDSF, getPdfDSF, getCsvDSF,
-  getAnnexesManuelles, saveAnnexeManuelle,
+  getAnnexesManuelles, saveAnnexeManuelle, getDiagnosticEcart,
 } = require('../controllers/dsfController');
 router.get('/dsf/exercices',                            auth, can(MODULES.CLOTURE, ACTIONS.READ), dsfListerExercices);
 router.get('/dsf/:exerciceId/data',                     auth, can(MODULES.CLOTURE, ACTIONS.READ), getDataDSF);
 router.get('/dsf/:exerciceId/pdf',                      auth, can(MODULES.CLOTURE, ACTIONS.READ), getPdfDSF);
 router.get('/dsf/:exerciceId/csv',                      auth, can(MODULES.CLOTURE, ACTIONS.READ), getCsvDSF);
 router.get('/dsf/:exerciceId/annexes-manuelles',        auth, can(MODULES.CLOTURE, ACTIONS.READ),   getAnnexesManuelles);
+router.get('/dsf/:exerciceId/diagnostic-ecart',         auth, can(MODULES.CLOTURE, ACTIONS.READ),   getDiagnosticEcart);
 // Annexes manuelles = saisies déclaratives (pas des écritures compta) :
 // autorisées au proprietaire, admin et expert-comptable.
 router.put('/dsf/:exerciceId/annexes-manuelles/:type',  auth, entrepriseAccess(['proprietaire','admin','expert_comptable']), saveAnnexeManuelle);

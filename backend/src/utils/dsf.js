@@ -804,6 +804,223 @@ async function genererLiasseDSF(entrepriseId, exerciceId) {
   };
 }
 
+/**
+ * Diagnostic d'écart de bilan SYSCOHADA.
+ *
+ * Explique pourquoi le bilan n'équilibre pas en pointant les 4 causes
+ * les plus fréquentes (par ordre d'occurrence en pratique) :
+ *   1. Écritures non validées (= invisibles pour la DSF)
+ *   2. Comptes à solde inversé (411 créditeur, 401 débiteur, etc.)
+ *   3. Comptes orphelins (avec solde mais non mappés à un poste DSF)
+ *   4. Incohérence résultat CR vs résultat reporté en compte 12
+ *
+ * Retourne aussi une proposition d'écriture de bouclage en 471 pour
+ * l'EC qui doit déposer la DSF *maintenant* et corriger ensuite.
+ */
+
+// Tous les préfixes utilisés par les fonctions de calcul (mappage DSF).
+// Sert à détecter les comptes "orphelins" qui n'apparaîtront pas au bilan.
+const PREFIXES_MAPPES = [
+  // Classes 1 (capital, emprunts, provisions)
+  '101','102','103','104','105','106','107','109','11','12','14','15','16','17','19',
+  // Classes 2 (immobilisations)
+  '21','22','23','24','252','26','27',
+  // Amortissements & provisions sur immo
+  '28','29',
+  // Classe 3 (stocks)
+  '31','32','33','34','35','36','37','38','39',
+  // Classe 4 (tiers)
+  '40','41','42','43','44','45','46','47','48',
+  // Provisions clients/tiers
+  '49',
+  // Classe 5 (trésorerie)
+  '50','51','52','53','54','55','56','57',
+  // Classes 6/7 (charges/produits)
+  '60','61','62','63','64','65','66','67','68','69',
+  '70','71','72','73','75','77','78','79',
+  // Classe 8 (HAO)
+  '81','82','83','84','85','86','87','88','891','895',
+];
+
+// Comptes au sens "normal" attendu (débit ou crédit).
+// Si un compte présente un solde au sens opposé, c'est probablement
+// une erreur de saisie ou un cas à reclasser (avance reçue, etc.).
+const SENS_ATTENDU = [
+  // Tiers : créances (débit) ou dettes (crédit)
+  { prefixes: ['411','416'], sens: 'D', libelle: 'Clients' },
+  { prefixes: ['401','408'], sens: 'C', libelle: 'Fournisseurs' },
+  { prefixes: ['419'], sens: 'C', libelle: 'Clients avances reçues' },
+  { prefixes: ['409'], sens: 'D', libelle: 'Fournisseurs avances versées' },
+  { prefixes: ['421','422','423','427'], sens: 'C', libelle: 'Personnel' },
+  { prefixes: ['43'], sens: 'C', libelle: 'Organismes sociaux' },
+  // 44 État : éclaté car certains comptes (44566 TVA déductible, 4452, 4449)
+  // sont des créances (D), d'autres sont des dettes (C).
+  { prefixes: ['4456','4452','4449'], sens: 'D', libelle: 'État, TVA déductible / créances fiscales' },
+  { prefixes: ['441','442','443','445','447','448'], sens: 'C', libelle: 'État, dettes fiscales' },
+  // Trésorerie
+  { prefixes: ['50','51','52','53','54','55','57'], sens: 'D', libelle: 'Trésorerie active' },
+  { prefixes: ['561','562','563','564','565'], sens: 'C', libelle: 'Concours bancaires' },
+  // Immobilisations / amortissements
+  { prefixes: ['21','22','23','24','26','27'], sens: 'D', libelle: 'Immobilisations brutes' },
+  { prefixes: ['28','29'], sens: 'C', libelle: 'Amortissements / provisions' },
+];
+
+async function diagnostiquerEcart(entrepriseId, exerciceId) {
+  const balance = await chargerBalance(entrepriseId, exerciceId);
+
+  // Recalcul du bilan pour avoir l'écart
+  const cr = calculerCompteResultat(balance);
+  const ba = calculerBilanActif(balance);
+  const bp = calculerBilanPassif(balance, cr.indicateurs.resultat_net);
+  const ecart = ba.total_net - bp.total;
+
+  // ─── 1. Écritures non validées ────────────────────────────────────────
+  const nonValideesR = await pool.query(`
+    SELECT COUNT(DISTINCT e.id)::int AS nb_ecritures,
+           COALESCE(SUM(le.debit), 0)::float AS total_debit
+      FROM ecritures e
+      LEFT JOIN lignes_ecriture le ON le.ecriture_id = e.id
+     WHERE e.entreprise_id = $1 AND e.exercice_id = $2 AND e.validee = false
+  `, [entrepriseId, exerciceId]);
+  const ecrituresNonValidees = {
+    nb: parseInt(nonValideesR.rows[0].nb_ecritures) || 0,
+    total_debit: parseFloat(nonValideesR.rows[0].total_debit) || 0,
+  };
+
+  // ─── 2. Comptes à solde inversé ──────────────────────────────────────
+  const comptesInverses = [];
+  for (const [num, sol] of balance) {
+    const regle = SENS_ATTENDU.find(r => r.prefixes.some(p => num.startsWith(p)));
+    if (!regle) continue;
+    if (regle.sens === 'D' && sol.solde_crediteur > 1) {
+      comptesInverses.push({
+        compte: num, categorie: regle.libelle, sens_attendu: 'Débiteur',
+        sens_reel: 'Créditeur', montant: sol.solde_crediteur,
+        suggestion: regle.libelle === 'Clients' ? 'Reclasser en 419 (clients avances reçues)' : 'Vérifier la saisie',
+      });
+    } else if (regle.sens === 'C' && sol.solde_debiteur > 1) {
+      comptesInverses.push({
+        compte: num, categorie: regle.libelle, sens_attendu: 'Créditeur',
+        sens_reel: 'Débiteur', montant: sol.solde_debiteur,
+        suggestion: regle.libelle === 'Fournisseurs' ? 'Reclasser en 409 (fournisseurs avances versées)' : 'Vérifier la saisie',
+      });
+    }
+  }
+
+  // ─── 3. Comptes orphelins (non mappés à un poste DSF) ────────────────
+  const comptesOrphelins = [];
+  for (const [num, sol] of balance) {
+    if (sol.solde_debiteur < 1 && sol.solde_crediteur < 1) continue;
+    const mappe = PREFIXES_MAPPES.some(p => num.startsWith(p));
+    if (!mappe) {
+      comptesOrphelins.push({
+        compte: num,
+        solde_debiteur: sol.solde_debiteur,
+        solde_crediteur: sol.solde_crediteur,
+        impact_ecart: sol.solde_debiteur - sol.solde_crediteur,
+      });
+    }
+  }
+
+  // ─── 4. Cohérence résultat CR vs compte 12 (résultat reporté) ────────
+  const sumNum = (prefixes, sens) => {
+    let total = 0;
+    for (const [num, sol] of balance) {
+      if (prefixes.some(p => num.startsWith(p))) {
+        total += sens === 'D' ? sol.debit - sol.credit : sol.credit - sol.debit;
+      }
+    }
+    return total;
+  };
+  const resultatCR = cr.indicateurs.resultat_net;
+  const compte12 = sumNum(['12'], 'C'); // résultat en compte 12 (crédit = bénéfice)
+  const coherenceResultat = {
+    resultat_cr: resultatCR,
+    resultat_compte_12: compte12,
+    ecart: resultatCR - compte12,
+    explication: Math.abs(compte12) > 1
+      ? 'Des écritures ont été passées directement en compte 12 (résultat). En cours d\'exercice c\'est inhabituel — vérifier.'
+      : 'Aucune écriture en compte 12 (normal en cours d\'exercice — le résultat sera affecté à la clôture).',
+  };
+
+  // ─── 5. Proposition d'écriture de bouclage en 471 ────────────────────
+  let bouclage = null;
+  if (Math.abs(ecart) > 1) {
+    // Si Actif > Passif → manque du passif → on crédite 471
+    // Si Passif > Actif → manque de l'actif → on débite 471
+    bouclage = {
+      libelle: 'Bouclage temporaire de l\'écart de bilan',
+      date: new Date().toISOString().slice(0, 10),
+      avertissement: 'À utiliser uniquement en cas d\'urgence (dépôt DSF imminent). À solder par une vraie écriture correctrice dès que la cause est identifiée.',
+      lignes: ecart > 0
+        ? [
+            { compte: '471', libelle: 'Compte d\'attente — bouclage actif/passif', debit: 0, credit: Math.round(Math.abs(ecart)) },
+          ]
+        : [
+            { compte: '471', libelle: 'Compte d\'attente — bouclage actif/passif', debit: Math.round(Math.abs(ecart)), credit: 0 },
+          ],
+    };
+  }
+
+  // Synthèse
+  const causes_probables = [];
+  if (ecrituresNonValidees.nb > 0) {
+    causes_probables.push({
+      type: 'ecritures_non_validees',
+      libelle: `${ecrituresNonValidees.nb} écriture(s) non validée(s) (${Math.round(ecrituresNonValidees.total_debit).toLocaleString('fr-FR')} FCFA de débit)`,
+      gravite: 'haute',
+      action: 'Aller dans Comptabilité → Écritures, filtrer « non validées », valider en lot',
+    });
+  }
+  if (comptesInverses.length > 0) {
+    causes_probables.push({
+      type: 'comptes_inverses',
+      libelle: `${comptesInverses.length} compte(s) à solde inversé`,
+      gravite: 'haute',
+      action: 'Voir la liste détaillée — souvent une simple reclassification suffit',
+    });
+  }
+  if (comptesOrphelins.length > 0) {
+    causes_probables.push({
+      type: 'comptes_orphelins',
+      libelle: `${comptesOrphelins.length} compte(s) avec solde non mappé à un poste DSF`,
+      gravite: 'moyenne',
+      action: 'Vérifier que les numéros respectent le plan SYSCOHADA standard',
+    });
+  }
+  // Incohérence résultat : on ne flag que si compte 12 est mouvementé.
+  // Avoir compte 12 = 0 en cours d'exercice est NORMAL (l'affectation
+  // du résultat se fait à la clôture).
+  if (Math.abs(coherenceResultat.ecart) > 1 && Math.abs(compte12) > 1) {
+    causes_probables.push({
+      type: 'incoherence_resultat',
+      libelle: `Résultat CR (${Math.round(resultatCR).toLocaleString('fr-FR')}) ≠ Compte 12 (${Math.round(compte12).toLocaleString('fr-FR')})`,
+      gravite: 'haute',
+      action: 'Des écritures en compte 12 non équilibrées par des 6/7 cohérents',
+    });
+  }
+  if (causes_probables.length === 0 && Math.abs(ecart) > 1) {
+    causes_probables.push({
+      type: 'autre',
+      libelle: 'Cause non détectée automatiquement',
+      gravite: 'moyenne',
+      action: 'Exporter le grand livre et chercher les écritures déséquilibrées manuellement',
+    });
+  }
+
+  return {
+    ecart_montant: ecart,
+    actif_net: ba.total_net,
+    passif_total: bp.total,
+    causes_probables,
+    ecritures_non_validees: ecrituresNonValidees,
+    comptes_inverses: comptesInverses,
+    comptes_orphelins: comptesOrphelins,
+    coherence_resultat: coherenceResultat,
+    bouclage_propose: bouclage,
+  };
+}
+
 module.exports = {
   chargerBalance,
   calculerCompteResultat,
@@ -812,4 +1029,5 @@ module.exports = {
   calculerTafire,
   calculerAnnexes,
   genererLiasseDSF,
+  diagnostiquerEcart,
 };

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   FileText, Download, Lock, AlertTriangle, Check, Calendar, Building2,
   TrendingUp, FileSignature, ChevronDown, BookOpen, Users, Briefcase, Package,
-  Wand2, ChevronRight,
+  Wand2, ChevronRight, Search, X, Stethoscope,
 } from 'lucide-react';
 import api from '../utils/api.jsx';
 import toast from 'react-hot-toast';
@@ -56,6 +56,20 @@ export default function DsfPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('actif');
   const [tele, setTele] = useState(false);
+  const [diagnostic, setDiagnostic] = useState(null);
+  const [diagLoading, setDiagLoading] = useState(false);
+
+  const analyserEcart = async () => {
+    setDiagLoading(true);
+    try {
+      const r = await api.get(`/dsf/${exerciceId}/diagnostic-ecart`);
+      setDiagnostic(r.data.data);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur de diagnostic');
+    } finally {
+      setDiagLoading(false);
+    }
+  };
 
   useEffect(() => {
     api.get('/dsf/exercices').then(r => {
@@ -179,18 +193,30 @@ export default function DsfPage() {
             {/* BANDEAU ÉQUILIBRE */}
             <div style={{
               padding: '12px 16px', marginBottom: 24, borderRadius: 11,
-              display: 'flex', alignItems: 'center', gap: 12,
+              display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
               background: Math.abs(liasse.equilibre) > 1 ? `${C.danger}12` : `${C.accent}12`,
               border: `1px solid ${Math.abs(liasse.equilibre) > 1 ? C.danger + '50' : C.accent + '50'}`,
             }}>
               {Math.abs(liasse.equilibre) > 1
                 ? <AlertTriangle size={18} color={C.danger} />
                 : <Check size={18} color={C.accent} />}
-              <div style={{ fontSize: 13, color: C.text }}>
+              <div style={{ fontSize: 13, color: C.text, flex: 1, minWidth: 220 }}>
                 {Math.abs(liasse.equilibre) > 1
                   ? <>⚠ <strong>Écart de bilan : {fmt(liasse.equilibre)} FCFA</strong> — vérifiez les écritures de l'exercice avant dépôt à la DGI.</>
                   : <><strong>Bilan équilibré</strong> · Actif = Passif = <span style={{ fontFamily: fontMono }}>{fmt(liasse.bilan_actif.total_net)}</span> FCFA</>}
               </div>
+              {Math.abs(liasse.equilibre) > 1 && (
+                <button onClick={analyserEcart} disabled={diagLoading} style={{
+                  padding: '8px 14px', borderRadius: 9,
+                  background: C.danger, border: 'none', color: '#FFF',
+                  fontFamily: fontUI, fontWeight: 700, fontSize: 12.5,
+                  cursor: diagLoading ? 'wait' : 'pointer',
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                }}>
+                  <Stethoscope size={13} />
+                  {diagLoading ? 'Analyse…' : 'Analyser l\'écart'}
+                </button>
+              )}
             </div>
 
             {/* SUGGESTIONS DE CLÔTURE AUTO */}
@@ -239,6 +265,171 @@ export default function DsfPage() {
           </>
         )}
       </div>
+
+      {/* MODAL DIAGNOSTIC D'ÉCART */}
+      {diagnostic && <ModalDiagnostic C={C} diag={diagnostic} onClose={() => setDiagnostic(null)} />}
+    </div>
+  );
+}
+
+function ModalDiagnostic({ C, diag, onClose }) {
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 300,
+      background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 24, overflowY: 'auto',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: '100%', maxWidth: 920, maxHeight: '92vh', overflowY: 'auto',
+        background: C.surface, border: `1px solid ${C.border}`, borderRadius: 18,
+        padding: 28, fontFamily: fontUI,
+      }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 52, height: 52, borderRadius: 14, background: `${C.danger}18`, color: C.danger, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Stethoscope size={26} />
+            </div>
+            <div>
+              <h2 style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 800, margin: 0, color: C.text }}>Diagnostic d'écart de bilan</h2>
+              <div style={{ fontSize: 12.5, color: C.sub, marginTop: 2 }}>
+                Actif <strong style={{ fontFamily: fontMono }}>{fmt(diag.actif_net)}</strong> · Passif <strong style={{ fontFamily: fontMono }}>{fmt(diag.passif_total)}</strong> · Écart <strong style={{ color: C.danger, fontFamily: fontMono }}>{fmt(diag.ecart_montant)}</strong> FCFA
+              </div>
+            </div>
+          </div>
+          <button onClick={onClose} style={{
+            width: 32, height: 32, borderRadius: 9,
+            background: C.cardElev, border: `1px solid ${C.border}`,
+            color: C.muted, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}><X size={16} /></button>
+        </div>
+
+        {/* Causes probables */}
+        <div style={{ marginBottom: 22 }}>
+          <SectionDiag C={C} icon={AlertTriangle} accent={C.danger} titre={`Causes probables (${diag.causes_probables.length})`}>
+            {diag.causes_probables.length === 0
+              ? <div style={{ padding: 14, color: C.muted, fontSize: 12.5, fontStyle: 'italic' }}>Aucune cause détectée. Vérifier manuellement le grand livre.</div>
+              : <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 14 }}>
+                {diag.causes_probables.map((c, i) => (
+                  <div key={i} style={{ padding: 12, background: C.cardElev, borderRadius: 9, borderLeft: `3px solid ${c.gravite === 'haute' ? C.danger : C.warning}` }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{c.libelle}</div>
+                    <div style={{ fontSize: 11.5, color: C.sub, marginTop: 4 }}>→ {c.action}</div>
+                  </div>
+                ))}
+              </div>}
+          </SectionDiag>
+        </div>
+
+        {/* Écritures non validées */}
+        {diag.ecritures_non_validees.nb > 0 && (
+          <SectionDiag C={C} icon={FileText} accent={C.warning} titre="Écritures non validées">
+            <div style={{ padding: 14, fontSize: 12.5, color: C.text }}>
+              <strong style={{ fontFamily: fontMono, color: C.warning }}>{diag.ecritures_non_validees.nb}</strong> écriture(s) en brouillon, total débit <strong style={{ fontFamily: fontMono }}>{fmt(diag.ecritures_non_validees.total_debit)}</strong> FCFA.
+              <div style={{ marginTop: 6, color: C.sub }}>Ces écritures sont invisibles pour la DSF tant qu'elles ne sont pas validées.</div>
+            </div>
+          </SectionDiag>
+        )}
+
+        {/* Comptes inversés */}
+        {diag.comptes_inverses.length > 0 && (
+          <SectionDiag C={C} icon={AlertTriangle} accent={C.danger} titre={`Comptes à solde inversé (${diag.comptes_inverses.length})`}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead><tr style={{ background: C.cardElev }}>
+                  <th style={thStyle(C)}>Compte</th>
+                  <th style={thStyle(C)}>Catégorie</th>
+                  <th style={thStyle(C)}>Sens attendu</th>
+                  <th style={thStyle(C)}>Sens réel</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Montant</th>
+                  <th style={thStyle(C)}>Suggestion</th>
+                </tr></thead>
+                <tbody>
+                  {diag.comptes_inverses.map((c, i) => (
+                    <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
+                      <td style={{ ...tdStyle(C), fontFamily: fontMono }}>{c.compte}</td>
+                      <td style={tdStyle(C)}>{c.categorie}</td>
+                      <td style={{ ...tdStyle(C), color: C.muted }}>{c.sens_attendu}</td>
+                      <td style={{ ...tdStyle(C), color: C.danger, fontWeight: 700 }}>{c.sens_reel}</td>
+                      <td style={{ ...tdStyleN(C), color: C.danger }}>{fmt(c.montant)}</td>
+                      <td style={{ ...tdStyle(C), color: C.sub, fontSize: 11 }}>{c.suggestion}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </SectionDiag>
+        )}
+
+        {/* Comptes orphelins */}
+        {diag.comptes_orphelins.length > 0 && (
+          <SectionDiag C={C} icon={Search} accent={C.warning} titre={`Comptes orphelins (${diag.comptes_orphelins.length})`}>
+            <div style={{ padding: '4px 14px 14px', fontSize: 11.5, color: C.sub, marginBottom: 8 }}>
+              Ces comptes ont un solde mais ne sont mappés à aucun poste DSF. Vérifier qu'ils respectent le plan SYSCOHADA standard.
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead><tr style={{ background: C.cardElev }}>
+                  <th style={thStyle(C)}>Compte</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Solde débiteur</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Solde créditeur</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Impact écart</th>
+                </tr></thead>
+                <tbody>
+                  {diag.comptes_orphelins.slice(0, 20).map((c, i) => (
+                    <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
+                      <td style={{ ...tdStyle(C), fontFamily: fontMono }}>{c.compte}</td>
+                      <td style={tdStyleN(C)}>{c.solde_debiteur ? fmt(c.solde_debiteur) : '—'}</td>
+                      <td style={tdStyleN(C)}>{c.solde_crediteur ? fmt(c.solde_crediteur) : '—'}</td>
+                      <td style={{ ...tdStyleN(C), color: c.impact_ecart > 0 ? C.danger : C.accent, fontWeight: 700 }}>
+                        {c.impact_ecart > 0 ? '+' : ''}{fmt(c.impact_ecart)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </SectionDiag>
+        )}
+
+        {/* Bouclage proposé */}
+        {diag.bouclage_propose && (
+          <SectionDiag C={C} icon={Wand2} accent={C.warning} titre="Écriture de bouclage (urgence)">
+            <div style={{ padding: 14 }}>
+              <div style={{ padding: 10, background: `${C.warning}10`, border: `1px solid ${C.warning}40`, borderRadius: 8, fontSize: 11.5, color: C.text, lineHeight: 1.5, marginBottom: 10 }}>
+                ⚠ {diag.bouclage_propose.avertissement}
+              </div>
+              <div style={{ padding: 10, background: C.cardElev, border: `1px dashed ${C.border}`, borderRadius: 8, fontSize: 11.5, fontFamily: fontMono }}>
+                <div style={{ color: C.muted, marginBottom: 4 }}>{diag.bouclage_propose.libelle}</div>
+                {diag.bouclage_propose.lignes.map((ln, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+                    <span><span style={{ color: C.muted }}>{ln.compte}</span> {ln.libelle}</span>
+                    <span style={{ color: ln.debit > 0 ? C.danger : C.accent, fontWeight: 700 }}>
+                      {ln.debit > 0 ? `D ${fmt(ln.debit)}` : `C ${fmt(ln.credit)}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 8, fontSize: 11, color: C.muted }}>
+                À saisir manuellement dans Comptabilité → Écritures, dans le journal OD.
+              </div>
+            </div>
+          </SectionDiag>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SectionDiag({ C, icon: Icon, accent, titre, children }) {
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 11, marginBottom: 12, overflow: 'hidden' }}>
+      <div style={{ padding: '10px 14px', background: `${accent}10`, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Icon size={13} color={accent} />
+        <span style={{ fontSize: 12, fontWeight: 800, color: accent, letterSpacing: '0.04em' }}>{titre}</span>
+      </div>
+      <div>{children}</div>
     </div>
   );
 }

@@ -11,7 +11,7 @@
 const path = require('path');
 const pool = require('../../config/database');
 const pdfmake = require('pdfmake');
-const { genererLiasseDSF } = require('../utils/dsf');
+const { genererLiasseDSF, diagnostiquerEcart } = require('../utils/dsf');
 
 const pdfmakeDir = path.dirname(require.resolve('pdfmake/package.json'));
 pdfmake.addFonts({
@@ -700,7 +700,19 @@ async function saveAnnexeManuelle(req, res) {
   }
 }
 
+// ─── GET /api/dsf/:exerciceId/diagnostic-ecart ─────────────────────────────
+async function getDiagnosticEcart(req, res) {
+  try {
+    const data = await diagnostiquerEcart(req.entrepriseId, req.params.exerciceId);
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('Erreur getDiagnosticEcart:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
+
 module.exports = {
   listerExercices, getDataDSF, getPdfDSF, getCsvDSF,
   getAnnexesManuelles, saveAnnexeManuelle,
+  getDiagnosticEcart,
 };
