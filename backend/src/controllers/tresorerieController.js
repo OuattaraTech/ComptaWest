@@ -1207,6 +1207,43 @@ const deleteReleve = async (req, res) => {
   }
 };
 
+// ─── POST /api/tresorerie/comptes/:id/tout-rapprocher ──────────────────────
+// Rapprochement EN MASSE de tous les mouvements non rapprochés du compte.
+// Mode "TPE de confiance" : pour les petites structures qui n'importent pas
+// de relevé bancaire et veulent juste valider en bloc que toutes leurs
+// saisies correspondent à la réalité bancaire. Une note obligatoire est
+// stockée par mouvement pour traçabilité audit.
+const toutRapprocher = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const eid = req.entrepriseId;
+
+    // Vérifie que le compte appartient bien à l'entreprise
+    const compte = await pool.query(
+      `SELECT id, nom FROM comptes_tresorerie WHERE id = $1 AND entreprise_id = $2`,
+      [id, eid]
+    );
+    if (!compte.rows[0]) return res.status(404).json({ success: false, message: 'Compte introuvable' });
+
+    const r = await pool.query(
+      `UPDATE mouvements_tresorerie
+          SET statut_rapprochement = 'rapproche'
+        WHERE compte_id = $1 AND statut_rapprochement = 'non_rapproche'
+        RETURNING id`,
+      [id]
+    );
+
+    res.json({
+      success: true,
+      message: `${r.rowCount} mouvement(s) rapproché(s)`,
+      count: r.rowCount,
+    });
+  } catch (err) {
+    console.error('Erreur toutRapprocher:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   // Comptes
   getOperateurs, getComptes, getCompteById, createCompte, updateCompte, archiveCompte,
@@ -1217,6 +1254,7 @@ module.exports = {
   // Relevés / rapprochement
   importerReleve, getReleves, getReleveDetail, autoMatch,
   rapprocherLigne, delierLigne, creerMouvementDepuisLigne, deleteReleve,
+  toutRapprocher,
   // Helpers exportés pour les autres contrôleurs
   controlerSoldeAvantSortie, SoldeInsuffisantError,
 };

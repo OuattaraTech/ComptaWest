@@ -544,6 +544,22 @@ function DetailCompte({ compte: compteInit, onBack, C, dark }) {
   const [showImport, setShowImport] = useState(false);
   const [showReleves, setShowReleves] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [showConfirmRapprocher, setShowConfirmRapprocher] = useState(false);
+  const [rapprochementEnCours, setRapprochementEnCours] = useState(false);
+
+  const toutRapprocher = async () => {
+    setRapprochementEnCours(true);
+    try {
+      const { data } = await api.post(`/tresorerie/comptes/${compte.id}/tout-rapprocher`);
+      toast.success(data.message || 'Mouvements rapprochés');
+      setShowConfirmRapprocher(false);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur');
+    } finally {
+      setRapprochementEnCours(false);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -623,6 +639,14 @@ function DetailCompte({ compte: compteInit, onBack, C, dark }) {
                 </Can>
               </>
             )}
+            {/* Bouton bulk « Tout rapprocher » — pour les TPE sans relevé bancaire.
+                Vraie comptabilité = passer par l'import CSV + auto-match. */}
+            <Can module="tresorerie" action="update">
+              <button onClick={() => setShowConfirmRapprocher(true)} style={btnSec(C)}
+                title="Marquer tous les mouvements non rapprochés comme rapprochés (sans relevé)">
+                <CheckCircle size={13} /> Tout rapprocher
+              </button>
+            </Can>
             <Can module="tresorerie" action="update">
               <button onClick={() => setShowMouvement(true)} style={{
                 padding: '9px 16px', borderRadius: 9, border: 'none',
@@ -769,6 +793,39 @@ function DetailCompte({ compte: compteInit, onBack, C, dark }) {
           onSaved={() => { setShowMouvement(false); fetchData(); toast.success(t('tresorerie.movement_saved')); }}
           C={C} dark={dark} />
       )}
+      {showConfirmRapprocher && (
+        <Modal onClose={() => !rapprochementEnCours && setShowConfirmRapprocher(false)} C={C}>
+          <div style={{ padding: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: 10,
+                background: `${C.warning || '#F59E0B'}25`, color: C.warning || '#F59E0B',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}><AlertCircle size={20} /></div>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: C.text }}>Rapprocher tous les mouvements</h3>
+            </div>
+            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>
+              Tous les mouvements non rapprochés du compte <strong style={{ color: C.text }}>{compte.libelle}</strong> seront marqués comme rapprochés.
+              <br /><br />
+              <strong style={{ color: C.text }}>À utiliser uniquement si vous avez vérifié votre relevé bancaire à la main.</strong>
+              <br />
+              Pour un rapprochement rigoureux (audit, dépôt DSF), importez plutôt un relevé CSV via le bouton « Importer ».
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowConfirmRapprocher(false)} disabled={rapprochementEnCours} style={btnSec(C)}>Annuler</button>
+              <button onClick={toutRapprocher} disabled={rapprochementEnCours} style={{
+                padding: '9px 16px', borderRadius: 9, border: 'none',
+                background: C.accent, color: dark ? '#000' : '#fff',
+                fontSize: 12, fontWeight: 700, cursor: rapprochementEnCours ? 'wait' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <CheckCircle size={13} /> {rapprochementEnCours ? 'Rapprochement…' : 'Confirmer'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {showImport && (
         <ImportReleveModal compte={compte} onClose={() => setShowImport(false)}
           onSaved={() => { setShowImport(false); setShowReleves(true); fetchData(); }}

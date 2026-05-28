@@ -53,6 +53,7 @@ const {
   getMouvements, createMouvement, deleteMouvement, transfererEntreComptes,
   importerReleve, getReleves, getReleveDetail, autoMatch,
   rapprocherLigne, delierLigne, creerMouvementDepuisLigne, deleteReleve,
+  toutRapprocher,
   compteRules, mouvementRules,
 } = require('../controllers/tresorerieController');
 const {
@@ -394,6 +395,7 @@ router.post('/tresorerie/transfert',              auth, can(MODULES.TRESORERIE, 
 // Relevés et rapprochement
 router.get('/tresorerie/comptes/:id/releves',     auth, can(MODULES.TRESORERIE, ACTIONS.READ),   getReleves);
 router.post('/tresorerie/comptes/:id/releves',    auth, can(MODULES.TRESORERIE, ACTIONS.UPDATE), importerReleve);
+router.post('/tresorerie/comptes/:id/tout-rapprocher', auth, can(MODULES.TRESORERIE, ACTIONS.UPDATE), toutRapprocher);
 router.get('/tresorerie/releves/:id',             auth, can(MODULES.TRESORERIE, ACTIONS.READ),   getReleveDetail);
 router.delete('/tresorerie/releves/:id',          auth, can(MODULES.TRESORERIE, ACTIONS.DELETE), deleteReleve);
 router.post('/tresorerie/releves/:id/auto-match', auth, can(MODULES.TRESORERIE, ACTIONS.UPDATE), autoMatch);
