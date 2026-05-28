@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   FileText, Download, Lock, AlertTriangle, Check, Calendar, Building2,
-  TrendingUp, FileSignature, ChevronDown, BookOpen,
+  TrendingUp, FileSignature, ChevronDown, BookOpen, Users, Briefcase, Package,
 } from 'lucide-react';
 import api from '../utils/api.jsx';
 import toast from 'react-hot-toast';
@@ -76,18 +76,19 @@ export default function DsfPage() {
       .finally(() => setLoading(false));
   }, [exerciceId]);
 
-  const telecharger = async () => {
+  const telecharger = async (format = 'pdf') => {
     setTele(true);
     try {
-      const res = await api.get(`/dsf/${exerciceId}/pdf`, { responseType: 'blob' });
-      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const res = await api.get(`/dsf/${exerciceId}/${format}`, { responseType: 'blob' });
+      const mime = format === 'pdf' ? 'application/pdf' : 'text/csv;charset=utf-8';
+      const blob = new Blob([res.data], { type: mime });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `DSF-${actuelle?.nom?.replace(/[^\w-]/g, '_') || 'liasse'}-${liasse?.exercice?.libelle || ''}.pdf`;
+      a.download = `DSF-${actuelle?.nom?.replace(/[^\w-]/g, '_') || 'liasse'}-${liasse?.exercice?.libelle || ''}.${format}`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      toast.success('Liasse DSF téléchargée');
+      toast.success(`Liasse DSF téléchargée (${format.toUpperCase()})`);
     } catch (err) {
       toast.error('Échec du téléchargement');
     } finally {
@@ -148,7 +149,16 @@ export default function DsfPage() {
                 </option>
               ))}
             </select>
-            <button onClick={telecharger} disabled={tele || !liasse} style={{
+            <button onClick={() => telecharger('csv')} disabled={tele || !liasse} title="Export CSV multi-formulaires (e-DGI)" style={{
+              padding: '10px 16px', borderRadius: 10,
+              background: C.surface, border: `1px solid ${C.border}`,
+              color: C.text, fontFamily: fontUI, fontWeight: 600, fontSize: 13,
+              cursor: tele ? 'wait' : 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+            }}>
+              <FileText size={14} /> CSV
+            </button>
+            <button onClick={() => telecharger('pdf')} disabled={tele || !liasse} style={{
               padding: '10px 18px', borderRadius: 10,
               background: `linear-gradient(135deg, ${C.accent}, ${C.total})`,
               border: 'none', color: '#FFF',
@@ -158,7 +168,7 @@ export default function DsfPage() {
               boxShadow: `0 6px 20px ${C.accent}40`,
             }}>
               <Download size={14} />
-              {tele ? 'Génération…' : 'Télécharger la liasse PDF'}
+              {tele ? 'Génération…' : 'Télécharger PDF'}
             </button>
           </div>
         </div>
@@ -198,6 +208,7 @@ export default function DsfPage() {
                 { k: 'passif',   l: 'Bilan PASSIF',         n: 'N°11' },
                 { k: 'resultat', l: 'Compte de résultat',   n: 'N°4' },
                 { k: 'tafire',   l: 'TAFIRE',               n: 'N°6' },
+                { k: 'annexes',  l: 'Annexes',              n: 'N°3-12' },
               ].map(({ k, l, n }) => (
                 <button key={k} onClick={() => setTab(k)} style={{
                   padding: '12px 18px', background: 'transparent', border: 'none',
@@ -218,6 +229,7 @@ export default function DsfPage() {
             {tab === 'passif'   && <TableauPassif C={C} bilan={liasse.bilan_passif} />}
             {tab === 'resultat' && <TableauResultat C={C} cr={liasse.compte_resultat} />}
             {tab === 'tafire'   && <TableauTafire C={C} tafire={liasse.tafire} exPrev={liasse.exercice_precedent} />}
+            {tab === 'annexes'  && <TableauAnnexes C={C} annexes={liasse.annexes} />}
           </>
         )}
       </div>
@@ -393,6 +405,192 @@ function TableauTafire({ C, tafire, exPrev }) {
         </table>
       </div>
     </div>
+  );
+}
+
+function TableauAnnexes({ C, annexes }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+      {/* N°3A — Immobilisations */}
+      <SectionAnnexe C={C} icon={Package} titre="N°3A — Immobilisations (mouvements bruts)">
+        {annexes.immobilisations.lignes.length === 0 ? (
+          <EmptyAnnexe C={C} text="Aucune immobilisation enregistrée" />
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 680, borderCollapse: 'collapse', fontSize: 12.5, fontFamily: fontUI }}>
+              <thead>
+                <tr style={{ background: `${C.accent}10` }}>
+                  <th style={thStyle(C)}>Réf.</th>
+                  <th style={thStyle(C)}>Catégorie</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Brut ouverture</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Acquisitions</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Cessions</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Brut clôture</th>
+                </tr>
+              </thead>
+              <tbody>
+                {annexes.immobilisations.lignes.map((l, i) => (
+                  <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <td style={{ ...tdStyle(C), fontFamily: fontMono, color: C.muted }}>{l.ref}</td>
+                    <td style={tdStyle(C)}>{l.libelle}</td>
+                    <td style={tdStyleN(C)}>{fmt(l.brut_ouverture)}</td>
+                    <td style={{ ...tdStyleN(C), color: C.accent }}>{fmt(l.acquisitions)}</td>
+                    <td style={{ ...tdStyleN(C), color: C.danger }}>{fmt(l.cessions)}</td>
+                    <td style={{ ...tdStyleN(C), fontWeight: 700 }}>{fmt(l.brut_cloture)}</td>
+                  </tr>
+                ))}
+                <tr style={{ background: `${C.warning}14` }}>
+                  <td style={{ ...tdStyle(C), fontWeight: 800, color: C.total }} colSpan={2}>TOTAL</td>
+                  <td style={{ ...tdStyleN(C), fontWeight: 800 }}>{fmt(annexes.immobilisations.totaux.brut_ouverture)}</td>
+                  <td style={{ ...tdStyleN(C), fontWeight: 800, color: C.accent }}>{fmt(annexes.immobilisations.totaux.acquisitions)}</td>
+                  <td style={{ ...tdStyleN(C), fontWeight: 800, color: C.danger }}>{fmt(annexes.immobilisations.totaux.cessions)}</td>
+                  <td style={{ ...tdStyleN(C), fontWeight: 800 }}>{fmt(annexes.immobilisations.totaux.brut_cloture)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SectionAnnexe>
+
+      {/* N°3B — Amortissements */}
+      <SectionAnnexe C={C} icon={Calendar} titre="N°3B — Amortissements (mouvements cumulés)">
+        {annexes.amortissements.lignes.length === 0 ? (
+          <EmptyAnnexe C={C} text="Aucun amortissement enregistré" />
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 680, borderCollapse: 'collapse', fontSize: 12.5, fontFamily: fontUI }}>
+              <thead>
+                <tr style={{ background: `${C.accent}10` }}>
+                  <th style={thStyle(C)}>Réf.</th>
+                  <th style={thStyle(C)}>Catégorie</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Cumul N-1</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Dotations</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Reprises</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Cumul N</th>
+                </tr>
+              </thead>
+              <tbody>
+                {annexes.amortissements.lignes.map((l, i) => (
+                  <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <td style={{ ...tdStyle(C), fontFamily: fontMono, color: C.muted }}>{l.ref}</td>
+                    <td style={tdStyle(C)}>{l.libelle}</td>
+                    <td style={tdStyleN(C)}>{fmt(l.cumul_ouverture)}</td>
+                    <td style={{ ...tdStyleN(C), color: C.danger }}>{fmt(l.dotations)}</td>
+                    <td style={{ ...tdStyleN(C), color: C.accent }}>{fmt(l.reprises)}</td>
+                    <td style={{ ...tdStyleN(C), fontWeight: 700 }}>{fmt(l.cumul_cloture)}</td>
+                  </tr>
+                ))}
+                <tr style={{ background: `${C.warning}14` }}>
+                  <td style={{ ...tdStyle(C), fontWeight: 800, color: C.total }} colSpan={2}>TOTAL</td>
+                  <td style={{ ...tdStyleN(C), fontWeight: 800 }}>{fmt(annexes.amortissements.totaux.cumul_ouverture)}</td>
+                  <td style={{ ...tdStyleN(C), fontWeight: 800, color: C.danger }}>{fmt(annexes.amortissements.totaux.dotations)}</td>
+                  <td style={{ ...tdStyleN(C), fontWeight: 800, color: C.accent }}>{fmt(annexes.amortissements.totaux.reprises)}</td>
+                  <td style={{ ...tdStyleN(C), fontWeight: 800 }}>{fmt(annexes.amortissements.totaux.cumul_cloture)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SectionAnnexe>
+
+      {/* N°4 — Effectifs */}
+      <SectionAnnexe C={C} icon={Users} titre="N°4 — Effectifs">
+        {annexes.effectifs ? (
+          <div style={{ padding: 20, display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ width: 56, height: 56, borderRadius: 14, background: `${C.accent}20`, color: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: fontDisplay, fontWeight: 800, fontSize: 24 }}>
+              {annexes.effectifs.total_fin_exercice}
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Salariés actifs en fin d'exercice</div>
+              <div style={{ fontSize: 11.5, color: C.sub, marginTop: 4 }}>{annexes.effectifs.details}</div>
+            </div>
+          </div>
+        ) : (
+          <EmptyAnnexe C={C} text="Module Paie non utilisé — effectif à compléter manuellement sur la DSF DGI" />
+        )}
+      </SectionAnnexe>
+
+      {/* N°10 — Emprunts */}
+      <SectionAnnexe C={C} icon={Briefcase} titre="N°10 — Emprunts et dettes financières">
+        {annexes.emprunts.lignes.length === 0 ? (
+          <EmptyAnnexe C={C} text="Aucun emprunt en cours" />
+        ) : (
+          <div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, fontFamily: fontUI }}>
+              <thead>
+                <tr style={{ background: `${C.accent}10` }}>
+                  <th style={thStyle(C)}>Compte</th>
+                  <th style={thStyle(C)}>Libellé</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Solde restant</th>
+                </tr>
+              </thead>
+              <tbody>
+                {annexes.emprunts.lignes.map((l, i) => (
+                  <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <td style={{ ...tdStyle(C), fontFamily: fontMono, color: C.muted }}>{l.compte}</td>
+                    <td style={tdStyle(C)}>{l.libelle}</td>
+                    <td style={tdStyleN(C)}>{fmt(l.montant)}</td>
+                  </tr>
+                ))}
+                <tr style={{ background: `${C.warning}14` }}>
+                  <td style={{ ...tdStyle(C), fontWeight: 800, color: C.total }} colSpan={2}>TOTAL</td>
+                  <td style={{ ...tdStyleN(C), fontWeight: 800 }}>{fmt(annexes.emprunts.total)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SectionAnnexe>
+
+      {/* N°12 — Créances et dettes */}
+      <SectionAnnexe C={C} icon={FileText} titre="N°12 — État des créances et dettes">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, padding: 14 }}>
+          {[
+            { l: 'Créances clients (41)', v: annexes.creances_dettes.creances_clients, c: C.accent },
+            { l: 'Autres créances (42-48)', v: annexes.creances_dettes.autres_creances, c: C.accent },
+            { l: 'Dettes fournisseurs (40)', v: annexes.creances_dettes.dettes_fournisseurs, c: C.danger },
+            { l: 'Dettes fiscales (44)', v: annexes.creances_dettes.dettes_fiscales, c: C.danger },
+            { l: 'Dettes sociales (42-43)', v: annexes.creances_dettes.dettes_sociales, c: C.danger },
+            { l: 'Autres dettes (45-47)', v: annexes.creances_dettes.autres_dettes, c: C.danger },
+          ].map((item, i) => (
+            <div key={i} style={{
+              padding: 12, borderRadius: 10,
+              background: C.cardElev, border: `1px solid ${C.border}`,
+            }}>
+              <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{item.l}</div>
+              <div style={{ fontFamily: fontMono, fontSize: 16, fontWeight: 800, color: item.c, marginTop: 4 }}>
+                {fmt(item.v)} <span style={{ fontSize: 9, color: C.muted, fontFamily: fontUI }}>FCFA</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </SectionAnnexe>
+
+      <div style={{ padding: 14, background: `${C.warning}10`, border: `1px solid ${C.warning}40`, borderRadius: 10, fontSize: 11.5, color: C.sub, lineHeight: 1.5 }}>
+        <strong style={{ color: C.text }}>Annexes manuelles non incluses :</strong> commissaires aux comptes,
+        crédit-bail, engagements hors bilan, litiges, ventilation CA par activité.
+        Elles devront être complétées directement dans la DSF officielle DGI.
+      </div>
+    </div>
+  );
+}
+
+function SectionAnnexe({ C, icon: Icon, titre, children }) {
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ padding: '10px 16px', background: `${C.accent}08`, borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Icon size={14} color={C.accent} />
+        <span style={{ fontSize: 12, fontWeight: 800, color: C.total, letterSpacing: '0.04em' }}>{titre}</span>
+      </div>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+function EmptyAnnexe({ C, text }) {
+  return (
+    <div style={{ padding: 28, textAlign: 'center', color: C.muted, fontSize: 12.5, fontStyle: 'italic' }}>{text}</div>
   );
 }
 

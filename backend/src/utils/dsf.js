@@ -554,9 +554,142 @@ function calculerTafire(balanceN, balanceNMoinsUn, cr) {
 }
 
 /**
+ * ANNEXES DSF — Formulaires N°3 à N°15 (sélection des plus utiles)
+ *
+ * V1 (Lot 3) : 5 annexes calculables automatiquement depuis la compta
+ *   - Note 3A : Immobilisations (mouvements N : acquisitions/cessions)
+ *   - Note 3B : Amortissements (cumul N-1, dotations, cumul N)
+ *   - Note 4  : Effectifs (depuis table employes)
+ *   - Note 10 : Emprunts (ventilation 16/17 par compte)
+ *   - Note 12 : État des créances et dettes (récap 40, 41, 42, 43, 44)
+ *
+ * Les annexes nécessitant saisie manuelle (commissaires aux comptes,
+ * engagements hors bilan, litiges) sont prévues en V2 — l'EC les
+ * remplira via une UI dédiée.
+ */
+async function calculerAnnexes(balanceN, balanceNMoinsUn, entrepriseId, exerciceN, pool) {
+  // ── Note 3A : Mouvements des immobilisations brutes ────────────────────
+  const catImmo = [
+    { ref: 'AD', libelle: 'Frais de développement, brevets, licences', prefixes: ['211','212','213','214','215','216'] },
+    { ref: 'AE', libelle: 'Logiciels et sites internet', prefixes: ['213'] },
+    { ref: 'AF', libelle: 'Fonds commercial et droits assimilés', prefixes: ['215','216'] },
+    { ref: 'AG', libelle: 'Autres immobilisations incorporelles', prefixes: ['217','218'] },
+    { ref: 'AJ', libelle: 'Terrains', prefixes: ['22'] },
+    { ref: 'AK', libelle: 'Bâtiments, installations techniques', prefixes: ['23'] },
+    { ref: 'AL', libelle: 'Matériel et mobilier', prefixes: ['244','245'] },
+    { ref: 'AM', libelle: 'Matériel de transport', prefixes: ['245'] },
+    { ref: 'AN', libelle: 'Autres immobilisations corporelles', prefixes: ['241','242','243','246','247','248'] },
+    { ref: 'AR', libelle: 'Titres de participation', prefixes: ['26'] },
+    { ref: 'AS', libelle: 'Autres immobilisations financières', prefixes: ['27'] },
+  ];
+  const immobilisations = catImmo.map(c => {
+    const bN  = sommeSolde(balanceN, c.prefixes, 'D');
+    const bNM = balanceNMoinsUn ? sommeSolde(balanceNMoinsUn, c.prefixes, 'D') : 0;
+    const delta = bN - bNM;
+    return {
+      ref: c.ref,
+      libelle: c.libelle,
+      brut_ouverture: bNM,
+      acquisitions: Math.max(0, delta),
+      cessions: Math.max(0, -delta),
+      brut_cloture: bN,
+    };
+  }).filter(l => l.brut_ouverture || l.brut_cloture);
+
+  const totauxImmo = immobilisations.reduce((acc, l) => ({
+    brut_ouverture: acc.brut_ouverture + l.brut_ouverture,
+    acquisitions:   acc.acquisitions + l.acquisitions,
+    cessions:       acc.cessions + l.cessions,
+    brut_cloture:   acc.brut_cloture + l.brut_cloture,
+  }), { brut_ouverture: 0, acquisitions: 0, cessions: 0, brut_cloture: 0 });
+
+  // ── Note 3B : Mouvements des amortissements ─────────────────────────────
+  const catAmort = [
+    { ref: 'AD', libelle: 'Frais de développement, brevets', prefixes: ['281','282'] },
+    { ref: 'AE', libelle: 'Logiciels', prefixes: ['2813'] },
+    { ref: 'AJ', libelle: 'Terrains', prefixes: ['282'] },
+    { ref: 'AK', libelle: 'Bâtiments', prefixes: ['283'] },
+    { ref: 'AL', libelle: 'Matériel et mobilier', prefixes: ['2844','2845'] },
+    { ref: 'AN', libelle: 'Autres immo corporelles', prefixes: ['284'] },
+  ];
+  const amortissements = catAmort.map(c => {
+    const cN  = sommeSolde(balanceN, c.prefixes, 'C');
+    const cNM = balanceNMoinsUn ? sommeSolde(balanceNMoinsUn, c.prefixes, 'C') : 0;
+    const delta = cN - cNM;
+    return {
+      ref: c.ref,
+      libelle: c.libelle,
+      cumul_ouverture: cNM,
+      dotations: Math.max(0, delta),
+      reprises: Math.max(0, -delta),
+      cumul_cloture: cN,
+    };
+  }).filter(l => l.cumul_ouverture || l.cumul_cloture);
+
+  const totauxAmort = amortissements.reduce((acc, l) => ({
+    cumul_ouverture: acc.cumul_ouverture + l.cumul_ouverture,
+    dotations:       acc.dotations + l.dotations,
+    reprises:        acc.reprises + l.reprises,
+    cumul_cloture:   acc.cumul_cloture + l.cumul_cloture,
+  }), { cumul_ouverture: 0, dotations: 0, reprises: 0, cumul_cloture: 0 });
+
+  // ── Note 4 : Effectifs ──────────────────────────────────────────────────
+  // Compte les employés actifs à la fin de l'exercice.
+  let effectifs = null;
+  try {
+    const r = await pool.query(
+      `SELECT COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE date_embauche <= $2)::int AS embauches_avant_cloture
+         FROM employes
+        WHERE entreprise_id = $1 AND actif = true`,
+      [entrepriseId, exerciceN.date_fin]
+    );
+    effectifs = {
+      total_fin_exercice: r.rows[0].total,
+      details: 'Salariés actifs au ' + String(exerciceN.date_fin).slice(0, 10),
+    };
+  } catch (err) {
+    // Table employes non disponible — on retourne null
+    effectifs = null;
+  }
+
+  // ── Note 10 : Emprunts ──────────────────────────────────────────────────
+  // Ventilation par compte 16x / 17x
+  const empruntsLignes = [];
+  for (const [num, sol] of balanceN) {
+    if ((num.startsWith('16') || num.startsWith('17')) && sol.solde_crediteur > 0) {
+      empruntsLignes.push({
+        compte: num,
+        libelle: num.startsWith('16') ? 'Emprunts et dettes financières' : 'Dettes de location-acquisition',
+        montant: sol.solde_crediteur,
+      });
+    }
+  }
+  const totalEmprunts = empruntsLignes.reduce((s, l) => s + l.montant, 0);
+
+  // ── Note 12 : État des créances et dettes ───────────────────────────────
+  const creancesDettes = {
+    creances_clients:        sommeSolde(balanceN, ['41'], 'D'),
+    autres_creances:         sommeSolde(balanceN, ['42','43','44','45','46','47','48'], 'D'),
+    dettes_fournisseurs:     sommeSolde(balanceN, ['40'], 'C'),
+    dettes_fiscales:         sommeSolde(balanceN, ['44'], 'C'),
+    dettes_sociales:         sommeSolde(balanceN, ['42','43'], 'C'),
+    autres_dettes:           sommeSolde(balanceN, ['45','46','47'], 'C'),
+  };
+
+  return {
+    immobilisations: { lignes: immobilisations, totaux: totauxImmo },
+    amortissements:  { lignes: amortissements,  totaux: totauxAmort },
+    effectifs,
+    emprunts:        { lignes: empruntsLignes, total: totalEmprunts },
+    creances_dettes: creancesDettes,
+  };
+}
+
+/**
  * Génère la liasse DSF complète d'un exercice.
  * Retourne { entreprise, exercice, compte_resultat, bilan_actif, bilan_passif,
- *            tafire, equilibre }
+ *            tafire, annexes, equilibre }
  */
 async function genererLiasseDSF(entrepriseId, exerciceId) {
   // Infos entreprise + exercice
@@ -601,7 +734,8 @@ async function genererLiasseDSF(entrepriseId, exerciceId) {
     console.warn('Chargement exercice N-1 échoué:', err.message);
   }
 
-  const tafire = calculerTafire(balance, balanceNMoinsUn, compteResultat);
+  const tafire  = calculerTafire(balance, balanceNMoinsUn, compteResultat);
+  const annexes = await calculerAnnexes(balance, balanceNMoinsUn, entrepriseId, ex, pool);
 
   return {
     entreprise: ent,
@@ -611,6 +745,7 @@ async function genererLiasseDSF(entrepriseId, exerciceId) {
     bilan_actif: bilanActif,
     bilan_passif: bilanPassif,
     tafire,
+    annexes,
     equilibre,
   };
 }
@@ -621,5 +756,6 @@ module.exports = {
   calculerBilanActif,
   calculerBilanPassif,
   calculerTafire,
+  calculerAnnexes,
   genererLiasseDSF,
 };

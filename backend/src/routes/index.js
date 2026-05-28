@@ -332,10 +332,11 @@ router.get('/rapports/bilan/pdf', auth, can(MODULES.RAPPORTS, ACTIONS.READ), get
 router.get('/rapports/facture/:id/pdf', auth, can(MODULES.FACTURES, ACTIONS.READ), getFacturePDF);
 
 // ─── DSF (liasse fiscale SYSCOHADA) — Lot DSF-1 ────────────────────────────
-const { listerExercices: dsfListerExercices, getDataDSF, getPdfDSF } = require('../controllers/dsfController');
+const { listerExercices: dsfListerExercices, getDataDSF, getPdfDSF, getCsvDSF } = require('../controllers/dsfController');
 router.get('/dsf/exercices',         auth, can(MODULES.CLOTURE, ACTIONS.READ), dsfListerExercices);
 router.get('/dsf/:exerciceId/data',  auth, can(MODULES.CLOTURE, ACTIONS.READ), getDataDSF);
 router.get('/dsf/:exerciceId/pdf',   auth, can(MODULES.CLOTURE, ACTIONS.READ), getPdfDSF);
+router.get('/dsf/:exerciceId/csv',   auth, can(MODULES.CLOTURE, ACTIONS.READ), getCsvDSF);
 
 // ─── AUDIT LOG ─────────────────────────────────────────────────────────────
 router.get('/audit-log', auth, can(MODULES.AUDIT_LOG, ACTIONS.READ), getAuditLog);
