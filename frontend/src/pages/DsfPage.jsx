@@ -205,18 +205,23 @@ export default function DsfPage() {
                   ? <>⚠ <strong>Écart de bilan : {fmt(liasse.equilibre)} FCFA</strong> — vérifiez les écritures de l'exercice avant dépôt à la DGI.</>
                   : <><strong>Bilan équilibré</strong> · Actif = Passif = <span style={{ fontFamily: fontMono }}>{fmt(liasse.bilan_actif.total_net)}</span> FCFA</>}
               </div>
-              {Math.abs(liasse.equilibre) > 1 && (
-                <button onClick={analyserEcart} disabled={diagLoading} style={{
-                  padding: '8px 14px', borderRadius: 9,
-                  background: C.danger, border: 'none', color: '#FFF',
-                  fontFamily: fontUI, fontWeight: 700, fontSize: 12.5,
-                  cursor: diagLoading ? 'wait' : 'pointer',
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                }}>
-                  <Stethoscope size={13} />
-                  {diagLoading ? 'Analyse…' : 'Analyser l\'écart'}
-                </button>
-              )}
+              {/* Bouton diagnostic TOUJOURS accessible : même si le bilan
+                  équilibre, le diagnostic peut révéler des comptes inversés,
+                  des écritures non validées ou des comptes orphelins qui
+                  méritent attention avant le dépôt à la DGI. */}
+              <button onClick={analyserEcart} disabled={diagLoading} style={{
+                padding: '8px 14px', borderRadius: 9,
+                background: Math.abs(liasse.equilibre) > 1 ? C.danger : C.surface,
+                border: Math.abs(liasse.equilibre) > 1 ? 'none' : `1px solid ${C.border}`,
+                color: Math.abs(liasse.equilibre) > 1 ? '#FFF' : C.text,
+                fontFamily: fontUI, fontWeight: 700, fontSize: 12.5,
+                cursor: diagLoading ? 'wait' : 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+              }}>
+                <Stethoscope size={13} />
+                {diagLoading ? 'Analyse…' :
+                  (Math.abs(liasse.equilibre) > 1 ? 'Analyser l\'écart' : 'Diagnostic comptable')}
+              </button>
             </div>
 
             {/* SUGGESTIONS DE CLÔTURE AUTO */}
@@ -273,6 +278,10 @@ export default function DsfPage() {
 }
 
 function ModalDiagnostic({ C, diag, onClose }) {
+  const ecartReel = Math.abs(diag.ecart_montant) > 1;
+  const couleurHeader = ecartReel ? C.danger : C.accent;
+  const titre = ecartReel ? 'Diagnostic d\'écart de bilan' : 'Diagnostic comptable';
+
   return (
     <div onClick={onClose} style={{
       position: 'fixed', inset: 0, zIndex: 300,
@@ -288,13 +297,13 @@ function ModalDiagnostic({ C, diag, onClose }) {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 52, height: 52, borderRadius: 14, background: `${C.danger}18`, color: C.danger, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Stethoscope size={26} />
+            <div style={{ width: 52, height: 52, borderRadius: 14, background: `${couleurHeader}18`, color: couleurHeader, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {ecartReel ? <Stethoscope size={26} /> : <Check size={26} />}
             </div>
             <div>
-              <h2 style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 800, margin: 0, color: C.text }}>Diagnostic d'écart de bilan</h2>
+              <h2 style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 800, margin: 0, color: C.text }}>{titre}</h2>
               <div style={{ fontSize: 12.5, color: C.sub, marginTop: 2 }}>
-                Actif <strong style={{ fontFamily: fontMono }}>{fmt(diag.actif_net)}</strong> · Passif <strong style={{ fontFamily: fontMono }}>{fmt(diag.passif_total)}</strong> · Écart <strong style={{ color: C.danger, fontFamily: fontMono }}>{fmt(diag.ecart_montant)}</strong> FCFA
+                Actif <strong style={{ fontFamily: fontMono }}>{fmt(diag.actif_net)}</strong> · Passif <strong style={{ fontFamily: fontMono }}>{fmt(diag.passif_total)}</strong> · Écart <strong style={{ color: couleurHeader, fontFamily: fontMono }}>{fmt(diag.ecart_montant)}</strong> FCFA
               </div>
             </div>
           </div>
@@ -306,10 +315,18 @@ function ModalDiagnostic({ C, diag, onClose }) {
           }}><X size={16} /></button>
         </div>
 
-        {/* Causes probables */}
+        {/* Causes probables / Synthèse */}
         <div style={{ marginBottom: 22 }}>
-          <SectionDiag C={C} icon={AlertTriangle} accent={C.danger} titre={`Causes probables (${diag.causes_probables.length})`}>
-            {diag.causes_probables.length === 0
+          <SectionDiag C={C}
+            icon={ecartReel ? AlertTriangle : Check}
+            accent={ecartReel ? C.danger : C.accent}
+            titre={ecartReel ? `Causes probables (${diag.causes_probables.length})` : 'Synthèse'}>
+            {diag.causes_probables.length === 0 && !ecartReel
+              ? <div style={{ padding: 14, color: C.text, fontSize: 13, lineHeight: 1.6 }}>
+                  <strong style={{ color: C.accent }}>Bilan équilibré et balance saine.</strong>
+                  {' '}Aucun problème majeur détecté. Vous pouvez générer la liasse DSF en toute confiance.
+                </div>
+              : diag.causes_probables.length === 0
               ? <div style={{ padding: 14, color: C.muted, fontSize: 12.5, fontStyle: 'italic' }}>Aucune cause détectée. Vérifier manuellement le grand livre.</div>
               : <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 14 }}>
                 {diag.causes_probables.map((c, i) => (
@@ -393,8 +410,8 @@ function ModalDiagnostic({ C, diag, onClose }) {
           </SectionDiag>
         )}
 
-        {/* Bouclage proposé */}
-        {diag.bouclage_propose && (
+        {/* Bouclage proposé — uniquement si écart réel */}
+        {diag.bouclage_propose && ecartReel && (
           <SectionDiag C={C} icon={Wand2} accent={C.warning} titre="Écriture de bouclage (urgence)">
             <div style={{ padding: 14 }}>
               <div style={{ padding: 10, background: `${C.warning}10`, border: `1px solid ${C.warning}40`, borderRadius: 8, fontSize: 11.5, color: C.text, lineHeight: 1.5, marginBottom: 10 }}>
