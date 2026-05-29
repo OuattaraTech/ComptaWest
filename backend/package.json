@@ -7,7 +7,9 @@
     "start": "node src/index.js",
     "predev": "fuser -k 5000/tcp 2>/dev/null || true",
     "dev": "nodemon src/index.js",
-    "test": "node --test tests/",
+    "dev:test": "NODE_ENV=test nodemon src/index.js",
+    "test": "NODE_ENV=test node --test --test-concurrency=1 tests/",
+    "test:full": "NODE_ENV=test node --test --test-concurrency=1 tests/",
     "migrate": "node scripts/migrate.js",
     "migrate:status": "node scripts/migrate.js status",
     "migrate:baseline": "node scripts/migrate.js baseline"

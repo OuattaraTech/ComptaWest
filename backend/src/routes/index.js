@@ -7,6 +7,7 @@ const { requirePermission } = require('../middleware/entreprise');
 const { MODULES, ACTIONS } = require('../utils/permissions');
 const validate = require('../middleware/validate');
 const checkQuota = require('../middleware/checkQuota');
+const { idempotent } = require('../middleware/idempotency');
 const { getAbonnement, putAbonnement } = require('../controllers/abonnementController');
 
 // Raccourci : can('factures', 'create') === requirePermission('factures', 'create')
@@ -231,12 +232,12 @@ router.get('/import/template/:type', auth, telechargerModele);
 // ─── FACTURES ──────────────────────────────────────────────────────────────
 router.get('/factures', auth, can(MODULES.FACTURES, ACTIONS.READ), getFactures);
 router.get('/factures/:id', auth, can(MODULES.FACTURES, ACTIONS.READ), getFactureById);
-router.post('/factures', auth, can(MODULES.FACTURES, ACTIONS.CREATE), checkQuota('factures'), factureRules, validate, createFacture);
+router.post('/factures', auth, idempotent(), can(MODULES.FACTURES, ACTIONS.CREATE), checkQuota('factures'), factureRules, validate, createFacture);
 router.put('/factures/:id', auth, can(MODULES.FACTURES, ACTIONS.UPDATE), factureRules, validate, updateFacture);
 router.put('/factures/:id/statut', auth, can(MODULES.FACTURES, ACTIONS.UPDATE), updateStatut);
 // Encaissement = mouvement de trésorerie ; on requiert plutôt tresorerie.update
 // pour ne pas autoriser le commercial à manipuler les flux de caisse.
-router.post('/factures/:id/paiement', auth, can(MODULES.TRESORERIE, ACTIONS.UPDATE), paiementRules, validate, addPaiement);
+router.post('/factures/:id/paiement', auth, idempotent(), can(MODULES.TRESORERIE, ACTIONS.UPDATE), paiementRules, validate, addPaiement);
 router.delete('/factures/:id', auth, can(MODULES.FACTURES, ACTIONS.DELETE), deleteFacture);
 // Génération d'un lien de paiement Wave pour la facture. Nécessite update
 // sur factures (le statut sera modifié au webhook) — le commercial qui
@@ -301,7 +302,7 @@ router.get('/depenses/stats', auth, can(MODULES.DEPENSES, ACTIONS.READ), getStat
 router.get('/depenses/categories', auth, can(MODULES.DEPENSES, ACTIONS.READ), getCategories);
 router.post('/depenses/categories', auth, can(MODULES.DEPENSES, ACTIONS.CREATE), categorieDepenseRules, validate, createCategorie);
 router.get('/depenses', auth, can(MODULES.DEPENSES, ACTIONS.READ), getDepenses);
-router.post('/depenses', auth, can(MODULES.DEPENSES, ACTIONS.CREATE), depenseRules, validate, createDepense);
+router.post('/depenses', auth, idempotent(), can(MODULES.DEPENSES, ACTIONS.CREATE), depenseRules, validate, createDepense);
 router.put('/depenses/:id', auth, can(MODULES.DEPENSES, ACTIONS.UPDATE), depenseRules, validate, updateDepense);
 router.delete('/depenses/:id', auth, can(MODULES.DEPENSES, ACTIONS.DELETE), deleteDepense);
 
@@ -366,7 +367,7 @@ router.post('/comptabilite/exercices/:id/suggestions-cloture', auth, entrepriseA
 router.post('/comptabilite/exercices/:id/cloturer',   auth, can(MODULES.CLOTURE, ACTIONS.CREATE), cloturerExercice);
 router.get('/comptabilite/ecritures',    auth, can(MODULES.ECRITURES, ACTIONS.READ),   getEcritures);
 router.get('/comptabilite/ecritures/:id',auth, can(MODULES.ECRITURES, ACTIONS.READ),   getEcritureById);
-router.post('/comptabilite/ecritures',   auth, can(MODULES.ECRITURES, ACTIONS.CREATE), createEcritureManuelle);
+router.post('/comptabilite/ecritures',   auth, idempotent(), can(MODULES.ECRITURES, ACTIONS.CREATE), createEcritureManuelle);
 router.get('/comptabilite/grand-livre',  auth, can(MODULES.ECRITURES, ACTIONS.READ),   getGrandLivre);
 router.get('/comptabilite/balance',      auth, can(MODULES.ECRITURES, ACTIONS.READ),   getBalance);
 // Exports comptables — article 17 OHADA (intangibilité + extraction
@@ -388,9 +389,9 @@ router.get('/tresorerie/comptes/:id',             auth, can(MODULES.TRESORERIE, 
 router.put('/tresorerie/comptes/:id',             auth, can(MODULES.TRESORERIE, ACTIONS.UPDATE), updateCompte);
 router.delete('/tresorerie/comptes/:id',          auth, can(MODULES.TRESORERIE, ACTIONS.DELETE), archiveCompte);
 router.get('/tresorerie/comptes/:id/mouvements',  auth, can(MODULES.TRESORERIE, ACTIONS.READ),   getMouvements);
-router.post('/tresorerie/comptes/:id/mouvements', auth, can(MODULES.TRESORERIE, ACTIONS.UPDATE), mouvementRules, validate, createMouvement);
+router.post('/tresorerie/comptes/:id/mouvements', auth, idempotent(), can(MODULES.TRESORERIE, ACTIONS.UPDATE), mouvementRules, validate, createMouvement);
 router.delete('/tresorerie/mouvements/:id',       auth, can(MODULES.TRESORERIE, ACTIONS.UPDATE), deleteMouvement);
-router.post('/tresorerie/transfert',              auth, can(MODULES.TRESORERIE, ACTIONS.UPDATE), transfererEntreComptes);
+router.post('/tresorerie/transfert',              auth, idempotent(), can(MODULES.TRESORERIE, ACTIONS.UPDATE), transfererEntreComptes);
 
 // Relevés et rapprochement
 router.get('/tresorerie/comptes/:id/releves',     auth, can(MODULES.TRESORERIE, ACTIONS.READ),   getReleves);
