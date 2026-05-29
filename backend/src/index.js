@@ -101,14 +101,56 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // ── Routes ────────────────────────────────────────────────────────────────
 app.use('/api', routes);
 
+// Health basique : appelé par les load balancers / uptime checks haute
+// fréquence (Render, K8s, UptimeRobot). Doit être ultra-léger.
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', app: 'ApeX API', version: '2.1.0', env: process.env.NODE_ENV });
+});
+
+// Health profond : vérifie la connectivité PostgreSQL + uptime.
+// À utiliser par les sondes plus détaillées ou un dashboard ops.
+// Retourne 503 si la BDD est inaccessible (signal de désactivation
+// automatique pour les load balancers intelligents).
+const pool = require('../config/database');
+const startupAt = Date.now();
+app.get('/health/deep', async (req, res) => {
+  const checks = { db: 'unknown', uptime_seconds: Math.floor((Date.now() - startupAt) / 1000) };
+  let status = 200;
+  try {
+    const r = await pool.query('SELECT 1 AS ok');
+    checks.db = r.rows[0]?.ok === 1 ? 'OK' : 'ERROR';
+  } catch (err) {
+    checks.db = 'ERROR: ' + err.message;
+    status = 503;
+  }
+  try {
+    const r = await pool.query("SELECT COUNT(*)::int AS n FROM entreprises WHERE actif = TRUE");
+    checks.entreprises_actives = r.rows[0]?.n || 0;
+  } catch (_) { /* facultatif */ }
+  // Heap / RSS (utile pour détecter les fuites mémoire en prod)
+  const mem = process.memoryUsage();
+  checks.memory_mb = {
+    rss: Math.round(mem.rss / 1024 / 1024),
+    heap_used: Math.round(mem.heapUsed / 1024 / 1024),
+  };
+  checks.node_version = process.version;
+  checks.pid = process.pid;
+  res.status(status).json({
+    status: status === 200 ? 'OK' : 'DEGRADED',
+    app: 'ApeX API', version: '2.1.0', env: process.env.NODE_ENV,
+    checks,
+  });
 });
 
 // ── 404 ───────────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({ success: false, message: `Route ${req.method} ${req.url} introuvable` });
 });
+
+// ── Sentry (capture des 5xx avant le handler d'erreur) ───────────────────
+const sentry = require('./utils/sentry');
+sentry.init(); // no-op si SENTRY_DSN absent ou @sentry/node non installé
+app.use(sentry.expressErrorHandler());
 
 // ── Erreur globale ────────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
