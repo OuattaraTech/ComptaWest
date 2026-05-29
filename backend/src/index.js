@@ -62,7 +62,8 @@ app.use(rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   // Skip pour les health-checks (sinon le load balancer se fait rate-limit)
-  skip: (req) => req.path === '/health',
+  // et pour les tests automatisés (rejouent des centaines de requêtes).
+  skip: (req) => req.path === '/health' || process.env.NODE_ENV === 'test',
   message: { success: false, message: 'Trop de requêtes, réessayez dans 15 minutes.' },
 }));
 

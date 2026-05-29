@@ -12,7 +12,14 @@
     "test:full": "NODE_ENV=test node --test --test-concurrency=1 tests/",
     "migrate": "node scripts/migrate.js",
     "migrate:status": "node scripts/migrate.js status",
-    "migrate:baseline": "node scripts/migrate.js baseline"
+    "migrate:baseline": "node scripts/migrate.js baseline",
+    "prod:start": "pm2 start ecosystem.config.js",
+    "prod:reload": "pm2 reload ecosystem.config.js",
+    "prod:stop": "pm2 stop apex-api",
+    "prod:logs": "pm2 logs apex-api",
+    "prod:status": "pm2 status",
+    "prod:monit": "pm2 monit",
+    "loadtest": "NODE_ENV=test node scripts/load-test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -32,6 +39,7 @@
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "nodemon": "^3.0.2",
+    "pm2": "^7.0.1"
   }
 }

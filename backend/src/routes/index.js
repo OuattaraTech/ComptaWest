@@ -117,6 +117,7 @@ const demoLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
   message: { success: false, message: 'Trop de connexions au compte démo. Réessayez dans quelques minutes.' },
 });
 
