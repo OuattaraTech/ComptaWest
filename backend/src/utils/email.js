@@ -10,7 +10,7 @@
  *
  * Variables d'env requises pour l'envoi réel :
  *   RESEND_API_KEY     — clé API Resend (re_xxxx)
- *   EMAIL_FROM         — adresse expéditeur (ex : "ApeX <noreply@apex.ci>")
+ *   EMAIL_FROM         — adresse expéditeur (ex : "ApeX <noreply@useapex.ci>")
  *   FRONTEND_URL       — base URL pour les liens dans les emails
  */
 const pool = require('../../config/database');
@@ -36,7 +36,7 @@ async function envoyerEmail({ to, subject, html, text, replyTo, tags = {} }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: process.env.EMAIL_FROM || 'ApeX <noreply@apex.ci>',
+          from: process.env.EMAIL_FROM || 'ApeX <noreply@useapex.ci>',
           to: Array.isArray(to) ? to : [to],
           subject,
           html: html || undefined,

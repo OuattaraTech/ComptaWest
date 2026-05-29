@@ -1,0 +1,189 @@
+# =====================================================================
+# Caddyfile — ApeX production (useapex.ci)
+# =====================================================================
+#
+# Reverse proxy + TLS automatique Let's Encrypt + sécurité de base.
+# À déposer sur le VPS dans /etc/caddy/Caddyfile puis :
+#   sudo systemctl reload caddy
+#
+# Prérequis DNS (chez Cloudflare en proxy ON pour les hosts publics) :
+#   useapex.ci          A   <IP_VPS>
+#   www.useapex.ci      CNAME useapex.ci
+#   app.useapex.ci      A   <IP_VPS>
+#   api.useapex.ci      A   <IP_VPS>
+#   demo.useapex.ci     A   <IP_VPS>
+#   cabinet.useapex.ci  A   <IP_VPS>
+#   docs.useapex.ci     A   <IP_VPS>
+#   status.useapex.ci   CNAME stats.uptimerobot.com   (proxy OFF)
+#
+# Cloudflare en mode "Full (strict)" : Caddy présente son cert Let's
+# Encrypt à Cloudflare, et Cloudflare présente son cert universel au
+# visiteur. Aucune configuration TLS supplémentaire requise côté Caddy.
+#
+# Backend Node.js attendu sur 127.0.0.1:5000 (cluster pm2).
+# Frontend buildé (vite build) servi en statique depuis /var/www/apex-front.
+
+# Bloc global
+{
+    email contact@useapex.ci
+    # Activer HTTP/3
+    servers {
+        protocols h1 h2 h3
+    }
+}
+
+# ----- En-têtes de sécurité réutilisables ----------------------------
+(securite_commune) {
+    header {
+        # HSTS 1 an avec subdomains (déjà tous en HTTPS)
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # Anti-clickjacking
+        X-Frame-Options "DENY"
+        # MIME sniffing off
+        X-Content-Type-Options "nosniff"
+        # Referrer minimal
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Permissions strictes (pas de caméra/micro/geo par défaut)
+        Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+        # Supprime la signature serveur
+        -Server
+    }
+}
+
+# ----- Compression --------------------------------------------------
+(compression) {
+    encode zstd gzip
+}
+
+# =====================================================================
+# 1. Landing publique — useapex.ci + redirection www
+# =====================================================================
+useapex.ci {
+    import securite_commune
+    import compression
+
+    # Si la landing est un site statique séparé :
+    root * /var/www/apex-landing
+    file_server
+
+    # Si elle est servie par le frontend SPA en mode "marketing" :
+    # reverse_proxy 127.0.0.1:5000
+
+    log {
+        output file /var/log/caddy/useapex-landing.log {
+            roll_size 50mb
+            roll_keep 7
+        }
+        format json
+    }
+}
+
+www.useapex.ci {
+    redir https://useapex.ci{uri} permanent
+}
+
+# =====================================================================
+# 2. Application connectée — app.useapex.ci
+#    Sert le SPA React buildé + proxy /api/* vers le backend Node.
+# =====================================================================
+app.useapex.ci {
+    import securite_commune
+    import compression
+
+    # CSP stricte adaptée au SPA (Sentry + Resend autorisés)
+    header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://*.sentry.io https://api.resend.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';"
+
+    # API proxy (même origine que le SPA → pas de CORS preflight)
+    handle /api/* {
+        reverse_proxy 127.0.0.1:5000 {
+            # Timeout long pour les exports (FEC, bilan, DSF)
+            transport http {
+                response_header_timeout 120s
+                dial_timeout 5s
+            }
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Tout le reste = SPA React (vite build)
+    handle {
+        root * /var/www/apex-front
+        try_files {path} /index.html
+        file_server
+    }
+
+    log {
+        output file /var/log/caddy/useapex-app.log {
+            roll_size 100mb
+            roll_keep 14
+        }
+        format json
+    }
+}
+
+# =====================================================================
+# 3. API publique — api.useapex.ci
+#    Endpoint dédié pour webhooks Wave/Orange/MTN + callbacks FNE.
+#    Permet d'avoir une IP fixe et un host stable à déclarer aux PSP.
+# =====================================================================
+api.useapex.ci {
+    import securite_commune
+
+    # Pas de CSP — c'est une API, pas du HTML.
+    # CORS géré côté backend Express (cors() avec FRONTEND_URL).
+
+    reverse_proxy 127.0.0.1:5000 {
+        transport http {
+            response_header_timeout 120s
+        }
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    log {
+        output file /var/log/caddy/useapex-api.log {
+            roll_size 100mb
+            roll_keep 30
+        }
+        format json
+    }
+}
+
+# =====================================================================
+# 4. Démo publique — demo.useapex.ci → redirection vers l'app
+#    Permet de partager un lien court sur réseaux/landing.
+# =====================================================================
+demo.useapex.ci {
+    redir https://app.useapex.ci/login?demo=1 permanent
+}
+
+# =====================================================================
+# 5. Portail cabinets ONECCA — cabinet.useapex.ci
+#    Même app, mais route directe vers /cabinet (UX dédiée).
+# =====================================================================
+cabinet.useapex.ci {
+    redir https://app.useapex.ci/cabinet{uri} permanent
+}
+
+# =====================================================================
+# 6. Documentation — docs.useapex.ci (statique pour le moment)
+# =====================================================================
+docs.useapex.ci {
+    import securite_commune
+    import compression
+
+    root * /var/www/apex-docs
+    file_server browse
+}
+
+# =====================================================================
+# 7. Page de statut — status.useapex.ci
+#    DNS CNAME vers UptimeRobot ; Caddy ne sert pas ce host.
+#    (Bloc laissé en commentaire pour mémoire.)
+# =====================================================================
+# status.useapex.ci {
+#     redir https://stats.uptimerobot.com/<token> permanent
+# }

@@ -39,7 +39,11 @@ module.exports = {
       kill_timeout: 5000,
       listen_timeout: 8000,
       // env appliqué par défaut. Override possible avec
-      // `pm2 start ecosystem.config.js --env test` pour profil test.
+      //   pm2 start ecosystem.config.js --env production
+      //   pm2 start ecosystem.config.js --env test
+      // Les secrets (DB_PASSWORD, JWT_SECRET, RESEND_API_KEY, MISTRAL_API_KEY)
+      // restent dans backend/.env (lu par dotenv au démarrage) — ne JAMAIS
+      // les inscrire ici car ce fichier est commité.
       env: {
         NODE_ENV: process.env.NODE_ENV || 'production',
       },
@@ -48,6 +52,20 @@ module.exports = {
       },
       env_production: {
         NODE_ENV: 'production',
+        // URLs publiques (domaine useapex.ci, réservé le 2026-05-29).
+        // Surchargent les valeurs de .env si présentes des deux côtés —
+        // priorité à ce bloc pour garantir la cohérence prod.
+        FRONTEND_URL: 'https://app.useapex.ci',
+        PUBLIC_URL: 'https://useapex.ci',
+        FRONTEND_BASE_URL: 'https://app.useapex.ci',
+        BACKEND_BASE_URL: 'https://api.useapex.ci',
+        // Emails affichés / utilisés par défaut. Les vraies clés API
+        // (RESEND_API_KEY) restent dans .env.
+        EMAIL_FROM: 'ApeX <noreply@useapex.ci>',
+        EMAIL_REPLY_TO: 'support@useapex.ci',
+        SUPPORT_EMAIL: 'support@useapex.ci',
+        // Cookie / CORS / proxy
+        TRUST_PROXY: '1',
       },
       error_file: 'logs/pm2-error.log',
       out_file: 'logs/pm2-out.log',

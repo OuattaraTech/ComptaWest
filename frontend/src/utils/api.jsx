@@ -4,7 +4,7 @@ import i18next from 'i18next';
 import { ouvrirUpgradeModal } from '../components/UpgradeModal.jsx';
 
 // En dev : '/api' est proxifié vers localhost:5000 par vite.config.js.
-// En prod : VITE_API_URL doit pointer vers le backend (ex. https://apex-api.onrender.com/api).
+// En prod : VITE_API_URL doit pointer vers le backend (ex. https://api.useapex.ci/api).
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
   headers: { 'Content-Type': 'application/json' },
