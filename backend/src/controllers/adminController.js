@@ -159,29 +159,63 @@ async function envoyerEmailTest(req, res) {
     const dest = r.rows[0];
     if (!dest) return res.status(404).json({ success: false, message: 'Utilisateur introuvable' });
 
-    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head>
+    const appUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+    const publicUrl = (process.env.PUBLIC_URL || 'https://useapex.ci').replace(/\/+$/, '');
+    const supportEmail = process.env.SUPPORT_EMAIL || 'support@useapex.ci';
+    const envLabel = process.env.NODE_ENV || 'development';
+    const fromLabel = process.env.EMAIL_FROM || 'non configuré';
+    const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#F3F4F6;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;">
-  <div style="max-width:520px;margin:32px auto;background:#FFF;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-    <div style="background:linear-gradient(135deg,#10B981,#0F8A6E);padding:32px;text-align:center;color:#FFF;">
-      <h1 style="margin:0;font-size:24px;font-weight:800;">Configuration Resend ✓</h1>
+  <div style="max-width:540px;margin:32px auto;background:#FFFFFF;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,0.08);">
+    <div style="background:linear-gradient(135deg,#10B981,#0F8A6E);padding:34px 32px;text-align:center;color:#FFFFFF;">
+      <h1 style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.015em;">Configuration Resend validée</h1>
+      <p style="margin:8px 0 0;font-size:13px;opacity:0.92;">Diagnostic technique — environnement ${envLabel}</p>
     </div>
-    <div style="padding:28px;color:#1F2937;font-size:15px;line-height:1.6;">
-      <p>Bonjour ${dest.nom || ''},</p>
-      <p>Cet email confirme que <strong>RESEND_API_KEY</strong> est correctement
-      configurée sur l'environnement <code style="background:#F3F4F6;padding:2px 6px;border-radius:4px;">${process.env.NODE_ENV || 'development'}</code>.</p>
-      <p>Tu peux maintenant inviter des cabinets depuis la console
-      <a href="${baseUrl}/admin" style="color:#10B981;">/admin</a> — les emails
-      seront envoyés automatiquement.</p>
-      <p style="font-size:13px;color:#6B7280;margin-top:24px;">Domaine d'envoi : <code style="background:#F3F4F6;padding:2px 6px;border-radius:4px;">${process.env.EMAIL_FROM || 'non configuré'}</code></p>
+    <div style="padding:30px 32px;color:#1F2937;font-size:15px;line-height:1.65;">
+      <p style="margin:0 0 14px;">Bonjour ${dest.nom || ''},</p>
+      <p style="margin:0 0 14px;">Cet email confirme que la clé <strong>RESEND_API_KEY</strong> est
+      correctement configurée et que le domaine d'envoi <strong>${fromLabel}</strong>
+      est bien vérifié sur Resend (SPF + DKIM&nbsp;OK).</p>
+      <p style="margin:0 0 14px;">Vous pouvez à présent inviter des cabinets partenaires depuis
+      votre <a href="${appUrl}/admin" style="color:#10B981;text-decoration:none;font-weight:600;">Console Admin</a> —
+      les emails d'invitation, les relances et les emails d'activation partiront
+      automatiquement à partir de ${fromLabel}.</p>
+      <div style="padding:14px 18px;background:#F0FDF4;border-left:4px solid #10B981;border-radius:0 8px 8px 0;margin:18px 0;font-size:13px;color:#065F46;">
+        <strong>Bonnes pratiques&nbsp;:</strong>
+        <ul style="margin:8px 0 0;padding-left:20px;">
+          <li>Surveillez votre tableau Resend → <em>Emails</em> pour suivre les délivrabilités.</li>
+          <li>Configurez une alerte sur les <em>bounces</em> pour détecter les adresses invalides.</li>
+          <li>Ajoutez un enregistrement DMARC sur useapex.ci pour réduire le risque de spam.</li>
+        </ul>
+      </div>
+    </div>
+    <div style="padding:18px 32px;background:#F9FAFB;color:#6B7280;font-size:12px;text-align:center;border-top:1px solid #E5E7EB;line-height:1.6;">
+      <strong style="color:#0F172A;">ApeX</strong> · Logiciel de gestion SYSCOHADA pour les PME ivoiriennes 🇨🇮<br>
+      <a href="${publicUrl}" style="color:#10B981;text-decoration:none;">useapex.ci</a> ·
+      <a href="${publicUrl}/cgu" style="color:#10B981;text-decoration:none;">CGU</a> ·
+      <a href="${publicUrl}/confidentialite" style="color:#10B981;text-decoration:none;">Confidentialité</a> ·
+      <a href="mailto:${supportEmail}" style="color:#10B981;text-decoration:none;">${supportEmail}</a>
     </div>
   </div>
 </body></html>`;
+    const text = `Bonjour ${dest.nom || ''},
+
+Cet email confirme que la clé RESEND_API_KEY est correctement configurée
+et que le domaine d'envoi ${fromLabel} est bien vérifié sur Resend
+(SPF + DKIM OK).
+
+Vous pouvez à présent inviter des cabinets partenaires depuis votre
+Console Admin (${appUrl}/admin).
+
+— L'équipe ApeX
+Support : ${supportEmail}
+${publicUrl}
+`;
     const result = await envoyerEmail({
       to: dest.email,
-      subject: '[ApeX] Test de configuration Resend',
+      subject: '[ApeX] Configuration Resend validée',
       html,
-      text: `Cet email confirme que RESEND_API_KEY est correctement configurée.\n\nDomaine d'envoi : ${process.env.EMAIL_FROM || 'non configuré'}\nFrontend : ${baseUrl}`,
+      text,
       tags: { type: 'test_email' },
     });
     logAudit(req, 'TEST_EMAIL', 'admin', null, { destinataire: dest.email, mode: result.mode });
@@ -311,9 +345,12 @@ async function inviterCabinetDirect(req, res) {
 
     await client.query('COMMIT');
 
-    // Envoi email d'invitation (hors transaction)
+    // Envoi email d'invitation (hors transaction).
+    // ⚠️ Route frontend distincte de celle des PME : les cabinets atterrissent
+    // sur /rejoindre/:token (RejoindreCabinetPage), pas /invitation/:token
+    // qui est la page PME et ne reconnaîtrait pas le token cabinet.
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const lienActivation = `${baseUrl}/invitation/${invitationToken}`;
+    const lienActivation = `${baseUrl}/rejoindre/${invitationToken}`;
     // Récupère le nom du super-admin pour signer l'email et le message WA
     const adminRes = await pool.query('SELECT nom FROM utilisateurs WHERE id=$1', [req.user.id]);
     const expediteurNom = adminRes.rows[0]?.nom || "L'équipe ApeX";
