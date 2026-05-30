@@ -346,11 +346,14 @@ async function inviterCabinetDirect(req, res) {
     await client.query('COMMIT');
 
     // Envoi email d'invitation (hors transaction).
-    // ⚠️ Route frontend distincte de celle des PME : les cabinets atterrissent
-    // sur /rejoindre/:token (RejoindreCabinetPage), pas /invitation/:token
-    // qui est la page PME et ne reconnaîtrait pas le token cabinet.
+    // ⚠️ Route frontend /invitation/:token (InvitationPage) → API
+    // /api/auth/invitation/:token (authController.getInvitation) qui lit
+    // utilisateurs.invitation_token. C'est BIEN le bon chemin pour les
+    // cabinets invités par l'admin (le token est posé sur la ligne
+    // utilisateurs du responsable cabinet, pas dans cabinet_invitations
+    // qui est réservé aux invitations PME envoyées PAR un cabinet).
     const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const lienActivation = `${baseUrl}/rejoindre/${invitationToken}`;
+    const lienActivation = `${baseUrl}/invitation/${invitationToken}`;
     // Récupère le nom du super-admin pour signer l'email et le message WA
     const adminRes = await pool.query('SELECT nom FROM utilisateurs WHERE id=$1', [req.user.id]);
     const expediteurNom = adminRes.rows[0]?.nom || "L'équipe ApeX";
