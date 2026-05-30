@@ -62,12 +62,13 @@ useapex.ci {
     import securite_commune
     import compression
 
-    # Si la landing est un site statique séparé :
+    # La landing est le SPA React buildé (mêmes fichiers que app.useapex.ci).
+    # try_files renvoie toute route inconnue vers /index.html pour que
+    # React Router gère le routage côté client — sinon /tarifs, /cgu,
+    # /confidentialite renvoient un 404 et Google ne peut pas les indexer.
     root * /var/www/apex-landing
+    try_files {path} /index.html
     file_server
-
-    # Si elle est servie par le frontend SPA en mode "marketing" :
-    # reverse_proxy 127.0.0.1:5000
 
     log {
         output file /var/log/caddy/useapex-landing.log {
