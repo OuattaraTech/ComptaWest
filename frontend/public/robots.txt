@@ -26,4 +26,4 @@ Disallow: /audit-log
 Disallow: /parametres
 Disallow: /invitation/
 
-Sitemap: https://apex.ci/sitemap.xml
+Sitemap: https://useapex.ci/sitemap.xml
