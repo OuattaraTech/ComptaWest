@@ -127,7 +127,7 @@ psql -d comptawest -tA -c "SELECT COUNT(*) FROM information_schema.tables WHERE 
 ```bash
 cd /opt/apex/frontend
 npm ci
-echo "VITE_API_URL=https://api.votredomaine.ci" > .env.production
+echo "VITE_API_URL=https://api.votredomaine.ci/api" > .env.production
 npm run build
 sudo cp -r dist/* /var/www/apex/
 ```
