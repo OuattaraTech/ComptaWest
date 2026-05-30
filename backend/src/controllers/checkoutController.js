@@ -161,13 +161,16 @@ async function activerAbonnement(paiementId, ctx = {}) {
   try {
     await client.query('BEGIN');
 
+    // FOR UPDATE OF p : on verrouille uniquement la ligne paiements_abonnement.
+    // PostgreSQL refuse FOR UPDATE global sur la nullable side d'un LEFT JOIN
+    // (utilisateurs u peut être NULL si utilisateur_id était NULL).
     const pRes = await client.query(`
       SELECT p.*, e.nom AS entreprise_nom, u.email AS user_email, u.nom AS user_nom
         FROM paiements_abonnement p
         JOIN entreprises e ON e.id = p.entreprise_id
         LEFT JOIN utilisateurs u ON u.id = p.utilisateur_id
        WHERE p.id = $1
-       FOR UPDATE
+       FOR UPDATE OF p
     `, [paiementId]);
 
     if (pRes.rows.length === 0) {
