@@ -15,6 +15,9 @@ import LoginPage from './pages/LoginPage.jsx';
 import InvitationPage from './pages/InvitationPage.jsx';
 import TarifsPage from './pages/TarifsPage.jsx';
 import RejoindreCabinetPage from './pages/RejoindreCabinetPage.jsx';
+import CheckoutPage from './pages/CheckoutPage.jsx';
+import CheckoutMockPage from './pages/CheckoutMockPage.jsx';
+import CheckoutSuccessPage from './pages/CheckoutSuccessPage.jsx';
 import CabinetPortailPage from './pages/CabinetPortailPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import CguPage from './pages/CguPage.jsx';
@@ -93,6 +96,12 @@ function AppRoutes() {
       {/* Pages légales publiques — référencées dans robots.txt et sitemap.xml */}
       <Route path="/cgu" element={<CguPage />} />
       <Route path="/confidentialite" element={<ConfidentialitePage />} />
+      {/* Checkout d'abonnement (Wave / Orange / Stripe / Mock). Accessible
+          uniquement connecté — l'auth est vérifiée dans CheckoutPage qui
+          renvoie vers /login si l'utilisateur n'est pas authentifié. */}
+      <Route path="/checkout/:palier" element={<CheckoutPage />} />
+      <Route path="/checkout/mock/:id" element={<CheckoutMockPage />} />
+      <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
       <Route path="/" element={<Protected><Layout /></Protected>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         {/* Chaque route est protégée par PermissionGate qui interroge

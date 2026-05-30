@@ -105,28 +105,31 @@ export default function TarifsPage() {
     if (!user) {
       // Visiteur public : on redirige vers la création de compte (login)
       // avec un paramètre pour pré-sélectionner le palier après inscription.
-      navigate(`/login?plan=${code}`);
+      navigate(`/login?plan=${code}&periodicite=${annuel ? 'annuel' : 'mensuel'}`);
       return;
     }
     if (code === palierActuel) return;
-    setSubmitting(code);
-    try {
-      await api.put('/abonnement', {
-        palier: code,
-        periodicite: annuel ? 'annuel' : 'mensuel',
-      });
-      setPalierActuel(code);
-      // Propage le nouveau palier à tout le contexte Quotas : sans ça,
-      // les badges de la sidebar, les modules verrouillés et les boutons
-      // gatés resteraient sur l'ancien palier jusqu'à un F5.
-      await rechargerQuotas();
-      // Modal chaleureuse au lieu d'un toast discret.
-      ouvrirCelebrationModal({ palier: code, isNewSignup: false });
-    } catch (err) {
-      if (!err.handled) toast.error(err.response?.data?.message || t('common.error_generic'));
-    } finally {
-      setSubmitting(null);
+
+    // Découverte : palier gratuit, activation directe sans checkout.
+    if (code === 'decouverte') {
+      setSubmitting(code);
+      try {
+        await api.put('/abonnement', { palier: code, periodicite: annuel ? 'annuel' : 'mensuel' });
+        setPalierActuel(code);
+        await rechargerQuotas();
+        ouvrirCelebrationModal({ palier: code, isNewSignup: false });
+      } catch (err) {
+        if (!err.handled) toast.error(err.response?.data?.message || t('common.error_generic'));
+      } finally {
+        setSubmitting(null);
+      }
+      return;
     }
+
+    // Paliers payants (Starter / Pro) : on bascule sur le checkout PSP.
+    // L'activation effective de l'abonnement se fait après confirmation
+    // du paiement via webhook ou page mock-success.
+    navigate(`/checkout/${code}?periodicite=${annuel ? 'annuel' : 'mensuel'}`);
   };
 
   return (

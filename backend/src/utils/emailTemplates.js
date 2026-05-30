@@ -363,4 +363,78 @@ ${PUBLIC_URL()}
   return { subject, html, text };
 }
 
-module.exports = { invitationPme, relanceInvitationPme, activationCabinet, invitationDirecteCabinet };
+// ─── Confirmation de paiement d'abonnement ─────────────────────────────────
+function confirmationPaiement({ nom_utilisateur, palier, periodicite, montant_fcfa, moyen, entreprise_nom }) {
+  const libellePaliers = { starter: 'Starter', pro: 'Pro' };
+  const libelleMoyens = { wave: 'Wave', orange: 'Orange Money', stripe: 'Carte bancaire', mock: 'Démo' };
+  const libellePalier = libellePaliers[palier] || palier;
+  const libelleMoyen = libelleMoyens[moyen] || moyen;
+  const libellePeriode = periodicite === 'annuel' ? 'annuel' : 'mensuel';
+  const dateFin = new Date(Date.now() + (periodicite === 'annuel' ? 365 : 30) * 86400000)
+    .toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const montantFmt = Number(montant_fcfa).toLocaleString('fr-FR');
+  const civilite = nom_utilisateur ? ` ${nom_utilisateur}` : '';
+
+  const subject = `[ApeX] Paiement confirmé — abonnement ${libellePalier} ${libellePeriode}`;
+  const preheader = `Votre abonnement ${libellePalier} est actif jusqu'au ${dateFin}.`;
+
+  const html = wrap(preheader, 'Paiement confirmé', `Votre abonnement ApeX est actif`, `
+    <p>Bonjour${civilite},</p>
+
+    <p>Nous avons bien reçu votre paiement de <strong>${montantFmt} FCFA</strong> par
+    <strong>${libelleMoyen}</strong>. Votre abonnement <strong>${libellePalier} ${libellePeriode}</strong>
+    pour <strong>${entreprise_nom}</strong> est désormais actif.</p>
+
+    <div class="benefits">
+      <strong>Récapitulatif :</strong>
+      <ul>
+        <li>Formule : <strong>${libellePalier}</strong> (${libellePeriode})</li>
+        <li>Montant : <strong>${montantFmt} FCFA</strong></li>
+        <li>Moyen de paiement : ${libelleMoyen}</li>
+        <li>Actif jusqu'au : <strong>${dateFin}</strong></li>
+      </ul>
+    </div>
+
+    <p>Vous pouvez retrouver les détails de votre abonnement à tout moment dans
+    <strong>Paramètres → Abonnement</strong>.</p>
+
+    <div class="button-wrap">
+      <a href="${APP_URL()}/dashboard" class="button">Accéder à mon tableau de bord</a>
+    </div>
+
+    <p class="small">Le renouvellement de votre abonnement est automatique à
+    l'échéance. Vous pouvez résilier à tout moment depuis votre espace, sans
+    pénalité.</p>
+
+    <div class="signature">
+      L'équipe ApeX<br>
+      <span class="small">Support&nbsp;: <a href="mailto:${SUPPORT_EMAIL()}" style="color:#10B981;">${SUPPORT_EMAIL()}</a></span>
+    </div>
+  `, `Cet email confirme le paiement de votre abonnement. Aucune action n'est requise de votre part.`);
+
+  const text = `Bonjour${civilite},
+
+Nous avons bien reçu votre paiement de ${montantFmt} FCFA par ${libelleMoyen}.
+Votre abonnement ${libellePalier} ${libellePeriode} pour ${entreprise_nom} est
+désormais actif.
+
+Récapitulatif :
+  • Formule : ${libellePalier} (${libellePeriode})
+  • Montant : ${montantFmt} FCFA
+  • Moyen de paiement : ${libelleMoyen}
+  • Actif jusqu'au : ${dateFin}
+
+Retrouvez les détails de votre abonnement dans Paramètres → Abonnement.
+Accéder au tableau de bord : ${APP_URL()}/dashboard
+
+Le renouvellement est automatique à l'échéance. Vous pouvez résilier à tout
+moment depuis votre espace, sans pénalité.
+
+— L'équipe ApeX
+Support : ${SUPPORT_EMAIL()}
+${PUBLIC_URL()}
+`;
+  return { subject, html, text };
+}
+
+module.exports = { invitationPme, relanceInvitationPme, activationCabinet, invitationDirecteCabinet, confirmationPaiement };
