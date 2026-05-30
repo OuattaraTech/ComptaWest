@@ -332,7 +332,7 @@ async function seederDonneesDemo(client, entrepriseId, userId) {
   try {
     await client.query(`
       INSERT INTO abonnements (entreprise_id, palier, statut, periodicite, date_debut, date_fin, prix_mensuel_fcfa, notes_commerciales)
-      VALUES ($1, 'cabinet', 'actif', 'annuel', CURRENT_DATE, CURRENT_DATE + INTERVAL '365 days', 60000, 'Compte démo — palier Cabinet débloqué pour explorer tous les modules')
+      VALUES ($1, 'pro', 'actif', 'annuel', CURRENT_DATE, CURRENT_DATE + INTERVAL '365 days', 25000, 'Compte démo — palier Pro débloqué pour explorer la gamme complète')
     `, [entrepriseId]);
   } catch (err) { if (err.code !== '42P01' && err.code !== '23505') throw err; }
 

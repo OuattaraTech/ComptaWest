@@ -29,8 +29,8 @@ const QUOTAS = {
   },
   starter: {
     libelle:        'Starter',
-    prix_mensuel:   9000,
-    prix_annuel:   90000,
+    prix_mensuel:  10000,
+    prix_annuel:  100000,
     utilisateurs:   2,
     entreprises:   1,
     factures_mois:  Infinity,
@@ -55,20 +55,12 @@ const QUOTAS = {
     api_publique:   false,
     support_sla:   'mail_wa_12h',
   },
-  cabinet: {
-    libelle:        'Cabinet',
-    prix_mensuel:  60000,
-    prix_annuel:  600000,
-    utilisateurs:   Infinity,
-    entreprises:   15,
-    factures_mois:  Infinity,
-    ocr_scans_mois: 1500,
-    paiement_fournisseurs: 3,
-    paie_bulletins: Infinity,
-    immobilisations: true,
-    api_publique:   true,
-    support_sla:   'prioritaire_4h',
-  },
+  // Palier public Cabinet (60 000 FCFA / mois) retiré le 2026-05-30 : les
+  // cabinets d'expertise comptable rejoignent désormais le Programme
+  // Partenaires (cabinet_partenaire ci-dessous, licence offerte). Garder
+  // un palier Cabinet public reviendrait à brouiller le message commercial.
+  // Voir [[feedback-modele-cabinets]].
+  //
   // Palier réservé aux cabinets d'experts-comptables PARTENAIRES (migration 029).
   // Licence gratuite à vie en échange de l'apport de PME clientes payantes.
   // Activé manuellement par le super-admin après validation du dossier ONECCA.
@@ -88,7 +80,7 @@ const QUOTAS = {
   },
 };
 
-const PALIERS_ORDONNES = ['decouverte', 'starter', 'pro', 'cabinet', 'cabinet_partenaire'];
+const PALIERS_ORDONNES = ['decouverte', 'starter', 'pro', 'cabinet_partenaire'];
 
 function getQuotas(palier) {
   return QUOTAS[palier] || QUOTAS.decouverte;

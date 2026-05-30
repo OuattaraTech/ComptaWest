@@ -1195,7 +1195,7 @@ export default function LoginPage() {
   });
 
   // Palier choisi par le visiteur sur /tarifs avant d'arriver ici.
-  const PALIERS_VALIDES = ['decouverte', 'starter', 'pro', 'cabinet'];
+  const PALIERS_VALIDES = ['decouverte', 'starter', 'pro'];
   const planParametre = searchParams.get('plan');
   const [planChoisi, setPlanChoisi] = useState(
     PALIERS_VALIDES.includes(planParametre) ? planParametre : null
@@ -2249,14 +2249,13 @@ export default function LoginPage() {
 
           <div className="cw-pricing-grid" style={{
             display: 'grid',
-            gridTemplateColumns: '1.05fr 0.95fr 1.15fr 0.95fr',
+            gridTemplateColumns: '1fr 1fr 1.15fr',
             gap: 16, alignItems: 'stretch',
           }}>
             {[
               { code: 'decouverte', prix: 0,     highlight: false },
-              { code: 'starter',    prix: 9000,  highlight: false },
+              { code: 'starter',    prix: 10000, highlight: false },
               { code: 'pro',        prix: 25000, highlight: true  },
-              { code: 'cabinet',    prix: 60000, highlight: false },
             ].map(({ code, prix, highlight }) => (
               <div key={code} style={{
                 background: highlight

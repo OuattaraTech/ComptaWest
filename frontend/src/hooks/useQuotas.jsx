@@ -77,13 +77,13 @@ export function QuotasProvider({ children }) {
   const paliierMinimalPour = useCallback((feature) => {
     const matrice = {
       immobilisations: 'pro',
-      api: 'cabinet',
-      paie: 'pro',
+      api:             'pro',         // l'API publique reste un + Pro (palier Cabinet public retiré)
+      paie:            'pro',
       paiement_fournisseurs: 'starter',
-      factures: 'starter',
-      ocr: 'starter',
-      utilisateurs: 'starter',
-      entreprises: 'cabinet',
+      factures:        'starter',
+      ocr:             'starter',
+      utilisateurs:    'starter',
+      entreprises:     'pro',         // mutualisé Pro (palier Cabinet public retiré)
     };
     return matrice[feature] || 'pro';
   }, []);

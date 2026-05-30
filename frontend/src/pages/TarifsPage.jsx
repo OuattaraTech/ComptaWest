@@ -39,8 +39,8 @@ const PALIERS = [
   },
   {
     code: 'starter',
-    prix_mensuel: 9000,
-    prix_annuel: 90000,
+    prix_mensuel: 10000,
+    prix_annuel: 100000,
     accent: '#4E8BF5',
     highlight: false,
     features: (t) => [
@@ -73,24 +73,9 @@ const PALIERS = [
       { ok: true,  label: t('tarifs.feature_support_mail_wa_12h') },
     ],
   },
-  {
-    code: 'cabinet',
-    prix_mensuel: 60000,
-    prix_annuel: 600000,
-    accent: '#F5A623',
-    highlight: false,
-    features: (t) => [
-      { ok: true,  label: t('tarifs.feature_users_unlimited') },
-      { ok: true,  label: t('tarifs.feature_entreprises', { n: 15 }) },
-      { ok: true,  label: t('tarifs.feature_factures_unlimited') },
-      { ok: true,  label: t('tarifs.feature_ocr', { n: 1500 }) },
-      { ok: true,  label: t('tarifs.feature_mobile_money', { n: 3 }) },
-      { ok: true,  label: t('tarifs.feature_paie_unlimited') },
-      { ok: true,  label: t('tarifs.feature_immo_yes') },
-      { ok: true,  label: t('tarifs.feature_api_yes') },
-      { ok: true,  label: t('tarifs.feature_support_prioritaire_4h') },
-    ],
-  },
+  // Palier public Cabinet retiré le 2026-05-30 : les cabinets d'expertise
+  // comptable rejoignent désormais le Programme Partenaires (licence
+  // offerte, géré séparément depuis /admin → Inviter un cabinet).
 ];
 
 const formatFcfa = (n) => n.toLocaleString('fr-FR');
