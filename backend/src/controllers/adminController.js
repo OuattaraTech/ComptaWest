@@ -370,7 +370,7 @@ async function inviterCabinetDirect(req, res) {
     let lienWhatsapp = null;
     if (telephone && telephone.trim()) {
       const phone = telephone.replace(/[^\d+]/g, '').replace(/^\+/, '');
-      const msgWa = `Bonjour ${nom_responsable},\n\n${expediteurNom} (ApeX) vous invite à rejoindre le Programme Partenaires Cabinets — licence gratuite + commission sur chaque PME parrainée.\n\nActivez votre compte : ${lienActivation}\n\nÀ très vite !`;
+      const msgWa = `Bonjour ${nom_responsable},\n\nL'équipe ApeX vous invite à rejoindre le Programme Partenaires Cabinets — licence cabinet 100% offerte, support prioritaire 2h, visibilité sur useapex.ci.\n\nActivez votre compte : ${lienActivation}\n\nÀ très vite !`;
       lienWhatsapp = `https://wa.me/${phone}?text=${encodeURIComponent(msgWa)}`;
     }
 

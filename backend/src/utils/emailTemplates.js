@@ -287,7 +287,7 @@ ${PUBLIC_URL()}
 function invitationDirecteCabinet({ nom_responsable, lien_activation, message_personnel }) {
   const prenom = (nom_responsable || '').trim().split(/\s+/)[0] || nom_responsable;
   const subject = `${prenom}, rejoignez le Programme Partenaires Cabinets ApeX`;
-  const preheader = `Licence cabinet 100% offerte, commission sur chaque PME parrainée, support 2h.`;
+  const preheader = `Licence cabinet 100% offerte, support prioritaire 2h, visibilité sur useapex.ci.`;
 
   const messageBloc = message_personnel ? `
     <div style="padding: 16px 20px; background: #F0FDF4; border-left: 4px solid #10B981; border-radius: 0 8px 8px 0; margin: 22px 0; font-style: italic; color: #1F2937;">
@@ -313,7 +313,6 @@ function invitationDirecteCabinet({ nom_responsable, lien_activation, message_pe
       <ul>
         <li><strong>Licence cabinet complète</strong> — dossiers clients illimités, révision SYSCOHADA, conformité ITS&nbsp;2024</li>
         <li><strong>Code parrain personnel</strong> à partager à vos clients PME, qui bénéficient d'une remise sur leur première année</li>
-        <li><strong>Commission</strong> sur chaque PME parrainée et abonnée (modalités à valider lors d'un échange)</li>
         <li>Support prioritaire en <strong>2 heures ouvrées</strong> par email et WhatsApp</li>
         <li>Une <strong>page dédiée</strong> sur <a href="${PUBLIC_URL()}" style="color:#10B981;">useapex.ci</a> où votre cabinet apparaît en référence</li>
       </ul>
@@ -349,7 +348,6 @@ cabinets des tâches répétitives à faible valeur ajoutée.
 Vos avantages, 100 % offerts pour les premiers cabinets partenaires :
   • Licence cabinet complète (dossiers illimités, révision SYSCOHADA, ITS 2024)
   • Code parrain personnel à partager à vos clients PME
-  • Commission sur chaque PME parrainée et abonnée
   • Support prioritaire 2 heures ouvrées (email + WhatsApp)
   • Page dédiée sur useapex.ci
 
