@@ -4,6 +4,7 @@ import { Award, ArrowRight, Check, Loader2 } from 'lucide-react';
 import api from '../utils/api.jsx';
 import toast from 'react-hot-toast';
 import { useAuth } from '../hooks/useAuth.jsx';
+import LogoApex from '../components/LogoApex.jsx';
 
 /**
  * Page /rejoindre/:token — atterrissage de l'invitation envoyée par un
@@ -90,13 +91,8 @@ export default function RejoindreCabinetPage() {
       color: '#FFF', padding: '40px 20px',
     }}>
       <div style={{ maxWidth: 760, margin: '0 auto' }}>
-        <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 12, textDecoration: 'none', color: '#FFF', marginBottom: 32 }}>
-          <svg width={36} height={36} viewBox="0 0 64 64">
-            <rect width="64" height="64" rx="10" fill="#000" />
-            <path d="M32 18 L40 32 L24 32 Z" fill="#8DE645" />
-            <path d="M32 28 L52 50 L43 50 L32 38 L21 50 L12 50 Z" fill="#FFF" />
-          </svg>
-          <span style={{ fontSize: 22, fontWeight: 900 }}>ApeX</span>
+        <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none', color: '#FFF', marginBottom: 32 }}>
+          <LogoApex height={44} textColor="#FFF" />
         </Link>
 
         {/* Bandeau invitation */}
