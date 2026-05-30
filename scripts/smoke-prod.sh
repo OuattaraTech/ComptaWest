@@ -9,8 +9,8 @@
 #
 # Tests effectués :
 #   1. DNS résout-il bien les hosts ?
-#   2. /api/health  → 200
-#   3. /api/health/deep → 200 (BDD accessible)
+#   2. /health  → 200
+#   3. /health/deep → 200 (BDD accessible)
 #   4. https://useapex.ci → 200 (landing)
 #   5. https://app.useapex.ci → 200 (SPA)
 #   6. Certificat TLS valide + chaîne complète (3 hosts)
@@ -46,27 +46,27 @@ for h in useapex.ci app.useapex.ci api.useapex.ci; do
   fi
 done
 
-# ---------- 2. /api/health ----------
+# ---------- 2. /health ----------
 log "Healthcheck API simple…"
-code=$(curl -s -o /tmp/apex_health -w "%{http_code}" "$API/api/health" || echo "000")
+code=$(curl -s -o /tmp/apex_health -w "%{http_code}" "$API/health" || echo "000")
 if [[ "$code" == "200" ]]; then
-  ok "$API/api/health → 200"
+  ok "$API/health → 200"
   head -c 200 /tmp/apex_health; echo
 else
-  ko "$API/api/health → $code"
+  ko "$API/health → $code"
 fi
 rm -f /tmp/apex_health
 
-# ---------- 3. /api/health/deep ----------
+# ---------- 3. /health/deep ----------
 log "Healthcheck API profond (BDD)…"
-code=$(curl -s -o /tmp/apex_deep -w "%{http_code}" "$API/api/health/deep" || echo "000")
+code=$(curl -s -o /tmp/apex_deep -w "%{http_code}" "$API/health/deep" || echo "000")
 if [[ "$code" == "200" ]]; then
-  ok "$API/api/health/deep → 200 (DB OK)"
+  ok "$API/health/deep → 200 (DB OK)"
 elif [[ "$code" == "503" ]]; then
-  ko "$API/api/health/deep → 503 (BDD inaccessible !)"
+  ko "$API/health/deep → 503 (BDD inaccessible !)"
   head -c 300 /tmp/apex_deep; echo
 else
-  ko "$API/api/health/deep → $code"
+  ko "$API/health/deep → $code"
 fi
 rm -f /tmp/apex_deep
 

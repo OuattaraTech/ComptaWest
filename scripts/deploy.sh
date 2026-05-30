@@ -40,7 +40,7 @@ VPS_HOST="${VPS_HOST:-apex@vps.useapex.ci}"
 VPS_PORT="${VPS_PORT:-22}"
 APEX_ROOT="${APEX_ROOT:-/opt/apex}"
 FRONT_DIST="${FRONT_DIST:-/var/www/apex-front}"
-HEALTHCHECK_URL="${HEALTHCHECK_URL:-https://api.useapex.ci/api/health}"
+HEALTHCHECK_URL="${HEALTHCHECK_URL:-https://api.useapex.ci/health}"
 
 PROJET_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJET_ROOT"
