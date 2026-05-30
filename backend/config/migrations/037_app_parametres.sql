@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS app_parametres (
   description   TEXT,
   modifiable_ui BOOLEAN NOT NULL DEFAULT TRUE,
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_by    INTEGER REFERENCES utilisateurs(id) ON DELETE SET NULL
+  updated_by    UUID REFERENCES utilisateurs(id) ON DELETE SET NULL
 );
 
 COMMENT ON TABLE app_parametres IS
