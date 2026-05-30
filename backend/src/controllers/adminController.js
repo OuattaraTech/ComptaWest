@@ -27,23 +27,38 @@ function genererCodeParrain() {
 // ─── GET /api/admin/stats — KPIs globaux ───────────────────────────────────
 async function getStats(req, res) {
   try {
-    // MRR : somme des prix_mensuel_fcfa des abonnements actifs (hors gratuits)
+    // MRR : somme des prix_mensuel_fcfa des abonnements actifs (hors gratuits).
+    // Exclut explicitement les entreprises et utilisateurs démo : leurs
+    // abonnements sont ouverts à 60 000 FCFA pour débloquer tous les
+    // modules dans la démo, mais ce n'est PAS du revenu réel.
     const mrr = await pool.query(`
-      SELECT COALESCE(SUM(prix_mensuel_fcfa), 0) AS total
-        FROM abonnements
-       WHERE statut = 'actif'
-         AND palier NOT IN ('decouverte', 'cabinet_partenaire')
+      SELECT COALESCE(SUM(a.prix_mensuel_fcfa), 0) AS total
+        FROM abonnements a
+        JOIN entreprises  e ON e.id = a.entreprise_id
+       WHERE a.statut = 'actif'
+         AND a.palier NOT IN ('decouverte', 'cabinet_partenaire')
+         AND COALESCE(e.is_demo, FALSE) = FALSE
     `);
 
+    // Compteurs : tous filtrés pour exclure le contenu démo, sauf les
+    // métriques qui ciblent explicitement la démo (users_demo_actifs).
     const compteurs = await pool.query(`
       SELECT
-        (SELECT COUNT(*) FROM entreprises WHERE type_compte = 'cabinet_partenaire') AS cabinets_partenaires,
-        (SELECT COUNT(*) FROM entreprises WHERE type_compte = 'pme' AND actif = TRUE) AS pme_actives,
-        (SELECT COUNT(*) FROM entreprises WHERE parrainee_par_cabinet_id IS NOT NULL) AS pme_parrainees,
+        (SELECT COUNT(*) FROM entreprises
+          WHERE type_compte = 'cabinet_partenaire'
+            AND COALESCE(is_demo, FALSE) = FALSE) AS cabinets_partenaires,
+        (SELECT COUNT(*) FROM entreprises
+          WHERE type_compte = 'pme' AND actif = TRUE
+            AND COALESCE(is_demo, FALSE) = FALSE) AS pme_actives,
+        (SELECT COUNT(*) FROM entreprises
+          WHERE parrainee_par_cabinet_id IS NOT NULL
+            AND COALESCE(is_demo, FALSE) = FALSE) AS pme_parrainees,
         (SELECT COUNT(*) FROM cabinet_invitations WHERE statut = 'pending') AS invitations_pending,
         (SELECT COUNT(*) FROM cabinet_invitations WHERE statut = 'accepted') AS invitations_acceptees,
         (SELECT COUNT(*) FROM cabinet_invitations) AS invitations_total,
-        (SELECT COUNT(*) FROM utilisateurs WHERE actif = TRUE) AS utilisateurs_actifs,
+        (SELECT COUNT(*) FROM utilisateurs
+          WHERE actif = TRUE
+            AND COALESCE(is_demo, FALSE) = FALSE) AS utilisateurs_actifs,
         (SELECT COUNT(*) FROM utilisateurs WHERE is_demo = TRUE AND actif = TRUE) AS users_demo_actifs
     `);
 
