@@ -131,7 +131,7 @@
     "hero_title_line1": "La gestion de votre PME",
     "hero_title_highlight": "mérite mieux",
     "hero_title_line2": "qu'un tableur.",
-    "hero_subtitle": "Facturation FNE, paie CNPS, comptabilité SYSCOHADA, encaissements Mobile Money. Tout ce que votre tableur ne sait pas faire, dans un seul outil.",
+    "hero_subtitle": "Facturation FNE, paie CNPS, comptabilité SYSCOHADA, encaissements Mobile Money et liasse fiscale DSF générée à la clôture. Tout ce que votre tableur ne sait pas faire, dans un seul outil.",
     "footer_syscohada": "Conforme SYSCOHADA",
     "footer_dgi": "Compatible CNPS et DGI",
     "footer_secure": "Données chiffrées, hébergées en Afrique",
@@ -245,6 +245,18 @@
           "Opérations diverses (OD) manuelles avec contrôle débit = crédit",
           "Clôture d'exercice guidée, à-nouveaux automatiques",
           "Exports TXT et Excel pour le contrôle DGI (article 17 OHADA)"
+        ]
+      },
+      "closing": {
+        "title": "Clôture & liasse DSF",
+        "desc": "Verrouillez l'exercice et générez la liasse fiscale DSF complète, prête à déposer à la DGI.",
+        "items": [
+          "Assistant de clôture guidé étape par étape avec contrôles de cohérence",
+          "Génération automatique de la Déclaration Statistique et Fiscale (DSF) SYSCOHADA",
+          "Annexes DSF pré-remplies (immobilisations, créances/dettes, effectifs, marges)",
+          "Bilan, compte de résultat et TAFIRE produits automatiquement à l'arrêté",
+          "Diagnostic des écarts avant clôture (équilibres, écritures non lettrées)",
+          "Export liasse DSF en PDF + Excel, archivage horodaté pour 10 ans"
         ]
       },
       "reports": {

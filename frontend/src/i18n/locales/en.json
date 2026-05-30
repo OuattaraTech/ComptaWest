@@ -131,7 +131,7 @@
     "hero_title_line1": "Running your SME",
     "hero_title_highlight": "deserves better",
     "hero_title_line2": "than a spreadsheet.",
-    "hero_subtitle": "FNE invoicing, CNPS payroll, SYSCOHADA accounting, Mobile Money collections. Everything your spreadsheet can't do, in one tool.",
+    "hero_subtitle": "FNE invoicing, CNPS payroll, SYSCOHADA accounting, Mobile Money collections and the DSF tax return generated at year-end. Everything your spreadsheet can't do, in one tool.",
     "footer_syscohada": "SYSCOHADA compliant",
     "footer_dgi": "CNPS and DGI ready",
     "footer_secure": "Encrypted data, hosted in Africa",
@@ -245,6 +245,18 @@
           "Manual journal entries (OD) with debit = credit enforcement",
           "Guided year-end close, automatic opening balances",
           "TXT and Excel exports for DGI audits (OHADA art. 17)"
+        ]
+      },
+      "closing": {
+        "title": "Year-end close & DSF tax return",
+        "desc": "Lock the fiscal year and generate the complete DSF tax return, ready to file with the DGI.",
+        "items": [
+          "Guided year-end closing assistant with built-in consistency checks",
+          "Automatic generation of the SYSCOHADA Statistical and Tax Return (DSF)",
+          "DSF annexes pre-filled (fixed assets, receivables/payables, headcount, margins)",
+          "Balance sheet, P&L and TAFIRE produced automatically at year-end",
+          "Pre-close diagnostics for imbalances and unmatched entries",
+          "DSF export in PDF + Excel, time-stamped 10-year archive"
         ]
       },
       "reports": {

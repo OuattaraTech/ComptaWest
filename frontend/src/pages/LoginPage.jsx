@@ -12,7 +12,7 @@ import {
   CheckCircle2, Zap, MessageCircle, Lock,
   UserPlus, Send, X, Target,
   Receipt, Briefcase, TrendingDown, Database,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, ClipboardCheck,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import LogoFournisseur from '../components/LogoFournisseur.jsx';
@@ -56,14 +56,15 @@ const getC = (dark) => dark ? {
 // Liste des icônes par clé i18n. Les titres et descriptions sont résolus
 // au rendu via t('login.features.<key>.title' / '.desc').
 const FEATURES = [
-  { icon: FileText,   key: 'billing'   },
-  { icon: Truck,      key: 'purchases' },
-  { icon: Box,        key: 'stock'     },
-  { icon: Wallet,     key: 'treasury'  },
-  { icon: UserCheck,  key: 'payroll'   },
-  { icon: Package,    key: 'assets'    },
-  { icon: BookMarked, key: 'accounting'},
-  { icon: BarChart3,  key: 'reports'   },
+  { icon: FileText,        key: 'billing'    },
+  { icon: Truck,           key: 'purchases'  },
+  { icon: Box,             key: 'stock'      },
+  { icon: Wallet,          key: 'treasury'   },
+  { icon: UserCheck,       key: 'payroll'    },
+  { icon: Package,         key: 'assets'     },
+  { icon: BookMarked,      key: 'accounting' },
+  { icon: ClipboardCheck,  key: 'closing'    },
+  { icon: BarChart3,       key: 'reports'    },
 ];
 
 const DIFFERENCIATEURS = [
