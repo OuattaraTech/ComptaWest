@@ -15,6 +15,7 @@ const pool = require('../../config/database');
 const { body } = require('express-validator');
 const { envoyerEmail } = require('../utils/email');
 const { bienvenueNewsletter } = require('../utils/emailTemplates');
+const { ajouterContact, desabonnerContact } = require('../utils/resendAudience');
 
 const subscribeRules = [
   body('email')
@@ -59,6 +60,10 @@ const subscribe = async (req, res) => {
 
     const { unsubscribe_token, is_new, ancien_statut } = r.rows[0];
     const dejaActif = !is_new && ancien_statut === 'actif';
+
+    // Miroir vers l'audience Resend (pour l'envoi des newsletters via
+    // Broadcasts). Fire-and-forget, ne bloque jamais la réponse.
+    ajouterContact({ email }).catch(() => {});
 
     // Email de bienvenue uniquement pour une nouvelle inscription ou une
     // réactivation — on n'inonde pas quelqu'un qui resoumet par mégarde.
@@ -127,6 +132,8 @@ const desabonner = async (req, res) => {
     if (r.rowCount === 0) {
       return res.send(page('Déjà désabonné·e', 'Vous ne recevez plus la lettre ApeX. Rien à faire de plus.'));
     }
+    // Reflète le désabonnement dans l'audience Resend (fire-and-forget).
+    desabonnerContact(r.rows[0].email).catch(() => {});
     return res.send(page('Désinscription confirmée', 'Vous ne recevrez plus la lettre ApeX. Vous pouvez vous réabonner à tout moment depuis le site.'));
   } catch (err) {
     console.error('[newsletter][desabonner]', err.message);
