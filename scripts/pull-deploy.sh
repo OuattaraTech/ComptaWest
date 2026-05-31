@@ -122,11 +122,20 @@ if [[ -z "${SKIP_FRONT:-}" ]]; then
   ok "Front déployé sur $FRONT_DIST."
 
   if [[ "$COPY_LANDING" == "1" ]]; then
-    log "Copie du build → $LANDING_DIST (sudo) …"
-    sudo mkdir -p "$LANDING_DIST"
-    sudo rm -rf "${LANDING_DIST:?}/"* 2>/dev/null || true
-    sudo cp -r frontend/dist/* "$LANDING_DIST/"
-    ok "Landing déployée sur $LANDING_DIST."
+    # Copie SANS sudo (apex doit posséder le dossier) et NON bloquante : une
+    # erreur ici ne doit jamais empêcher le reload pm2 du backend.
+    log "Copie du build → $LANDING_DIST …"
+    if mkdir -p "$LANDING_DIST" 2>/dev/null && [[ -w "$LANDING_DIST" ]]; then
+      rm -rf "${LANDING_DIST:?}/"* 2>/dev/null || true
+      if cp -r frontend/dist/* "$LANDING_DIST/"; then
+        ok "Landing déployée sur $LANDING_DIST."
+      else
+        warn "Copie vers $LANDING_DIST échouée — ignorée (le backend sera quand même rechargé)."
+      fi
+    else
+      warn "$LANDING_DIST non accessible en écriture — copie ignorée."
+      warn "À faire UNE fois sur le VPS :  sudo chown -R apex:apex $LANDING_DIST"
+    fi
   fi
 else
   warn "SKIP_FRONT=1 — frontend non rebuild."
