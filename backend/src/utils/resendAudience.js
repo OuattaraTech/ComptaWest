@@ -5,10 +5,15 @@
  * Resend → Broadcasts, avec gestion automatique du lien de désinscription.
  *
  * Variables d'env :
- *   RESEND_API_KEY       — clé API Resend (déjà utilisée pour l'envoi)
+ *   RESEND_AUDIENCE_API_KEY — clé Resend « Full access » pour gérer les
+ *                          contacts de l'audience. La clé d'envoi
+ *                          transactionnel (RESEND_API_KEY) est souvent
+ *                          restreinte à « send emails » et ne peut PAS
+ *                          gérer les audiences → on utilise une clé dédiée.
+ *                          À défaut, on retombe sur RESEND_API_KEY (qui doit
+ *                          alors être en Full access).
  *   RESEND_AUDIENCE_ID   — ID de l'audience « ApeX Newsletter »
- *                          (Resend → Audiences → la sélectionner → l'ID est
- *                           dans l'URL et en haut de la page)
+ *                          (Resend → Audience → bouton </> → audienceId)
  *
  * Toutes les fonctions sont « fire-and-forget » : elles ne throw JAMAIS et
  * sont des no-op si les clés ne sont pas configurées (dev, ou audience non
@@ -19,13 +24,19 @@
 
 const RESEND_BASE = 'https://api.resend.com';
 
+// Clé dédiée à la gestion d'audience (Full access), sinon repli sur la clé
+// d'envoi — qui doit alors elle-même avoir le Full access.
+function audienceKey() {
+  return process.env.RESEND_AUDIENCE_API_KEY || process.env.RESEND_API_KEY;
+}
+
 function actif() {
-  return Boolean(process.env.RESEND_API_KEY && process.env.RESEND_AUDIENCE_ID);
+  return Boolean(audienceKey() && process.env.RESEND_AUDIENCE_ID);
 }
 
 function headers() {
   return {
-    Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+    Authorization: `Bearer ${audienceKey()}`,
     'Content-Type': 'application/json',
   };
 }

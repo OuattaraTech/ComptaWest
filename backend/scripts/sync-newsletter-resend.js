@@ -16,8 +16,8 @@ const pool = require('../config/database');
 const { ajouterContact, desabonnerContact } = require('../src/utils/resendAudience');
 
 (async () => {
-  if (!process.env.RESEND_API_KEY || !process.env.RESEND_AUDIENCE_ID) {
-    console.error('❌ RESEND_API_KEY et RESEND_AUDIENCE_ID doivent être définis dans .env.');
+  if ((!process.env.RESEND_AUDIENCE_API_KEY && !process.env.RESEND_API_KEY) || !process.env.RESEND_AUDIENCE_ID) {
+    console.error('❌ RESEND_AUDIENCE_API_KEY (ou RESEND_API_KEY) et RESEND_AUDIENCE_ID doivent être définis dans .env.');
     process.exit(1);
   }
 
