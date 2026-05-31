@@ -345,8 +345,8 @@ function DocCard({ doc, active, C, dark, fontMono, fontDisplay }) {
 }
 
 // Body du mockup selon le type de document. Les libellés métier
-// (BILAN, BULLETIN, FEC…) sont en français standard OHADA — pas
-// d'i18n ici, ce sont les termes officiels reconnus par la DGI.
+// (BILAN, BULLETIN, GRAND-LIVRE…) sont en français standard OHADA —
+// pas d'i18n ici, ce sont les termes officiels reconnus par la DGI.
 function renderDocBody(kind, fontMono) {
   const mono = { fontFamily: fontMono, fontVariantNumeric: 'tabular-nums' };
   const row = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', fontSize: 9, color: '#0E1116' };
@@ -2091,8 +2091,7 @@ export default function LoginPage() {
   // Catalogue des 6 documents générés par ApeX (alignés sur le back :
   // rapportsController.buildFactureDoc / buildBilanDoc, paieController
   // bulletin, immobilisationsController plan d'amortissement,
-  // comptabiliteController.exportFEC qui produit en réalité un
-  // Grand-Livre OHADA — voir commentaire dans le controller).
+  // comptabiliteController.exportGrandLivreTxt pour le Grand-Livre OHADA).
   //
   // L'attribut `image` pointe vers un fichier optionnel posé dans
   // `frontend/public/documents/`. Si l'image existe, elle remplace le
@@ -2349,8 +2348,8 @@ export default function LoginPage() {
 
           {/* COLONNE DROITE — Dôme rotatif des documents générés par
               ApeX. 6 livrables (facture, devis, bulletin, bilan,
-              plan d'amortissement, FEC) défilent sur un arc 3D ; le
-              SKILL liste le Dome Gallery comme pattern recommandé. */}
+              plan d'amortissement, Grand-Livre) défilent sur un arc 3D ;
+              le SKILL liste le Dome Gallery comme pattern recommandé. */}
           <div className="cw-mockup-wrapper" style={{ position: 'relative' }}>
             <DocCarousel
               docs={APEX_DOCS}

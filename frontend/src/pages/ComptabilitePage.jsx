@@ -56,7 +56,7 @@ export default function ComptabilitePage() {
   const { can } = usePermissions();
   const C = getC(dark);
   // Permissions issues de la matrice : créer une OD demande ecritures.create,
-  // l'export FEC et la clôture demandent cloture.read/create (EC + admin).
+  // les exports comptables et la clôture demandent cloture.read/create (EC + admin).
   const peutEcrire = can('ecritures', 'create');
   const peutExporter = can('cloture', 'read');
 
@@ -78,7 +78,7 @@ export default function ComptabilitePage() {
   // l'état (« journal » ou « grand-livre »), `format` choisit txt ou
   // excel, `prettyName` sert au nom de fichier proposé au navigateur.
   const downloadExport = async (kind, format, prettyName) => {
-    const annee = prompt(t('comptabilite.fec_prompt'), String(new Date().getFullYear()));
+    const annee = prompt(t('comptabilite.export_prompt'), String(new Date().getFullYear()));
     if (!annee) return;
     setExportOpen(false);
     try {
@@ -95,7 +95,7 @@ export default function ComptabilitePage() {
       window.URL.revokeObjectURL(url);
       toast.success(t('comptabilite.export_done', { name: prettyName, year: annee }));
     } catch (err) {
-      toast.error(err.response?.data?.message || t('comptabilite.fec_error'));
+      toast.error(err.response?.data?.message || t('comptabilite.export_error'));
     }
   };
 

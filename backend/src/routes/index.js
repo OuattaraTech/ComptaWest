@@ -46,7 +46,7 @@ const { getAuditLog } = require('../controllers/auditController');
 const {
   getPlanComptable, getJournaux, getExercices,
   getEcritures, getEcritureById, getGrandLivre, getBalance,
-  createEcritureManuelle, exportFEC,
+  createEcritureManuelle,
   exportJournalTxt, exportJournalExcel,
   exportGrandLivreTxt, exportGrandLivreExcel,
   getClotureChecks, cloturerExercice,
@@ -412,8 +412,6 @@ router.get('/comptabilite/journal/txt',         auth, can(MODULES.CLOTURE, ACTIO
 router.get('/comptabilite/journal/excel',       auth, can(MODULES.CLOTURE, ACTIONS.READ), exportJournalExcel);
 router.get('/comptabilite/grand-livre/txt',     auth, can(MODULES.CLOTURE, ACTIONS.READ), exportGrandLivreTxt);
 router.get('/comptabilite/grand-livre/excel',   auth, can(MODULES.CLOTURE, ACTIONS.READ), exportGrandLivreExcel);
-// Alias historique préservé pour compat (= Journal général en TXT)
-router.get('/comptabilite/fec',                 auth, can(MODULES.CLOTURE, ACTIONS.READ), exportFEC);
 
 // ─── TRÉSORERIE ────────────────────────────────────────────────────────────
 router.get('/tresorerie/operateurs',              auth, can(MODULES.TRESORERIE, ACTIONS.READ),   getOperateurs);

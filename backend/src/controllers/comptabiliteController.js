@@ -708,11 +708,6 @@ const exportGrandLivreExcel = async (req, res) => {
   }
 };
 
-// Alias historique : /comptabilite/fec ramène désormais le Journal général
-// en TXT (= ancien comportement). Préservé pour ne pas casser les anciens
-// liens partagés ou intégrations tierces.
-const exportFEC = exportJournalTxt;
-
 // ─── CLÔTURE D'EXERCICE ────────────────────────────────────────────────────
 // GET /api/comptabilite/exercices/:id/pre-cloture
 // Renvoie la liste des contrôles préalables (ok / warning / error).
@@ -868,7 +863,6 @@ module.exports = {
   getPlanComptable, getJournaux, getExercices,
   getEcritures, getEcritureById,
   getGrandLivre, getBalance, createEcritureManuelle,
-  exportFEC,                                            // alias historique → Journal TXT
   exportJournalTxt, exportJournalExcel,
   exportGrandLivreTxt, exportGrandLivreExcel,
   getClotureChecks, cloturerExercice,
