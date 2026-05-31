@@ -1133,10 +1133,22 @@ function PricingSection({ t, C, dark, fontDisplay, fontUI, fontMono, onChoose })
   };
   const accentBright = '#43D9B4'; // émeraude plus lumineux pour le prix mis en avant
 
+  // Pro est mis en avant → placé au MILIEU (carte surélevée). Pro liste
+  // « tout Starter inclus » (ligne `included`) puis seulement ses extras.
   const PLANS = [
-    { code: 'decouverte', m: 0,     y: 0,      icon: Sparkles,  featured: false, feats: 'plan_demo' },
-    { code: 'starter',    m: 10000, y: 100000, icon: Zap,       featured: true,  feats: 'plan_pme'  },
-    { code: 'pro',        m: 25000, y: 240000, icon: Briefcase, featured: false, feats: 'plan_pro'  },
+    {
+      code: 'decouverte', m: 0, y: 0, icon: Sparkles, featured: false,
+      feats: [1, 2, 3, 4].map((i) => `pricing2_decouverte_feat${i}`),
+    },
+    {
+      code: 'pro', m: 25000, y: 240000, icon: Briefcase, featured: true,
+      included: 'pricing2_pro_included',
+      feats: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => `pricing2_pro_feat${i}`),
+    },
+    {
+      code: 'starter', m: 10000, y: 100000, icon: Zap, featured: false,
+      feats: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => `pricing2_starter_feat${i}`),
+    },
   ];
 
   const fmt = (n) => n.toLocaleString('fr-FR');
@@ -1208,10 +1220,10 @@ function PricingSection({ t, C, dark, fontDisplay, fontUI, fontMono, onChoose })
           display: 'grid', gridTemplateColumns: '1fr 1.08fr 1fr',
           gap: 18, alignItems: 'stretch', marginTop: 64,
         }}>
-          {PLANS.map(({ code, m, y, icon: Icon, featured, feats }) => {
+          {PLANS.map(({ code, m, y, icon: Icon, featured, feats, included }) => {
             const prixMois = annuel ? Math.round(y / 12) : m;
             const gratuit = m === 0;
-            const featLines = [1, 2, 3, 4, 5].map((i) => t(`login.${feats}_feat${i}`));
+            const featLines = feats.map((k) => t(`login.${k}`));
             return (
               <div key={code} className="cw-pricing2-card" style={{
                 position: 'relative',
@@ -1280,6 +1292,21 @@ function PricingSection({ t, C, dark, fontDisplay, fontUI, fontMono, onChoose })
 
                 {/* Checklist */}
                 <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 26px', display: 'flex', flexDirection: 'column', gap: 13, flex: 1 }}>
+                  {/* Ligne « tout le plan précédent inclus » (Pro) */}
+                  {included && (
+                    <li style={{ display: 'flex', alignItems: 'flex-start', gap: 11, marginBottom: 2 }}>
+                      <span style={{
+                        flexShrink: 0, width: 20, height: 20, borderRadius: '50%',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        background: C.accent, color: C.accentInk, marginTop: 1,
+                      }}>
+                        <CheckCircle2 size={13} strokeWidth={2.6} />
+                      </span>
+                      <span style={{ fontSize: 13.5, color: D.text, fontWeight: 700, lineHeight: 1.45 }}>
+                        {t(`login.${included}`)}
+                      </span>
+                    </li>
+                  )}
                   {featLines.map((line, i) => (
                     <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 11 }}>
                       <span style={{
