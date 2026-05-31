@@ -454,7 +454,19 @@
     "ft_res_login": "Sign in",
     "ft_company_contact": "Contact us",
     "ft_rights": "All rights reserved.",
-    "ft_made": "Built in Abidjan, for Côte d'Ivoire's SMEs."
+    "ft_made": "Built in Abidjan, for Côte d'Ivoire's SMEs.",
+    "auth2_section_title": "Access your ApeX workspace",
+    "auth2_signin_sub": "Sign in to your dashboard",
+    "auth2_signup_sub": "A few details and you're in",
+    "auth2_or_email": "or with your email",
+    "auth2_hello_title": "Hello 👋",
+    "auth2_hello_text": "No account yet? Create yours in under 2 minutes and try ApeX for free.",
+    "auth2_hello_cta": "Sign up",
+    "auth2_back_title": "Welcome back!",
+    "auth2_back_text": "Sign in to get back to your dashboard and your data.",
+    "auth2_back_cta": "Sign in",
+    "auth2_no_account": "No account yet? Sign up",
+    "auth2_have_account": "Already have an account? Sign in"
   },
   "imports": {
     "btn_import": "Import from Excel",

@@ -454,7 +454,19 @@
     "ft_res_login": "Connexion",
     "ft_company_contact": "Nous contacter",
     "ft_rights": "Tous droits réservés.",
-    "ft_made": "Conçu à Abidjan, pour les PME de Côte d'Ivoire."
+    "ft_made": "Conçu à Abidjan, pour les PME de Côte d'Ivoire.",
+    "auth2_section_title": "Accédez à votre espace ApeX",
+    "auth2_signin_sub": "Connectez-vous à votre tableau de bord",
+    "auth2_signup_sub": "Quelques infos et c'est parti",
+    "auth2_or_email": "ou avec votre email",
+    "auth2_hello_title": "Bonjour 👋",
+    "auth2_hello_text": "Pas encore de compte ? Créez le vôtre en moins de 2 minutes et testez ApeX gratuitement.",
+    "auth2_hello_cta": "Créer un compte",
+    "auth2_back_title": "Content de vous revoir !",
+    "auth2_back_text": "Connectez-vous pour retrouver votre tableau de bord et vos données.",
+    "auth2_back_cta": "Se connecter",
+    "auth2_no_account": "Pas encore de compte ? S'inscrire",
+    "auth2_have_account": "Déjà un compte ? Se connecter"
   },
   "imports": {
     "btn_import": "Importer Excel",

@@ -1116,6 +1116,208 @@ function HowVisual({ C, dark }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Carte d'authentification à double panneau coulissant (style
+// « sliding sign-in / sign-up » popularisé par Florin Pop), adaptée
+// à ApeX : panneau « blob » émeraude qui glisse, bascule Connexion ⇄
+// Inscription. Conserve toute la logique métier (démo, plan choisi,
+// inscription nom/entreprise, i18n, thème). Les classes .cw-auth2-*
+// portent l'animation (voir le bloc <style> en bas de page).
+// ─────────────────────────────────────────────────────────────
+function SlidingAuthCard({
+  mode, setMode, form, set, loading,
+  handleSubmit, handleDemoLogin, planChoisi, setPlanChoisi,
+  t, C, dark, fontDisplay, fontUI, fontMono,
+}) {
+  const isRegister = mode === 'register';
+
+  const panelBg = dark ? C.surface : '#FFFFFF';
+
+  // Champ épuré (placeholder uniquement, pas de label) façon vidéo.
+  const inputStyle = {
+    width: '100%', boxSizing: 'border-box',
+    background: C.input, border: `1px solid ${C.border}`,
+    borderRadius: 10, padding: '13px 15px',
+    color: C.text, fontSize: 14.5, outline: 'none',
+    fontFamily: 'inherit', transition: 'border-color 0.2s',
+  };
+  const onFocus = (e) => { e.target.style.borderColor = C.accent; };
+  const onBlur = (e) => { e.target.style.borderColor = C.border; };
+
+  const titleStyle = {
+    fontFamily: fontDisplay, fontSize: 'clamp(1.6rem, 2.6vw, 2rem)',
+    fontWeight: 800, color: C.text, margin: '0 0 6px 0',
+    letterSpacing: '-0.025em', lineHeight: 1.1,
+  };
+  const subStyle = { fontSize: 13.5, color: C.muted, margin: '0 0 18px 0', lineHeight: 1.5 };
+
+  // Bouton plein émeraude (CTA principal de chaque form).
+  const solidBtn = {
+    marginTop: 14, padding: '13px 30px', borderRadius: 100, border: 'none',
+    background: loading ? C.input : C.accent,
+    color: loading ? C.muted : C.accentInk,
+    fontFamily: fontUI, fontSize: 13.5, fontWeight: 800,
+    letterSpacing: '0.06em', textTransform: 'uppercase',
+    cursor: loading ? 'not-allowed' : 'pointer',
+    display: 'inline-flex', alignItems: 'center', gap: 8,
+    transition: 'transform 0.15s, box-shadow 0.15s',
+    boxShadow: loading ? 'none' : '0 8px 22px rgba(45,191,156,0.25)',
+  };
+
+  // Bouton fantôme (CTA du panneau overlay, sur fond émeraude).
+  const ghostBtn = {
+    marginTop: 22, padding: '12px 36px', borderRadius: 100,
+    border: '1.5px solid rgba(255,255,255,0.9)', background: 'transparent',
+    color: '#FFFFFF', fontFamily: fontUI, fontSize: 13, fontWeight: 800,
+    letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
+    transition: 'background 0.2s',
+  };
+  const ghostHover = {
+    onMouseEnter: (e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; },
+    onMouseLeave: (e) => { e.currentTarget.style.background = 'transparent'; },
+  };
+
+  const planBanner = isRegister && planChoisi && (
+    <div style={{
+      background: 'transparent', border: `1px solid ${C.accent}`, borderRadius: 11,
+      padding: '10px 13px', display: 'flex', alignItems: 'center', gap: 9,
+      width: '100%', boxSizing: 'border-box', marginBottom: 4,
+    }}>
+      <CheckCircle2 size={15} color={C.accent} strokeWidth={1.8} style={{ flexShrink: 0 }} />
+      <div style={{ flex: 1, fontSize: 12.5, color: C.text, lineHeight: 1.4 }}>
+        <span style={{ fontWeight: 800 }}>{t(`tarifs.palier_${planChoisi}`)}</span>
+      </div>
+      <button type="button" onClick={() => setPlanChoisi(null)} title={t('common.cancel')}
+        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: C.muted, padding: 2, display: 'flex' }}>
+        <X size={13} strokeWidth={1.8} />
+      </button>
+    </div>
+  );
+
+  // Lien de bascule affiché uniquement en mobile (l'overlay est masqué là).
+  const mobToggle = (toRegister) => (
+    <button type="button" className="cw-auth2-mobtoggle"
+      onClick={() => setMode(toRegister ? 'register' : 'login')}
+      style={{
+        background: 'none', border: 'none', cursor: 'pointer', marginTop: 14,
+        color: C.accent, fontFamily: fontUI, fontSize: 13.5, fontWeight: 700,
+      }}>
+      {toRegister ? t('login.auth2_no_account') : t('login.auth2_have_account')}
+    </button>
+  );
+
+  return (
+    <div className={`cw-auth2${isRegister ? ' cw-auth2--register' : ''}`}
+      style={{ background: panelBg, '--cw-auth2-panel': panelBg }}>
+
+      {/* ── Formulaire CONNEXION ─────────────────────────────── */}
+      <div className="cw-auth2-form cw-auth2-form--signin">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', textAlign: 'center' }}>
+          <h2 style={titleStyle}>{t('login.title_login')}</h2>
+          <p style={subStyle}>{t('login.auth2_signin_sub')}</p>
+
+          {/* Accès rapide démo (remplace la rangée "réseaux sociaux") */}
+          <button type="button" onClick={handleDemoLogin} disabled={loading}
+            style={{
+              width: '100%', boxSizing: 'border-box', marginBottom: 16,
+              padding: '11px 0', borderRadius: 10, border: `1px solid ${C.accent}`,
+              background: 'transparent', color: C.accent,
+              fontFamily: fontUI, fontSize: 13.5, fontWeight: 700,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              transition: 'background 0.15s, color 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = C.accent; e.currentTarget.style.color = C.accentInk; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.accent; }}>
+            <Target size={15} strokeWidth={1.9} />
+            {loading ? t('login.demo_connecting') : t('login.demo_button')}
+          </button>
+
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 14, fontFamily: fontUI }}>
+            {t('login.auth2_or_email')}
+          </div>
+
+          <input type="email" required value={form.email} onChange={set('email')}
+            placeholder={t('login.email')} style={{ ...inputStyle, marginBottom: 12 }}
+            onFocus={onFocus} onBlur={onBlur} />
+          <input type="password" required value={form.mot_de_passe} onChange={set('mot_de_passe')}
+            placeholder={t('login.password')} style={inputStyle}
+            onFocus={onFocus} onBlur={onBlur} />
+
+          <button type="submit" disabled={loading} style={solidBtn}
+            onMouseEnter={(e) => { if (!loading) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}>
+            {loading ? t('login.submitting') : t('login.submit')}
+          </button>
+
+          {mobToggle(true)}
+        </form>
+      </div>
+
+      {/* ── Formulaire INSCRIPTION ───────────────────────────── */}
+      <div className="cw-auth2-form cw-auth2-form--signup">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', textAlign: 'center' }}>
+          <h2 style={titleStyle}>{t('login.title_register')}</h2>
+          <p style={subStyle}>{t('login.auth2_signup_sub')}</p>
+
+          {planBanner}
+
+          <input required value={form.nom} onChange={set('nom')}
+            placeholder={t('login.name')} style={{ ...inputStyle, marginBottom: 12, marginTop: planBanner ? 8 : 0 }}
+            onFocus={onFocus} onBlur={onBlur} />
+          <input value={form.entreprise} onChange={set('entreprise')}
+            placeholder={t('login.company_name')} style={{ ...inputStyle, marginBottom: 12 }}
+            onFocus={onFocus} onBlur={onBlur} />
+          <input type="email" required value={form.email} onChange={set('email')}
+            placeholder={t('login.email')} style={{ ...inputStyle, marginBottom: 12 }}
+            onFocus={onFocus} onBlur={onBlur} />
+          <input type="password" required value={form.mot_de_passe} onChange={set('mot_de_passe')}
+            placeholder={t('login.password')} style={inputStyle}
+            onFocus={onFocus} onBlur={onBlur} />
+
+          <button type="submit" disabled={loading} style={solidBtn}
+            onMouseEnter={(e) => { if (!loading) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}>
+            {loading ? t('login.submitting') : t('login.register_submit')}
+          </button>
+
+          {mobToggle(false)}
+        </form>
+      </div>
+
+      {/* ── Overlay « blob » émeraude coulissant ─────────────── */}
+      <div className="cw-auth2-overlayWrap">
+        <div className="cw-auth2-overlay">
+          {/* Panneau gauche — visible en mode INSCRIPTION */}
+          <div className="cw-auth2-panel cw-auth2-panel--left">
+            <h2 style={{ fontFamily: fontDisplay, fontSize: 'clamp(1.7rem,3vw,2.3rem)', fontWeight: 800, color: '#fff', margin: '0 0 12px', letterSpacing: '-0.02em' }}>
+              {t('login.auth2_back_title')}
+            </h2>
+            <p style={{ fontSize: 14.5, color: 'rgba(255,255,255,0.92)', lineHeight: 1.6, margin: 0, maxWidth: '30ch' }}>
+              {t('login.auth2_back_text')}
+            </p>
+            <button type="button" onClick={() => setMode('login')} style={ghostBtn} {...ghostHover}>
+              {t('login.auth2_back_cta')}
+            </button>
+          </div>
+          {/* Panneau droit — visible en mode CONNEXION */}
+          <div className="cw-auth2-panel cw-auth2-panel--right">
+            <h2 style={{ fontFamily: fontDisplay, fontSize: 'clamp(1.7rem,3vw,2.3rem)', fontWeight: 800, color: '#fff', margin: '0 0 12px', letterSpacing: '-0.02em' }}>
+              {t('login.auth2_hello_title')}
+            </h2>
+            <p style={{ fontSize: 14.5, color: 'rgba(255,255,255,0.92)', lineHeight: 1.6, margin: 0, maxWidth: '30ch' }}>
+              {t('login.auth2_hello_text')}
+            </p>
+            <button type="button" onClick={() => setMode('register')} style={ghostBtn} {...ghostHover}>
+              {t('login.auth2_hello_cta')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Pied de page du site — bande TOUJOURS sombre (façon CinetPay) :
 // bandeau newsletter, colonnes de liens, barre bas avec réseaux
 // sociaux. La newsletter est pour l'instant une capture côté client
@@ -2864,19 +3066,16 @@ export default function LoginPage() {
           unique (la seule justifiée par la hiérarchie d'élévation)
           ───────────────────────────────────────────────────────────── */}
       <section id="cw-auth-form" className="cw-section" style={{
-        padding: '128px clamp(28px, 6vw, 96px)',
+        padding: '120px clamp(20px, 5vw, 96px)',
         background: C.bg,
       }}>
-        <div style={{
-          maxWidth: 1180, margin: '0 auto',
-          display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 0.85fr)',
-          gap: 'clamp(40px, 6vw, 96px)', alignItems: 'center',
-        }} className="cw-auth-wrap">
-          <div className="cw-auth-side">
+        <div style={{ maxWidth: 920, margin: '0 auto' }}>
+          {/* En-tête centré au-dessus de la carte coulissante */}
+          <div style={{ textAlign: 'center', marginBottom: 40 }}>
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
               fontSize: 12.5, fontWeight: 700, color: C.accent,
-              letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 18,
+              letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 14,
               fontFamily: fontUI,
             }}>
               <Zap size={14} strokeWidth={1.8} />
@@ -2884,196 +3083,31 @@ export default function LoginPage() {
             </div>
             <h2 style={{
               fontFamily: fontDisplay,
-              fontSize: 'clamp(2rem, 3.6vw, 3rem)',
+              fontSize: 'clamp(1.9rem, 3.4vw, 2.8rem)',
               fontWeight: 700, letterSpacing: '-0.03em',
-              color: C.text, margin: '0 0 20px 0',
-              lineHeight: 1.05, maxWidth: '14ch',
+              color: C.text, margin: 0, lineHeight: 1.05,
             }}>
-              {t('login.demo_title')}
+              {t('login.auth2_section_title')}
             </h2>
-            <p style={{
-              fontSize: 16, color: C.sub, lineHeight: 1.6,
-              margin: '0 0 28px 0', maxWidth: '44ch',
-            }}>
-              {t('login.demo_description')}
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
-              {[
-                t('login.register_advantages_1'),
-                t('login.register_advantages_2'),
-                t('login.register_advantages_3'),
-                t('login.footer_secure'),
-                t('login.footer_syscohada'),
-                t('login.footer_dgi'),
-              ].map((line, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                  <span style={{
-                    fontFamily: fontMono, fontSize: 12.5,
-                    color: C.accent, fontWeight: 600,
-                    width: 26, flexShrink: 0,
-                  }}>
-                    /{String(i + 1).padStart(2, '0')}
-                  </span>
-                  <span style={{ fontSize: 15, color: C.sub, lineHeight: 1.55 }}>{line}</span>
-                </div>
-              ))}
-            </div>
           </div>
 
-          {/* Carte formulaire — la seule carte avec ombre, car la
-              hiérarchie d'élévation est ici fonctionnelle. */}
+          <SlidingAuthCard
+            mode={mode} setMode={setMode} form={form} set={set} loading={loading}
+            handleSubmit={handleSubmit} handleDemoLogin={handleDemoLogin}
+            planChoisi={planChoisi} setPlanChoisi={setPlanChoisi}
+            t={t} C={C} dark={dark}
+            fontDisplay={fontDisplay} fontUI={fontUI} fontMono={fontMono}
+          />
+
+          {/* Liens légaux discrets sous la carte */}
           <div style={{
-            background: dark ? C.surface : '#FFFFFF',
-            border: `1px solid ${C.border}`,
-            borderRadius: 18,
-            padding: '36px 32px',
-            boxShadow: dark
-              ? '0 20px 50px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04)'
-              : '0 16px 40px -8px rgba(14,17,22,0.10), inset 0 1px 0 rgba(255,255,255,0.7)',
+            marginTop: 28, display: 'flex', gap: 20, alignItems: 'center',
+            justifyContent: 'center', flexWrap: 'wrap',
+            fontSize: 12.5, color: C.muted, fontFamily: fontUI,
           }}>
-            <div style={{ marginBottom: 24 }}>
-              <div style={{
-                fontFamily: fontMono, fontSize: 12, fontWeight: 500,
-                color: C.muted, letterSpacing: '0.1em',
-                textTransform: 'uppercase', marginBottom: 8,
-              }}>
-                / {mode === 'login' ? t('login.welcome_back') : t('login.welcome')}
-              </div>
-              <div style={{
-                fontFamily: fontDisplay,
-                fontSize: 28, fontWeight: 700, color: C.text,
-                letterSpacing: '-0.025em', lineHeight: 1.1,
-              }}>
-                {mode === 'login' ? t('login.title_login') : t('login.title_register')}
-              </div>
-              <div style={{ fontSize: 14.5, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
-                {mode === 'login' ? t('login.subtitle_login') : t('login.subtitle_register')}
-              </div>
-            </div>
-
-            <div style={{
-              display: 'flex', background: C.input,
-              borderRadius: 10, padding: 4, marginBottom: 22,
-            }}>
-              {['login', 'register'].map(m => (
-                <button key={m} onClick={() => setMode(m)} style={{
-                  flex: 1, padding: '11px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
-                  fontFamily: fontUI, fontSize: 14, fontWeight: 600,
-                  transition: 'background 0.2s, color 0.2s',
-                  background: mode === m ? (dark ? C.card : '#FFFFFF') : 'transparent',
-                  color: mode === m ? C.text : C.muted,
-                  boxShadow: mode === m ? `inset 0 0 0 1px ${C.border}` : 'none',
-                }}>
-                  {m === 'login' ? t('login.tab_login') : t('login.tab_register')}
-                </button>
-              ))}
-            </div>
-
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {mode === 'register' && planChoisi && (
-                <div style={{
-                  background: 'transparent',
-                  border: `1px solid ${C.accent}`, borderRadius: 11,
-                  padding: '13px 15px', display: 'flex', alignItems: 'center', gap: 10,
-                }}>
-                  <CheckCircle2 size={17} color={C.accent} strokeWidth={1.8} style={{ flexShrink: 0 }} />
-                  <div style={{ flex: 1, fontSize: 13.5, color: C.text, lineHeight: 1.5 }}>
-                    <span style={{ fontWeight: 800 }}>{t(`tarifs.palier_${planChoisi}`)}</span>
-                    {' — '}
-                    <span style={{ color: C.muted }}>{t(`tarifs.palier_${planChoisi}_tagline`)}</span>
-                  </div>
-                  <button type="button" onClick={() => setPlanChoisi(null)}
-                    title={t('common.cancel')}
-                    style={{
-                      background: 'transparent', border: 'none', cursor: 'pointer',
-                      color: C.muted, padding: 4, display: 'flex',
-                    }}>
-                    <X size={14} strokeWidth={1.8} />
-                  </button>
-                </div>
-              )}
-
-              {mode === 'register' && (
-                <>
-                  <Input label={t('login.name')} value={form.nom} onChange={set('nom')} placeholder="Ouattara Koffi" required C={C} />
-                  <Input label={t('login.company_name')} value={form.entreprise} onChange={set('entreprise')} placeholder="SARL MonEntreprise" C={C} />
-                </>
-              )}
-              <Input label={t('login.email')} type="email" value={form.email} onChange={set('email')} placeholder="vous@exemple.ci" required C={C} />
-              <Input label={t('login.password')} type="password" value={form.mot_de_passe} onChange={set('mot_de_passe')} placeholder="••••••••" required C={C} />
-
-              <button type="submit" disabled={loading} style={{
-                marginTop: 10, padding: '14px 0', borderRadius: 12, border: 'none',
-                background: loading ? C.input : C.text,
-                color: loading ? C.muted : C.bg,
-                fontFamily: fontUI, fontSize: 15, fontWeight: 700, letterSpacing: '-0.005em',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                transition: 'transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              }}
-                onMouseEnter={e => { if (!loading) e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
-                onMouseDown={e => { if (!loading) e.currentTarget.style.transform = 'translateY(1px) scale(0.99)'; }}
-                onMouseUp={e => { if (!loading) e.currentTarget.style.transform = 'translateY(-1px)'; }}>
-                {loading ? t('login.submitting') : (
-                  <>
-                    {mode === 'login' ? t('login.submit') : t('login.register_submit')}
-                    <ArrowRight size={15} strokeWidth={2} />
-                  </>
-                )}
-              </button>
-            </form>
-
-            {mode === 'login' && (
-              <div style={{
-                marginTop: 22, padding: '16px 18px',
-                background: C.input, borderRadius: 12,
-                border: `1px solid ${C.border}`,
-              }}>
-                <div style={{
-                  fontFamily: fontMono, fontSize: 11.5, color: C.muted,
-                  marginBottom: 8, fontWeight: 500,
-                  textTransform: 'uppercase', letterSpacing: '0.1em',
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                }}>
-                  <Target size={12} strokeWidth={1.8} color={C.accent} /> {t('login.demo_title')}
-                </div>
-                <div style={{ fontSize: 13.5, color: C.sub, marginBottom: 14, lineHeight: 1.5 }}>
-                  {t('login.demo_features')}
-                </div>
-                <button onClick={handleDemoLogin} disabled={loading} style={{
-                  width: '100%', padding: '12px 0', borderRadius: 10,
-                  border: `1px solid ${C.accent}`,
-                  background: 'transparent',
-                  color: C.accent, fontFamily: fontUI, fontSize: 14, fontWeight: 700,
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  transition: 'background 0.15s, color 0.15s',
-                }}
-                  onMouseEnter={e => { e.currentTarget.style.background = C.accent; e.currentTarget.style.color = C.accentInk; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.accent; }}
-                >
-                  {loading ? t('login.demo_connecting') : t('login.demo_button')}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Pied de page minimal */}
-        <div style={{
-          maxWidth: 1180, margin: '88px auto 0',
-          paddingTop: 32, borderTop: `1px solid ${C.border}`,
-          display: 'flex', gap: 24, alignItems: 'center',
-          fontSize: 12.5, color: C.muted, fontFamily: fontUI,
-          flexWrap: 'wrap', justifyContent: 'space-between',
-        }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <Lock size={13} strokeWidth={1.8} />
-            {t('login.footer_secure')}
-          </div>
-          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span>{t('login.footer_syscohada')}</span>
-            <span>{t('login.footer_dgi')}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+              <Lock size={13} strokeWidth={1.8} /> {t('login.footer_secure')}
+            </span>
             <a href="/cgu" style={{ color: C.muted, textDecoration: 'none', borderBottom: `1px dotted ${C.border}` }}
                onMouseEnter={e => e.currentTarget.style.color = C.accent}
                onMouseLeave={e => e.currentTarget.style.color = C.muted}>
@@ -3192,6 +3226,68 @@ export default function LoginPage() {
            la barre de navigation fixe. */
         #parcours, #atouts, #equipe, #modules, #cw-auth-form {
           scroll-margin-top: 100px;
+        }
+
+        /* ── Carte d'auth coulissante (double panneau « blob ») ───────── */
+        .cw-auth2 {
+          position: relative; width: 100%; max-width: 820px; min-height: 600px;
+          margin: 0 auto; border-radius: 24px; overflow: hidden;
+          border: 1px solid ${C.border};
+          box-shadow: ${dark ? '0 30px 70px rgba(0,0,0,0.5)' : '0 30px 70px -22px rgba(14,17,22,0.25)'};
+        }
+        .cw-auth2-form {
+          position: absolute; top: 0; height: 100%; width: 50%;
+          display: flex; align-items: center; justify-content: center;
+          padding: 0 clamp(22px, 4vw, 52px); box-sizing: border-box;
+          background: var(--cw-auth2-panel);
+          overflow-y: auto;
+          transition: transform .6s ease-in-out, opacity .6s ease-in-out;
+        }
+        .cw-auth2-form--signin { left: 0; z-index: 2; }
+        .cw-auth2-form--signup { left: 0; opacity: 0; z-index: 1; }
+        .cw-auth2--register .cw-auth2-form--signin { transform: translateX(100%); opacity: 0; z-index: 1; }
+        .cw-auth2--register .cw-auth2-form--signup { transform: translateX(100%); opacity: 1; z-index: 5; animation: cw-auth2-show .6s; }
+        @keyframes cw-auth2-show { 0%, 49.99% { opacity: 0; z-index: 1; } 50%, 100% { opacity: 1; z-index: 5; } }
+
+        .cw-auth2-overlayWrap {
+          position: absolute; top: 0; left: 50%; width: 50%; height: 100%;
+          overflow: hidden; z-index: 100;
+          border-radius: 160px 0 0 160px;
+          transition: transform .6s ease-in-out, border-radius .6s ease-in-out;
+        }
+        .cw-auth2--register .cw-auth2-overlayWrap { transform: translateX(-100%); border-radius: 0 160px 160px 0; }
+        .cw-auth2-overlay {
+          position: relative; left: -100%; width: 200%; height: 100%;
+          transform: translateX(0); transition: transform .6s ease-in-out;
+          background: linear-gradient(135deg, #2DBF9C 0%, #0F8A6E 55%, #0A5E4B 100%);
+          color: #fff;
+        }
+        .cw-auth2--register .cw-auth2-overlay { transform: translateX(50%); }
+        .cw-auth2-panel {
+          position: absolute; top: 0; height: 100%; width: 50%;
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          text-align: center; padding: 0 clamp(24px, 3vw, 46px); box-sizing: border-box;
+          transition: transform .6s ease-in-out;
+        }
+        .cw-auth2-panel--left  { left: 0;  transform: translateX(-18%); }
+        .cw-auth2--register .cw-auth2-panel--left { transform: translateX(0); }
+        .cw-auth2-panel--right { right: 0; transform: translateX(0); }
+        .cw-auth2--register .cw-auth2-panel--right { transform: translateX(18%); }
+        .cw-auth2-mobtoggle { display: none; }
+
+        /* Mobile : pas de glissement, on empile et n'affiche que le form actif */
+        @media (max-width: 768px) {
+          .cw-auth2 { min-height: 0; max-width: 460px; }
+          .cw-auth2-overlayWrap { display: none; }
+          .cw-auth2-form {
+            position: relative; width: 100%; height: auto;
+            transform: none !important; opacity: 1 !important;
+            padding: 40px clamp(22px, 6vw, 38px);
+          }
+          .cw-auth2-form--signup { display: none; }
+          .cw-auth2--register .cw-auth2-form--signin { display: none; }
+          .cw-auth2--register .cw-auth2-form--signup { display: block; animation: none; }
+          .cw-auth2-mobtoggle { display: inline-block; }
         }
 
         @media (max-width: 1280px) {
