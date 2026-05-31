@@ -437,4 +437,63 @@ ${PUBLIC_URL()}
   return { subject, html, text };
 }
 
-module.exports = { invitationPme, relanceInvitationPme, activationCabinet, invitationDirecteCabinet, confirmationPaiement };
+// ─── Bienvenue newsletter ─────────────────────────────────────────────────
+function bienvenueNewsletter({ lien_desabo }) {
+  const subject = `[ApeX] Bienvenue dans la lettre des PME ivoiriennes`;
+  const preheader = `Merci de vous être abonné·e — nos conseils de gestion arrivent bientôt.`;
+
+  const footerNote = lien_desabo
+    ? `Vous recevez cet email car vous vous êtes abonné·e à la lettre ApeX. <a href="${lien_desabo}">Se désabonner</a>.`
+    : `Vous recevez cet email car vous vous êtes abonné·e à la lettre ApeX.`;
+
+  const html = wrap(preheader, 'Bienvenue 👋', `Vous êtes bien abonné·e à la lettre ApeX`, `
+    <p>Bonjour,</p>
+
+    <p>Merci de votre confiance. Une fois par mois maximum, nous partagerons
+    avec vous des <strong>conseils concrets de gestion</strong> pour les PME
+    ivoiriennes (facturation, TVA, paie CNPS, SYSCOHADA) et les
+    <strong>nouveautés produit</strong> d'ApeX.</p>
+
+    <div class="benefits">
+      <strong>Au programme :</strong>
+      <ul>
+        <li>Astuces comptables adaptées au terrain ivoirien 🇨🇮</li>
+        <li>Échéances fiscales DGI à ne pas manquer</li>
+        <li>Nouveautés Mobile Money, OCR et certification FNE</li>
+      </ul>
+    </div>
+
+    <p>En attendant, vous pouvez tester ApeX gratuitement, sans carte bancaire :</p>
+
+    <div class="button-wrap">
+      <a href="${APP_URL()}/login" class="button">Découvrir ApeX</a>
+    </div>
+
+    <div class="signature">
+      L'équipe ApeX<br>
+      <span class="small">Support&nbsp;: <a href="mailto:${SUPPORT_EMAIL()}" style="color:#10B981;">${SUPPORT_EMAIL()}</a></span>
+    </div>
+  `, footerNote);
+
+  const text = `Bonjour,
+
+Merci de votre confiance. Une fois par mois maximum, nous partagerons des
+conseils concrets de gestion pour les PME ivoiriennes (facturation, TVA, paie
+CNPS, SYSCOHADA) et les nouveautés produit d'ApeX.
+
+Au programme :
+  • Astuces comptables adaptées au terrain ivoirien
+  • Échéances fiscales DGI à ne pas manquer
+  • Nouveautés Mobile Money, OCR et certification FNE
+
+Tester ApeX gratuitement : ${APP_URL()}/login
+
+— L'équipe ApeX
+Support : ${SUPPORT_EMAIL()}
+${PUBLIC_URL()}
+${lien_desabo ? `\nSe désabonner : ${lien_desabo}` : ''}
+`;
+  return { subject, html, text };
+}
+
+module.exports = { invitationPme, relanceInvitationPme, activationCabinet, invitationDirecteCabinet, confirmationPaiement, bienvenueNewsletter };

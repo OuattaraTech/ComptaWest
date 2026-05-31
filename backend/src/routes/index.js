@@ -11,6 +11,7 @@ const { idempotent } = require('../middleware/idempotency');
 const { getAbonnement, putAbonnement } = require('../controllers/abonnementController');
 const { creerCheckout, statutCheckout, mockSuccess } = require('../controllers/checkoutController');
 const { webhookCinetPay } = require('../controllers/webhooksController');
+const { subscribe: newsletterSubscribe, subscribeRules: newsletterRules, desabonner: newsletterDesabonner } = require('../controllers/newsletterController');
 
 // Raccourci : can('factures', 'create') === requirePermission('factures', 'create')
 // La matrice complète vit dans utils/permissions.js.
@@ -122,6 +123,22 @@ const demoLimiter = rateLimit({
   skip: () => process.env.NODE_ENV === 'test',
   message: { success: false, message: 'Trop de connexions au compte démo. Réessayez dans quelques minutes.' },
 });
+
+// Limiteur newsletter : route publique non authentifiée. Tolérant (le
+// formulaire peut être resoumis), mais borné pour éviter le flood d'emails.
+const newsletterLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
+  message: { success: false, message: 'Trop de tentatives. Réessayez dans quelques minutes.' },
+});
+
+// ─── NEWSLETTER (migration 040) ─────────────────────────────────────────────
+// Inscription publique depuis le pied de page + désinscription en un clic.
+router.post('/newsletter', newsletterLimiter, newsletterRules, validate, newsletterSubscribe);
+router.get('/newsletter/desabonnement/:token', newsletterDesabonner);
 
 // ─── AUTH ──────────────────────────────────────────────────────────────────
 router.post('/auth/register', authLimiter, registerRules, validate, register);

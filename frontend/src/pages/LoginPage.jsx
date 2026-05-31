@@ -13,6 +13,7 @@ import {
   UserPlus, Send, X, Target,
   Receipt, Briefcase, TrendingDown, Database,
   ChevronLeft, ChevronRight, ClipboardCheck,
+  Facebook, Linkedin, Mail, Globe,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import LogoFournisseur from '../components/LogoFournisseur.jsx';
@@ -1019,6 +1020,332 @@ function DiffShowcase({ kind, C, dark, fontMono, fontUI }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Visuel d'un différenciateur. Affiche l'image générée par IA
+// (style « photo lifestyle + cartes UI flottantes ») depuis
+// /diff/<kind>.png. Tant que l'image n'est pas déposée (ou si
+// elle échoue à charger), on retombe sur l'ancien mockup vectoriel
+// DiffShowcase — la landing ne casse jamais.
+// ─────────────────────────────────────────────────────────────
+const DIFF_IMAGE = {
+  mobile_money: '/diff/mobile_money.png',
+  ocr:          '/diff/ocr.png',
+  fne:          '/diff/fne.png',
+};
+
+function DiffVisual({ kind, C, dark, fontMono, fontUI }) {
+  const [failed, setFailed] = useState(false);
+  const src = DIFF_IMAGE[kind];
+
+  if (failed || !src) {
+    return <DiffShowcase kind={kind} C={C} dark={dark} fontMono={fontMono} fontUI={fontUI} />;
+  }
+
+  return (
+    <div style={{
+      position: 'relative',
+      borderRadius: 20,
+      overflow: 'hidden',
+      border: `1px solid ${C.borderStrong}`,
+      background: dark ? '#0B0D11' : '#FFFFFF',
+      boxShadow: dark
+        ? '0 24px 60px rgba(0,0,0,0.45)'
+        : '0 20px 50px rgba(14,17,22,0.10)',
+      aspectRatio: '4 / 3',
+    }}>
+      <img
+        src={src}
+        alt=""
+        loading="lazy"
+        onError={() => setFailed(true)}
+        style={{
+          width: '100%', height: '100%',
+          objectFit: 'cover', display: 'block',
+        }}
+      />
+      {/* Liseré intérieur discret pour ancrer l'image dans la charte */}
+      <div aria-hidden style={{
+        position: 'absolute', inset: 0, borderRadius: 20,
+        boxShadow: dark
+          ? 'inset 0 1px 0 rgba(255,255,255,0.05)'
+          : 'inset 0 1px 0 rgba(255,255,255,0.7)',
+        pointerEvents: 'none',
+      }} />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Visuel de la section « Comment ça marche ». Image générée par IA
+// (photo lifestyle + cartes UI flottantes) chargée depuis
+// /diff/onboarding.png. Si le fichier n'est pas déposé (ou échoue),
+// le composant ne rend RIEN : la colonne reste telle qu'aujourd'hui.
+// ─────────────────────────────────────────────────────────────
+function HowVisual({ C, dark }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+
+  return (
+    <div style={{
+      position: 'relative',
+      marginTop: 36,
+      borderRadius: 20,
+      overflow: 'hidden',
+      border: `1px solid ${C.borderStrong}`,
+      background: dark ? '#0B0D11' : '#FFFFFF',
+      boxShadow: dark
+        ? '0 24px 60px rgba(0,0,0,0.45)'
+        : '0 20px 50px rgba(14,17,22,0.10)',
+      aspectRatio: '4 / 3',
+    }}>
+      <img
+        src="/diff/onboarding.png"
+        alt=""
+        loading="lazy"
+        onError={() => setFailed(true)}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+      />
+      <div aria-hidden style={{
+        position: 'absolute', inset: 0, borderRadius: 20,
+        boxShadow: dark
+          ? 'inset 0 1px 0 rgba(255,255,255,0.05)'
+          : 'inset 0 1px 0 rgba(255,255,255,0.7)',
+        pointerEvents: 'none',
+      }} />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Pied de page du site — bande TOUJOURS sombre (façon CinetPay) :
+// bandeau newsletter, colonnes de liens, barre bas avec réseaux
+// sociaux. La newsletter est pour l'instant une capture côté client
+// (état « merci » optimiste) — à brancher à une audience Resend /
+// un endpoint /api/newsletter pour réellement collecter les emails.
+// ─────────────────────────────────────────────────────────────
+function SiteFooter({ C, dark, t, lang, navigate, fontDisplay, fontMono, fontUI, onDemo }) {
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState('idle'); // idle | loading | done | error
+  const [doneMsg, setDoneMsg] = useState('');
+  const sent = status === 'done';
+
+  // Tokens sombres explicites — le footer ne suit pas le thème.
+  const D = {
+    bg: '#0B0D11', panel: '#11161D',
+    border: 'rgba(255,255,255,0.08)',
+    text: '#E8EAE3', sub: '#A9B1BC', muted: '#7A8492',
+  };
+
+  const annee = new Date().getFullYear();
+
+  const submitNewsletter = async (e) => {
+    e.preventDefault();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
+    setStatus('loading');
+    try {
+      const { data } = await api.post('/newsletter', {
+        email,
+        langue: (lang || 'fr').slice(0, 2) === 'en' ? 'en' : 'fr',
+      });
+      setDoneMsg(data?.message || t('login.ft_newsletter_ok'));
+      setStatus('done');
+    } catch (err) {
+      setDoneMsg(err?.response?.data?.message || t('login.ft_newsletter_err'));
+      setStatus('error');
+    }
+  };
+
+  // Lien de footer : <a> réel (SEO) + navigation SPA si route interne.
+  const FootLink = ({ children, href, onClick }) => (
+    <a
+      href={href || '#'}
+      onClick={(e) => {
+        if (onClick) { e.preventDefault(); onClick(); }
+      }}
+      style={{
+        display: 'block', fontSize: 14, color: D.sub,
+        textDecoration: 'none', padding: '5px 0',
+        transition: 'color 0.15s', fontFamily: fontUI,
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.color = C.accent; }}
+      onMouseLeave={(e) => { e.currentTarget.style.color = D.sub; }}
+    >
+      {children}
+    </a>
+  );
+
+  const colTitle = {
+    fontSize: 11.5, fontWeight: 700, color: D.muted,
+    letterSpacing: '0.1em', textTransform: 'uppercase',
+    margin: '0 0 14px 0', fontFamily: fontUI,
+  };
+
+  const social = (Icon, href, label) => (
+    <a href={href} target="_blank" rel="noreferrer" aria-label={label} title={label}
+      style={{
+        width: 38, height: 38, borderRadius: 10,
+        border: `1px solid ${D.border}`, background: 'transparent',
+        color: D.sub, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        transition: 'color 0.15s, border-color 0.15s, background 0.15s',
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.color = C.accentInk; e.currentTarget.style.background = C.accent; e.currentTarget.style.borderColor = C.accent; }}
+      onMouseLeave={(e) => { e.currentTarget.style.color = D.sub; e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = D.border; }}
+    >
+      <Icon size={17} strokeWidth={1.8} />
+    </a>
+  );
+
+  return (
+    <footer style={{ background: D.bg, borderTop: `1px solid ${C.border}` }}>
+      <div style={{ maxWidth: 1180, margin: '0 auto', padding: '0 clamp(28px, 6vw, 96px)' }}>
+
+        {/* Bandeau newsletter */}
+        <div className="cw-foot-news" style={{
+          marginTop: 72,
+          background: D.panel, border: `1px solid ${D.border}`,
+          borderRadius: 20, padding: 'clamp(28px, 4vw, 44px)',
+          display: 'grid', gridTemplateColumns: '1.2fr 1fr',
+          gap: 'clamp(24px, 4vw, 56px)', alignItems: 'center',
+        }}>
+          <div>
+            <h3 style={{
+              fontFamily: fontDisplay, fontSize: 'clamp(1.3rem, 2.2vw, 1.7rem)',
+              fontWeight: 700, color: D.text, margin: '0 0 8px 0',
+              letterSpacing: '-0.02em', lineHeight: 1.2,
+            }}>
+              {t('login.ft_newsletter_title')}
+            </h3>
+            <p style={{ fontSize: 14.5, color: D.sub, margin: 0, lineHeight: 1.55 }}>
+              {t('login.ft_newsletter_sub')}
+            </p>
+          </div>
+
+          {sent ? (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 10,
+              color: C.accent, fontSize: 15, fontWeight: 600, fontFamily: fontUI,
+            }}>
+              <CheckCircle2 size={20} strokeWidth={2} />
+              {doneMsg || t('login.ft_newsletter_ok')}
+            </div>
+          ) : (
+            <div>
+              <form onSubmit={submitNewsletter} className="cw-foot-form" style={{ display: 'flex', gap: 10 }}>
+                <input
+                  type="email" required value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="vous@exemple.ci"
+                  disabled={status === 'loading'}
+                  style={{
+                    flex: 1, minWidth: 0,
+                    background: D.bg, border: `1px solid ${D.border}`,
+                    borderRadius: 10, padding: '13px 14px',
+                    color: D.text, fontSize: 14.5, outline: 'none',
+                    transition: 'border-color 0.2s', fontFamily: 'inherit',
+                  }}
+                  onFocus={(e) => { e.target.style.borderColor = C.accent; }}
+                  onBlur={(e) => { e.target.style.borderColor = D.border; }}
+                />
+                <button type="submit" disabled={status === 'loading'} style={{
+                  padding: '13px 22px', borderRadius: 10, border: 'none',
+                  background: C.accent, color: C.accentInk,
+                  fontFamily: fontUI, fontSize: 14.5, fontWeight: 700,
+                  cursor: status === 'loading' ? 'wait' : 'pointer', whiteSpace: 'nowrap',
+                  opacity: status === 'loading' ? 0.7 : 1,
+                }}>
+                  {status === 'loading' ? t('login.ft_newsletter_sending') : t('login.ft_newsletter_cta')}
+                </button>
+              </form>
+              {status === 'error' && (
+                <div style={{ marginTop: 10, fontSize: 13, color: C.red || '#E0606E', fontFamily: fontUI }}>
+                  {doneMsg || t('login.ft_newsletter_err')}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Colonnes de liens */}
+        <div className="cw-foot-cols" style={{
+          marginTop: 56, paddingTop: 56,
+          display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr',
+          gap: 'clamp(28px, 4vw, 56px)',
+        }}>
+          {/* Marque + pitch + réseaux */}
+          <div>
+            <LogoApex
+              height={40} textColor={D.text} textSize={19} gap={10}
+              fallback={(
+                <div style={{
+                  width: 40, height: 40, borderRadius: 11,
+                  background: C.accent, color: C.accentInk,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 19, fontWeight: 800,
+                }}>₣</div>
+              )}
+            />
+            <p style={{
+              fontSize: 14, color: D.sub, lineHeight: 1.6,
+              margin: '18px 0 22px 0', maxWidth: '34ch',
+            }}>
+              {t('login.ft_tagline')}
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {social(Facebook, 'https://www.facebook.com/useapex', 'Facebook')}
+              {social(Linkedin, 'https://www.linkedin.com/company/useapex', 'LinkedIn')}
+              {social(Mail, 'mailto:contact@useapex.ci', 'Email')}
+            </div>
+          </div>
+
+          {/* Produit */}
+          <div>
+            <p style={colTitle}>{t('login.ft_col_product')}</p>
+            <FootLink href="#modules">{t('login.ft_product_features')}</FootLink>
+            <FootLink href="#atouts">{t('login.ft_product_diff')}</FootLink>
+            <FootLink onClick={() => navigate('/tarifs')}>{t('login.ft_product_pricing')}</FootLink>
+            <FootLink onClick={onDemo}>{t('login.ft_product_demo')}</FootLink>
+          </div>
+
+          {/* Ressources */}
+          <div>
+            <p style={colTitle}>{t('login.ft_col_resources')}</p>
+            <FootLink href="#parcours">{t('login.ft_res_how')}</FootLink>
+            <FootLink href="#equipe">{t('login.ft_res_roles')}</FootLink>
+            <FootLink href="#atouts">{t('login.ft_res_security')}</FootLink>
+            <FootLink href="#cw-auth-form">{t('login.ft_res_login')}</FootLink>
+          </div>
+
+          {/* ApeX / légal */}
+          <div>
+            <p style={colTitle}>{t('login.ft_col_company')}</p>
+            <FootLink href="mailto:contact@useapex.ci">{t('login.ft_company_contact')}</FootLink>
+            <FootLink onClick={() => navigate('/cgu')}>{t('login.footer_cgu')}</FootLink>
+            <FootLink onClick={() => navigate('/confidentialite')}>{t('login.footer_confidentialite')}</FootLink>
+          </div>
+        </div>
+
+        {/* Barre bas */}
+        <div className="cw-foot-bottom" style={{
+          marginTop: 48, padding: '28px 0 40px',
+          borderTop: `1px solid ${D.border}`,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          gap: 20, flexWrap: 'wrap',
+        }}>
+          <span style={{ fontSize: 13, color: D.muted, fontFamily: fontMono }}>
+            © {annee} ApeX · {t('login.ft_rights')}
+          </span>
+          <span style={{
+            fontSize: 13, color: D.muted, fontFamily: fontUI,
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+          }}>
+            <Globe size={13} strokeWidth={1.8} /> {t('login.ft_made')}
+          </span>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Matrice de permissions (extrait). Visualise quels rôles ont
 // accès à quels modules — l'extrait reprend les 8 rôles métier
 // principaux et 7 modules clés, calqués sur la matrice réelle
@@ -1180,7 +1507,7 @@ const cellDot = (C, last) => ({
 });
 
 export default function LoginPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { login, register, loginDemo } = useAuth();
   const { chargerEntreprises } = useEntreprise();
   const { dark, toggle } = useTheme();
@@ -1441,7 +1768,20 @@ export default function LoginPage() {
               maxWidth: '14ch',
             }}>
               {t('login.hero_title_line1')}{' '}
-              <span style={{ color: C.accent, fontWeight: 800 }}>
+              {/* Mot fort surligné dans un « marqueur » émeraude arrondi —
+                  signature visuelle empruntée à CinetPay, déclinée à la
+                  charte ApeX (accent émeraude, pas de rouge). */}
+              <span style={{
+                display: 'inline-block',
+                background: C.accent, color: C.accentInk,
+                fontWeight: 800,
+                padding: '0.04em 0.30em',
+                borderRadius: 14,
+                transform: 'rotate(-1.6deg)',
+                boxShadow: dark
+                  ? '0 8px 24px rgba(45,191,156,0.26)'
+                  : '0 6px 18px rgba(15,138,110,0.18)',
+              }}>
                 {t('login.hero_title_highlight')}
               </span>{' '}
               <span style={{ color: C.muted, fontWeight: 500 }}>
@@ -1703,7 +2043,7 @@ export default function LoginPage() {
           maxWidth: 1180, margin: '0 auto',
           display: 'grid', gridTemplateColumns: 'minmax(0, 0.85fr) minmax(0, 1.4fr)',
           gap: 'clamp(32px, 6vw, 96px)', alignItems: 'flex-start',
-        }} className="cw-how-wrap">
+        }} id="parcours" className="cw-how-wrap">
           {/* Titre LEFT-aligned, asymétrique */}
           <div style={{ position: 'sticky', top: 100 }} className="cw-how-head">
             <div style={{
@@ -1732,6 +2072,10 @@ export default function LoginPage() {
             }}>
               {t('login.how_subtitle')}
             </p>
+
+            {/* Visuel IA — comble la colonne et reste épinglé pendant
+                le scroll des 3 étapes. Repli silencieux si absent. */}
+            <HowVisual C={C} dark={dark} />
           </div>
 
           {/* Étapes en colonne verticale, séparateurs fins (pas de cards) */}
@@ -1806,7 +2150,7 @@ export default function LoginPage() {
           <div style={{
             display: 'grid', gridTemplateColumns: '1fr 1fr',
             gap: 56, alignItems: 'flex-end', marginBottom: 88,
-          }} className="cw-diff-head">
+          }} id="atouts" className="cw-diff-head">
             <div>
               <div style={{
                 display: 'inline-flex', alignItems: 'center', gap: 7,
@@ -1928,9 +2272,10 @@ export default function LoginPage() {
                     </div>
                   </div>
 
-                  {/* Visuel expressif : mini-mockup spécifique au différenciateur */}
+                  {/* Visuel expressif : image IA (photo lifestyle + cartes UI
+                      flottantes) avec repli sur le mockup vectoriel. */}
                   <div style={{ direction: 'ltr' }}>
-                    <DiffShowcase
+                    <DiffVisual
                       kind={key}
                       C={C}
                       dark={dark}
@@ -2080,7 +2425,7 @@ export default function LoginPage() {
           <div style={{
             display: 'grid', gridTemplateColumns: '1fr 1fr',
             gap: 56, alignItems: 'flex-end', marginBottom: 72,
-          }} className="cw-team-head">
+          }} id="equipe" className="cw-team-head">
             <div>
               <div style={{
                 display: 'inline-flex', alignItems: 'center', gap: 7,
@@ -2192,7 +2537,7 @@ export default function LoginPage() {
           <div style={{
             display: 'grid', gridTemplateColumns: '1.1fr 1fr',
             gap: 48, alignItems: 'flex-end', marginBottom: 56,
-          }} className="cw-feats-head">
+          }} id="modules" className="cw-feats-head">
             <h2 style={{
               fontFamily: fontDisplay,
               fontSize: 'clamp(1.9rem, 3.2vw, 2.6rem)',
@@ -2364,6 +2709,154 @@ export default function LoginPage() {
           </div>
         </div>
       </section>
+
+      {/* ─────────────────────────────────────────────────────────────
+          POURQUOI APEX — bande TOUJOURS sombre (contraste fort, façon
+          bloc « Réinventer le paiement » de CinetPay), grille 2×2 de
+          gros chiffres + CTA de clôture. Couleurs forcées en sombre quel
+          que soit le thème pour garder le contraste signature.
+          ───────────────────────────────────────────────────────────── */}
+      {(() => {
+        // Tokens sombres explicites — cette bande ne suit pas le thème.
+        const D = {
+          bg: '#0B0D11',
+          panel: '#11161D',
+          border: 'rgba(255,255,255,0.08)',
+          text: '#E8EAE3',
+          sub: '#A9B1BC',
+          muted: '#7A8492',
+        };
+        const STATS = [
+          { icon: Database,    v: t('login.why_stat1_v'), l: t('login.why_stat1_l'), d: t('login.why_stat1_d') },
+          { icon: Smartphone,  v: t('login.why_stat2_v'), l: t('login.why_stat2_l'), d: t('login.why_stat2_d') },
+          { icon: ShieldCheck, v: t('login.why_stat3_v'), l: t('login.why_stat3_l'), d: t('login.why_stat3_d') },
+          { icon: Zap,         v: t('login.why_stat4_v'), l: t('login.why_stat4_l'), d: t('login.why_stat4_d') },
+        ];
+        const goToForm = () => {
+          setMode('register');
+          setTimeout(() => {
+            document.getElementById('cw-auth-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 60);
+        };
+        return (
+          <section className="cw-section" style={{
+            padding: '120px clamp(28px, 6vw, 96px)',
+            background: D.bg,
+            borderTop: `1px solid ${C.border}`,
+          }}>
+            <div style={{
+              position: 'relative', maxWidth: 1040, margin: '0 auto', textAlign: 'center',
+            }}>
+              {/* Diffusion émeraude très douce derrière le titre */}
+              <div aria-hidden style={{
+                position: 'absolute', top: -40, left: '50%', transform: 'translateX(-50%)',
+                width: 520, height: 360, borderRadius: '50%',
+                background: `radial-gradient(circle, ${C.accent}1A, transparent 70%)`,
+                filter: 'blur(70px)', pointerEvents: 'none',
+              }} />
+
+              {/* Kicker */}
+              <div style={{
+                position: 'relative',
+                display: 'inline-block', padding: '5px 12px', borderRadius: 100,
+                background: C.accent, color: C.accentInk,
+                fontSize: 11.5, fontWeight: 800, letterSpacing: '0.08em',
+                textTransform: 'uppercase', marginBottom: 24, fontFamily: fontUI,
+              }}>
+                {t('login.why_kicker')}
+              </div>
+
+              {/* Titre avec mot surligné (marqueur) */}
+              <h2 style={{
+                position: 'relative',
+                fontFamily: fontDisplay,
+                fontSize: 'clamp(2rem, 4vw, 3rem)',
+                fontWeight: 700, letterSpacing: '-0.03em',
+                color: D.text, margin: '0 auto 20px', lineHeight: 1.08,
+                maxWidth: '16ch',
+              }}>
+                {t('login.why_title_pre')}{' '}
+                <span style={{
+                  display: 'inline-block',
+                  background: C.accent, color: C.accentInk, fontWeight: 800,
+                  padding: '0.02em 0.26em', borderRadius: 12,
+                  transform: 'rotate(-1.4deg)',
+                  boxShadow: '0 8px 24px rgba(45,191,156,0.24)',
+                }}>
+                  {t('login.why_title_mark')}
+                </span>{' '}
+                {t('login.why_title_post')}
+              </h2>
+
+              <p style={{
+                position: 'relative',
+                fontSize: 16.5, color: D.sub, lineHeight: 1.6,
+                margin: '0 auto 56px', maxWidth: '58ch',
+              }}>
+                {t('login.why_subtitle')}
+              </p>
+
+              {/* Grille 2×2 de gros chiffres */}
+              <div className="cw-why-grid" style={{
+                position: 'relative',
+                display: 'grid', gridTemplateColumns: '1fr 1fr',
+                gap: 1, background: D.border,
+                border: `1px solid ${D.border}`, borderRadius: 18,
+                overflow: 'hidden', textAlign: 'left',
+              }}>
+                {STATS.map((s, i) => (
+                  <div key={i} style={{
+                    background: D.bg, padding: 'clamp(28px, 4vw, 40px)',
+                    display: 'flex', flexDirection: 'column', gap: 14,
+                  }}>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      width: 44, height: 44, borderRadius: 12,
+                      background: `${C.accent}1F`, color: C.accent,
+                    }}>
+                      <s.icon size={22} strokeWidth={2} />
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+                      <span style={{
+                        fontFamily: fontMono, fontSize: 'clamp(2rem, 3.4vw, 2.6rem)',
+                        fontWeight: 500, color: D.text, letterSpacing: '-0.04em', lineHeight: 1,
+                      }}>
+                        {s.v}
+                      </span>
+                      <span style={{
+                        fontSize: 15, fontWeight: 700, color: D.text, fontFamily: fontUI,
+                      }}>
+                        {s.l}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: 14, color: D.muted, lineHeight: 1.55, margin: 0 }}>
+                      {s.d}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* CTA de clôture */}
+              <button onClick={goToForm}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
+                style={{
+                  position: 'relative',
+                  display: 'inline-flex', alignItems: 'center', gap: 10,
+                  marginTop: 48, padding: '16px 30px', borderRadius: 12, border: 'none',
+                  background: C.accent, color: C.accentInk,
+                  fontFamily: fontUI, fontSize: 15.5, fontWeight: 700,
+                  cursor: 'pointer', letterSpacing: '-0.005em',
+                  transition: 'transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
+                  boxShadow: '0 10px 28px rgba(45,191,156,0.22)',
+                }}>
+                {t('login.why_cta')}
+                <ArrowRight size={17} strokeWidth={2} />
+              </button>
+            </div>
+          </section>
+        );
+      })()}
 
       {/* ─────────────────────────────────────────────────────────────
           FORMULAIRE D'AUTHENTIFICATION — split asymétrique : argumentaire
@@ -2595,6 +3088,15 @@ export default function LoginPage() {
         </div>
       </section>
 
+      {/* ─────────────────────────────────────────────────────────────
+          PIED DE PAGE — newsletter + colonnes de liens + réseaux sociaux
+          ───────────────────────────────────────────────────────────── */}
+      <SiteFooter
+        C={C} dark={dark} t={t} lang={i18n.language} navigate={navigate}
+        fontDisplay={fontDisplay} fontMono={fontMono} fontUI={fontUI}
+        onDemo={handleDemoLogin}
+      />
+
       {/* Animations & responsive — micro-interactions sobres,
           asymétries qui s'effondrent proprement en mobile (variance
           forcée à 1 sur < 768px pour empêcher le scroll horizontal). */}
@@ -2686,6 +3188,12 @@ export default function LoginPage() {
           border-radius: 16px;
         }
 
+        /* Décalage du scroll vers les ancres pour ne pas passer sous
+           la barre de navigation fixe. */
+        #parcours, #atouts, #equipe, #modules, #cw-auth-form {
+          scroll-margin-top: 100px;
+        }
+
         @media (max-width: 1280px) {
           :root { --cw-dome-scale: 0.82; }
         }
@@ -2716,6 +3224,14 @@ export default function LoginPage() {
           .cw-pricing-grid { grid-template-columns: repeat(2, 1fr) !important; }
           .cw-pricing-foot { grid-template-columns: 1fr !important; }
           .cw-auth-wrap { grid-template-columns: 1fr !important; gap: 40px !important; }
+          .cw-foot-news { grid-template-columns: 1fr !important; gap: 20px !important; }
+          .cw-foot-cols { grid-template-columns: 1fr 1fr !important; gap: 32px !important; }
+        }
+        @media (max-width: 720px) {
+          .cw-why-grid { grid-template-columns: 1fr !important; }
+          .cw-foot-cols { grid-template-columns: 1fr !important; gap: 28px !important; }
+          .cw-foot-form { flex-direction: column !important; }
+          .cw-foot-bottom { flex-direction: column !important; align-items: flex-start !important; gap: 10px !important; }
         }
         @media (max-width: 560px) {
           :root { --cw-dome-scale: 0.6; }
