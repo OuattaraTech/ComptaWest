@@ -4,6 +4,7 @@ import {
   TrendingUp, FileSignature, ChevronDown, BookOpen, Users, Briefcase, Package,
   Wand2, ChevronRight, Search, X, Stethoscope,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import api from '../utils/api.jsx';
 import toast from 'react-hot-toast';
 import { useTheme } from '../hooks/useTheme.jsx';
@@ -46,6 +47,7 @@ const getC = (dark) => dark ? {
 };
 
 export default function DsfPage() {
+  const { t } = useTranslation();
   const { dark } = useTheme();
   const { actuelle } = useEntreprise();
   const C = getC(dark);
@@ -65,7 +67,7 @@ export default function DsfPage() {
       const r = await api.get(`/dsf/${exerciceId}/diagnostic-ecart`);
       setDiagnostic(r.data.data);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur de diagnostic');
+      toast.error(err.response?.data?.message || t('dsf.diag_error'));
     } finally {
       setDiagLoading(false);
     }
@@ -87,7 +89,7 @@ export default function DsfPage() {
     setLoading(true);
     api.get(`/dsf/${exerciceId}/data`)
       .then(r => setLiasse(r.data.data))
-      .catch(err => toast.error(err.response?.data?.message || 'Erreur de chargement'))
+      .catch(err => toast.error(err.response?.data?.message || t('dsf.load_error')))
       .finally(() => setLoading(false));
   }, [exerciceId]);
 
@@ -103,9 +105,9 @@ export default function DsfPage() {
       a.download = `DSF-${actuelle?.nom?.replace(/[^\w-]/g, '_') || 'liasse'}-${liasse?.exercice?.libelle || ''}.${format}`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      toast.success(`Liasse DSF téléchargée (${format.toUpperCase()})`);
+      toast.success(t('dsf.download_success', { format: format.toUpperCase() }));
     } catch (err) {
-      toast.error('Échec du téléchargement');
+      toast.error(t('dsf.download_error'));
     } finally {
       setTele(false);
     }
@@ -114,7 +116,7 @@ export default function DsfPage() {
   if (loading && !liasse) {
     return (
       <div style={{ padding: 40, color: C.muted, textAlign: 'center', fontFamily: fontUI }}>
-        Chargement de la liasse DSF…
+        {t('dsf.loading')}
       </div>
     );
   }
@@ -125,10 +127,8 @@ export default function DsfPage() {
         <div style={{ width: 64, height: 64, margin: '0 auto 16px', borderRadius: 16, background: `${C.warning}20`, color: C.warning, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <AlertTriangle size={28} />
         </div>
-        <h2 style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 800, margin: 0 }}>Aucun exercice trouvé</h2>
-        <p style={{ color: C.sub, marginTop: 8 }}>
-          Créez d'abord un exercice comptable depuis <strong>Comptabilité → Clôture</strong> pour générer une DSF.
-        </p>
+        <h2 style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 800, margin: 0 }}>{t('dsf.no_exercice_title')}</h2>
+        <p style={{ color: C.sub, marginTop: 8 }} dangerouslySetInnerHTML={{ __html: t('dsf.no_exercice_desc_html') }} />
       </div>
     );
   }
@@ -144,9 +144,9 @@ export default function DsfPage() {
               <FileSignature size={24} strokeWidth={2.4} />
             </div>
             <div>
-              <h1 style={{ fontFamily: fontDisplay, fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>Liasse fiscale DSF</h1>
+              <h1 style={{ fontFamily: fontDisplay, fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>{t('dsf.title')}</h1>
               <div style={{ fontSize: 12.5, color: C.sub, marginTop: 2 }}>
-                Modèle SYSCOHADA révisé — Bilan + Compte de résultat
+                {t('dsf.subtitle')}
               </div>
             </div>
           </div>
@@ -160,11 +160,11 @@ export default function DsfPage() {
               }}>
               {exercices.map(e => (
                 <option key={e.id} value={e.id}>
-                  {e.libelle} ({String(e.date_debut).slice(0,10)} → {String(e.date_fin).slice(0,10)}){e.cloture ? ' · clôturé' : ''}
+                  {e.libelle} ({String(e.date_debut).slice(0,10)} → {String(e.date_fin).slice(0,10)}){e.cloture ? ` · ${t('dsf.exercice_closed')}` : ''}
                 </option>
               ))}
             </select>
-            <button onClick={() => telecharger('csv')} disabled={tele || !liasse} title="Export CSV multi-formulaires (e-DGI)" style={{
+            <button onClick={() => telecharger('csv')} disabled={tele || !liasse} title={t('dsf.csv_title')} style={{
               padding: '10px 16px', borderRadius: 10,
               background: C.surface, border: `1px solid ${C.border}`,
               color: C.text, fontFamily: fontUI, fontWeight: 600, fontSize: 13,
@@ -183,7 +183,7 @@ export default function DsfPage() {
               boxShadow: `0 6px 20px ${C.accent}40`,
             }}>
               <Download size={14} />
-              {tele ? 'Génération…' : 'Télécharger PDF'}
+              {tele ? t('dsf.generating') : t('dsf.download_pdf')}
             </button>
           </div>
         </div>
@@ -202,8 +202,8 @@ export default function DsfPage() {
                 : <Check size={18} color={C.accent} />}
               <div style={{ fontSize: 13, color: C.text, flex: 1, minWidth: 220 }}>
                 {Math.abs(liasse.equilibre) > 1
-                  ? <>⚠ <strong>Écart de bilan : {fmt(liasse.equilibre)} FCFA</strong> — vérifiez les écritures de l'exercice avant dépôt à la DGI.</>
-                  : <><strong>Bilan équilibré</strong> · Actif = Passif = <span style={{ fontFamily: fontMono }}>{fmt(liasse.bilan_actif.total_net)}</span> FCFA</>}
+                  ? <>⚠ <strong>{t('dsf.ecart_label', { montant: fmt(liasse.equilibre) })}</strong> {t('dsf.ecart_suffix')}</>
+                  : <><strong>{t('dsf.equilibre_ok')}</strong> · {t('dsf.equilibre_ok_detail', { montant: fmt(liasse.bilan_actif.total_net) })}</>}
               </div>
               {/* Bouton diagnostic TOUJOURS accessible : même si le bilan
                   équilibre, le diagnostic peut révéler des comptes inversés,
@@ -219,8 +219,8 @@ export default function DsfPage() {
                 display: 'inline-flex', alignItems: 'center', gap: 6,
               }}>
                 <Stethoscope size={13} />
-                {diagLoading ? 'Analyse…' :
-                  (Math.abs(liasse.equilibre) > 1 ? 'Analyser l\'écart' : 'Diagnostic comptable')}
+                {diagLoading ? t('dsf.analyzing') :
+                  (Math.abs(liasse.equilibre) > 1 ? t('dsf.analyze_ecart') : t('dsf.diagnostic_btn'))}
               </button>
             </div>
 
@@ -229,22 +229,22 @@ export default function DsfPage() {
 
             {/* MINI-KPIs */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 24 }}>
-              <KpiMini C={C} icon={TrendingUp} label="Chiffre d'affaires" valeur={liasse.compte_resultat.indicateurs.chiffre_affaires} accent={C.accent} />
-              <KpiMini C={C} icon={BookOpen} label="Valeur ajoutée" valeur={liasse.compte_resultat.indicateurs.valeur_ajoutee} accent={C.warning} />
-              <KpiMini C={C} icon={Building2} label="Total bilan" valeur={liasse.bilan_actif.total_net} accent={C.accent} />
-              <KpiMini C={C} icon={FileText} label="Résultat net" valeur={liasse.compte_resultat.indicateurs.resultat_net}
+              <KpiMini C={C} icon={TrendingUp} label={t('dsf.kpi_ca')} valeur={liasse.compte_resultat.indicateurs.chiffre_affaires} accent={C.accent} />
+              <KpiMini C={C} icon={BookOpen} label={t('dsf.kpi_va')} valeur={liasse.compte_resultat.indicateurs.valeur_ajoutee} accent={C.warning} />
+              <KpiMini C={C} icon={Building2} label={t('dsf.kpi_total_bilan')} valeur={liasse.bilan_actif.total_net} accent={C.accent} />
+              <KpiMini C={C} icon={FileText} label={t('dsf.kpi_resultat_net')} valeur={liasse.compte_resultat.indicateurs.resultat_net}
                 accent={liasse.compte_resultat.indicateurs.resultat_net >= 0 ? C.accent : C.danger} />
             </div>
 
             {/* TABS */}
             <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: `1px solid ${C.border}` }}>
               {[
-                { k: 'actif',     l: 'Bilan ACTIF',         n: 'N°10' },
-                { k: 'passif',    l: 'Bilan PASSIF',        n: 'N°11' },
-                { k: 'resultat',  l: 'Compte de résultat',  n: 'N°4' },
-                { k: 'tafire',    l: 'TAFIRE',              n: 'N°6' },
-                { k: 'annexes',   l: 'Annexes',             n: 'N°3-12' },
-                { k: 'manuelles', l: 'Annexes manuelles',   n: 'N°5-30' },
+                { k: 'actif',     l: t('dsf.tab_actif'),    n: 'N°10' },
+                { k: 'passif',    l: t('dsf.tab_passif'),   n: 'N°11' },
+                { k: 'resultat',  l: t('dsf.tab_resultat'), n: 'N°4' },
+                { k: 'tafire',    l: t('dsf.tab_tafire'),   n: 'N°6' },
+                { k: 'annexes',   l: t('dsf.tab_annexes'),  n: 'N°3-12' },
+                { k: 'manuelles', l: t('dsf.tab_manuelles'), n: 'N°5-30' },
               ].map(({ k, l, n }) => (
                 <button key={k} onClick={() => setTab(k)} style={{
                   padding: '12px 18px', background: 'transparent', border: 'none',
@@ -278,9 +278,10 @@ export default function DsfPage() {
 }
 
 function ModalDiagnostic({ C, diag, onClose }) {
+  const { t } = useTranslation();
   const ecartReel = Math.abs(diag.ecart_montant) > 1;
   const couleurHeader = ecartReel ? C.danger : C.accent;
-  const titre = ecartReel ? 'Diagnostic d\'écart de bilan' : 'Diagnostic comptable';
+  const titre = ecartReel ? t('dsf.diag_title_ecart') : t('dsf.diag_title_ok');
 
   return (
     <div onClick={onClose} style={{
@@ -303,7 +304,7 @@ function ModalDiagnostic({ C, diag, onClose }) {
             <div>
               <h2 style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 800, margin: 0, color: C.text }}>{titre}</h2>
               <div style={{ fontSize: 12.5, color: C.sub, marginTop: 2 }}>
-                Actif <strong style={{ fontFamily: fontMono }}>{fmt(diag.actif_net)}</strong> · Passif <strong style={{ fontFamily: fontMono }}>{fmt(diag.passif_total)}</strong> · Écart <strong style={{ color: couleurHeader, fontFamily: fontMono }}>{fmt(diag.ecart_montant)}</strong> FCFA
+                {t('dsf.diag_actif')} <strong style={{ fontFamily: fontMono }}>{fmt(diag.actif_net)}</strong> · {t('dsf.diag_passif')} <strong style={{ fontFamily: fontMono }}>{fmt(diag.passif_total)}</strong> · {t('dsf.diag_ecart')} <strong style={{ color: couleurHeader, fontFamily: fontMono }}>{fmt(diag.ecart_montant)}</strong> FCFA
               </div>
             </div>
           </div>
@@ -320,14 +321,12 @@ function ModalDiagnostic({ C, diag, onClose }) {
           <SectionDiag C={C}
             icon={ecartReel ? AlertTriangle : Check}
             accent={ecartReel ? C.danger : C.accent}
-            titre={ecartReel ? `Causes probables (${diag.causes_probables.length})` : 'Synthèse'}>
+            titre={ecartReel ? t('dsf.diag_causes', { n: diag.causes_probables.length }) : t('dsf.diag_synthese')}>
             {diag.causes_probables.length === 0 && !ecartReel
-              ? <div style={{ padding: 14, color: C.text, fontSize: 13, lineHeight: 1.6 }}>
-                  <strong style={{ color: C.accent }}>Bilan équilibré et balance saine.</strong>
-                  {' '}Aucun problème majeur détecté. Vous pouvez générer la liasse DSF en toute confiance.
-                </div>
+              ? <div style={{ padding: 14, color: C.text, fontSize: 13, lineHeight: 1.6 }}
+                  dangerouslySetInnerHTML={{ __html: t('dsf.diag_clean_html') }} />
               : diag.causes_probables.length === 0
-              ? <div style={{ padding: 14, color: C.muted, fontSize: 12.5, fontStyle: 'italic' }}>Aucune cause détectée. Vérifier manuellement le grand livre.</div>
+              ? <div style={{ padding: 14, color: C.muted, fontSize: 12.5, fontStyle: 'italic' }}>{t('dsf.diag_no_cause')}</div>
               : <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 14 }}>
                 {diag.causes_probables.map((c, i) => (
                   <div key={i} style={{ padding: 12, background: C.cardElev, borderRadius: 9, borderLeft: `3px solid ${c.gravite === 'haute' ? C.danger : C.warning}` }}>
@@ -341,26 +340,26 @@ function ModalDiagnostic({ C, diag, onClose }) {
 
         {/* Écritures non validées */}
         {diag.ecritures_non_validees.nb > 0 && (
-          <SectionDiag C={C} icon={FileText} accent={C.warning} titre="Écritures non validées">
+          <SectionDiag C={C} icon={FileText} accent={C.warning} titre={t('dsf.diag_non_valid_title')}>
             <div style={{ padding: 14, fontSize: 12.5, color: C.text }}>
-              <strong style={{ fontFamily: fontMono, color: C.warning }}>{diag.ecritures_non_validees.nb}</strong> écriture(s) en brouillon, total débit <strong style={{ fontFamily: fontMono }}>{fmt(diag.ecritures_non_validees.total_debit)}</strong> FCFA.
-              <div style={{ marginTop: 6, color: C.sub }}>Ces écritures sont invisibles pour la DSF tant qu'elles ne sont pas validées.</div>
+              <span dangerouslySetInnerHTML={{ __html: t('dsf.diag_non_valid_html', { nb: diag.ecritures_non_validees.nb, total: fmt(diag.ecritures_non_validees.total_debit) }) }} />
+              <div style={{ marginTop: 6, color: C.sub }}>{t('dsf.diag_non_valid_note')}</div>
             </div>
           </SectionDiag>
         )}
 
         {/* Comptes inversés */}
         {diag.comptes_inverses.length > 0 && (
-          <SectionDiag C={C} icon={AlertTriangle} accent={C.danger} titre={`Comptes à solde inversé (${diag.comptes_inverses.length})`}>
+          <SectionDiag C={C} icon={AlertTriangle} accent={C.danger} titre={t('dsf.diag_inverses_title', { n: diag.comptes_inverses.length })}>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead><tr style={{ background: C.cardElev }}>
-                  <th style={thStyle(C)}>Compte</th>
-                  <th style={thStyle(C)}>Catégorie</th>
-                  <th style={thStyle(C)}>Sens attendu</th>
-                  <th style={thStyle(C)}>Sens réel</th>
-                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Montant</th>
-                  <th style={thStyle(C)}>Suggestion</th>
+                  <th style={thStyle(C)}>{t('dsf.col_compte')}</th>
+                  <th style={thStyle(C)}>{t('dsf.col_categorie')}</th>
+                  <th style={thStyle(C)}>{t('dsf.col_sens_attendu')}</th>
+                  <th style={thStyle(C)}>{t('dsf.col_sens_reel')}</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_montant')}</th>
+                  <th style={thStyle(C)}>{t('dsf.col_suggestion')}</th>
                 </tr></thead>
                 <tbody>
                   {diag.comptes_inverses.map((c, i) => (
@@ -381,17 +380,17 @@ function ModalDiagnostic({ C, diag, onClose }) {
 
         {/* Comptes orphelins */}
         {diag.comptes_orphelins.length > 0 && (
-          <SectionDiag C={C} icon={Search} accent={C.warning} titre={`Comptes orphelins (${diag.comptes_orphelins.length})`}>
+          <SectionDiag C={C} icon={Search} accent={C.warning} titre={t('dsf.diag_orphelins_title', { n: diag.comptes_orphelins.length })}>
             <div style={{ padding: '4px 14px 14px', fontSize: 11.5, color: C.sub, marginBottom: 8 }}>
-              Ces comptes ont un solde mais ne sont mappés à aucun poste DSF. Vérifier qu'ils respectent le plan SYSCOHADA standard.
+              {t('dsf.diag_orphelins_note')}
             </div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead><tr style={{ background: C.cardElev }}>
-                  <th style={thStyle(C)}>Compte</th>
-                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Solde débiteur</th>
-                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Solde créditeur</th>
-                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Impact écart</th>
+                  <th style={thStyle(C)}>{t('dsf.col_compte')}</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_solde_debiteur')}</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_solde_crediteur')}</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_impact_ecart')}</th>
                 </tr></thead>
                 <tbody>
                   {diag.comptes_orphelins.slice(0, 20).map((c, i) => (
@@ -412,7 +411,7 @@ function ModalDiagnostic({ C, diag, onClose }) {
 
         {/* Bouclage proposé — uniquement si écart réel */}
         {diag.bouclage_propose && ecartReel && (
-          <SectionDiag C={C} icon={Wand2} accent={C.warning} titre="Écriture de bouclage (urgence)">
+          <SectionDiag C={C} icon={Wand2} accent={C.warning} titre={t('dsf.diag_bouclage_title')}>
             <div style={{ padding: 14 }}>
               <div style={{ padding: 10, background: `${C.warning}10`, border: `1px solid ${C.warning}40`, borderRadius: 8, fontSize: 11.5, color: C.text, lineHeight: 1.5, marginBottom: 10 }}>
                 ⚠ {diag.bouclage_propose.avertissement}
@@ -429,7 +428,7 @@ function ModalDiagnostic({ C, diag, onClose }) {
                 ))}
               </div>
               <div style={{ marginTop: 8, fontSize: 11, color: C.muted }}>
-                À saisir manuellement dans Comptabilité → Écritures, dans le journal OD.
+                {t('dsf.diag_bouclage_note')}
               </div>
             </div>
           </SectionDiag>
@@ -472,19 +471,20 @@ function KpiMini({ C, icon: Icon, label, valeur, accent }) {
 }
 
 function TableauActif({ C, bilan }) {
+  const { t } = useTranslation();
   const cmp = bilan.has_n_moins_un;
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, fontFamily: fontUI, minWidth: cmp ? 860 : 720 }}>
         <thead>
           <tr style={{ background: `${C.accent}10`, borderBottom: `1px solid ${C.border}` }}>
-            <th style={thStyle(C)}>Réf.</th>
-            <th style={thStyle(C)}>Libellé</th>
-            <th style={{ ...thStyle(C), textAlign: 'right' }}>Brut</th>
-            <th style={{ ...thStyle(C), textAlign: 'right' }}>Amort./Prov.</th>
-            <th style={{ ...thStyle(C), textAlign: 'right' }}>Net N</th>
-            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>Net N-1</th>}
-            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>Variation</th>}
+            <th style={thStyle(C)}>{t('dsf.col_ref')}</th>
+            <th style={thStyle(C)}>{t('dsf.col_libelle')}</th>
+            <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_brut')}</th>
+            <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_amort_prov')}</th>
+            <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_net_n')}</th>
+            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_net_n1')}</th>}
+            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_variation')}</th>}
           </tr>
         </thead>
         <tbody>
@@ -514,17 +514,18 @@ function TableauActif({ C, bilan }) {
 }
 
 function TableauPassif({ C, bilan }) {
+  const { t } = useTranslation();
   const cmp = bilan.has_n_moins_un;
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, fontFamily: fontUI, minWidth: cmp ? 720 : 580 }}>
         <thead>
           <tr style={{ background: `${C.accent}10`, borderBottom: `1px solid ${C.border}` }}>
-            <th style={thStyle(C)}>Réf.</th>
-            <th style={thStyle(C)}>Libellé</th>
-            <th style={{ ...thStyle(C), textAlign: 'right' }}>Montant N</th>
-            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>Montant N-1</th>}
-            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>Variation</th>}
+            <th style={thStyle(C)}>{t('dsf.col_ref')}</th>
+            <th style={thStyle(C)}>{t('dsf.col_libelle')}</th>
+            <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_montant_n')}</th>
+            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_montant_n1')}</th>}
+            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_variation')}</th>}
           </tr>
         </thead>
         <tbody>
@@ -552,17 +553,18 @@ function TableauPassif({ C, bilan }) {
 }
 
 function TableauResultat({ C, cr }) {
+  const { t } = useTranslation();
   const cmp = cr.has_n_moins_un;
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, fontFamily: fontUI, minWidth: cmp ? 720 : 580 }}>
         <thead>
           <tr style={{ background: `${C.accent}10`, borderBottom: `1px solid ${C.border}` }}>
-            <th style={thStyle(C)}>Réf.</th>
-            <th style={thStyle(C)}>Libellé</th>
-            <th style={{ ...thStyle(C), textAlign: 'right' }}>Montant N</th>
-            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>Montant N-1</th>}
-            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>Variation</th>}
+            <th style={thStyle(C)}>{t('dsf.col_ref')}</th>
+            <th style={thStyle(C)}>{t('dsf.col_libelle')}</th>
+            <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_montant_n')}</th>
+            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_montant_n1')}</th>}
+            {cmp && <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_variation')}</th>}
           </tr>
         </thead>
         <tbody>
@@ -594,6 +596,7 @@ function TableauResultat({ C, cr }) {
 }
 
 function TableauTafire({ C, tafire, exPrev }) {
+  const { t } = useTranslation();
   return (
     <div>
       {tafire.avertissement && (
@@ -613,19 +616,19 @@ function TableauTafire({ C, tafire, exPrev }) {
           background: C.cardElev, border: `1px solid ${C.border}`,
           fontSize: 11.5, color: C.sub,
         }}>
-          Variations calculées par rapport à l'exercice <strong style={{ color: C.text }}>{exPrev.libelle}</strong>.
+          {t('dsf.tafire_compare_prefix')} <strong style={{ color: C.text }}>{exPrev.libelle}</strong>.
           {Math.abs(tafire.ecart || 0) > 1
-            ? <> <span style={{ color: C.danger }}>· Écart TAFIRE : {fmt(tafire.ecart)} FCFA</span></>
-            : <> <span style={{ color: C.accent }}>· Équilibre vérifié ✓</span></>}
+            ? <> <span style={{ color: C.danger }}>· {t('dsf.tafire_ecart', { montant: fmt(tafire.ecart) })}</span></>
+            : <> <span style={{ color: C.accent }}>· {t('dsf.tafire_equilibre_ok')}</span></>}
         </div>
       )}
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, fontFamily: fontUI, minWidth: 580 }}>
           <thead>
             <tr style={{ background: `${C.accent}10`, borderBottom: `1px solid ${C.border}` }}>
-              <th style={thStyle(C)}>Réf.</th>
-              <th style={thStyle(C)}>Libellé</th>
-              <th style={{ ...thStyle(C), textAlign: 'right' }}>Montant</th>
+              <th style={thStyle(C)}>{t('dsf.col_ref')}</th>
+              <th style={thStyle(C)}>{t('dsf.col_libelle')}</th>
+              <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_montant')}</th>
             </tr>
           </thead>
           <tbody>
@@ -655,6 +658,7 @@ function TableauTafire({ C, tafire, exPrev }) {
 }
 
 function SuggestionsClotureBloc({ C, exerciceId, onAppliquees }) {
+  const { t } = useTranslation();
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selection, setSelection] = useState(new Set());
@@ -689,18 +693,18 @@ function SuggestionsClotureBloc({ C, exerciceId, onAppliquees }) {
   const appliquer = async () => {
     const aEnregistrer = suggestions.filter(s => selection.has(s.id) && s.ecriture);
     if (aEnregistrer.length === 0) {
-      toast.error('Aucune suggestion sélectionnée');
+      toast.error(t('dsf.sugg_error_none'));
       return;
     }
     setEnregistrement(true);
     try {
       const r = await api.post(`/comptabilite/exercices/${exerciceId}/suggestions-cloture`, { suggestions: aEnregistrer });
-      toast.success(r.data.message || 'Écritures enregistrées');
+      toast.success(r.data.message || t('dsf.sugg_saved'));
       setSuggestions([]);
       setSelection(new Set());
       onAppliquees && onAppliquees();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur');
+      toast.error(err.response?.data?.message || t('dsf.error_generic'));
     } finally {
       setEnregistrement(false);
     }
@@ -728,10 +732,10 @@ function SuggestionsClotureBloc({ C, exerciceId, onAppliquees }) {
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: C.text, fontFamily: fontDisplay }}>
-            {suggestions.length} suggestion(s) de clôture pré-DSF
+            {t('dsf.sugg_count', { n: suggestions.length })}
           </div>
           <div style={{ fontSize: 11, color: C.sub, marginTop: 2 }}>
-            Écritures auto-détectées à passer avant la liasse — provisions douteux, régularisation TVA, alertes.
+            {t('dsf.sugg_subtitle')}
           </div>
         </div>
         <ChevronRight size={16} color={C.muted} style={{ transform: ouvert ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
@@ -791,7 +795,7 @@ function SuggestionsClotureBloc({ C, exerciceId, onAppliquees }) {
                 cursor: enregistrement ? 'wait' : 'pointer',
                 display: 'inline-flex', alignItems: 'center', gap: 8,
               }}>
-                {enregistrement ? 'Enregistrement…' : `Passer les ${aEnregistrerCount} écriture(s) sélectionnée(s) en OD`}
+                {enregistrement ? t('dsf.saving') : t('dsf.sugg_apply', { n: aEnregistrerCount })}
                 {!enregistrement && <Check size={14} />}
               </button>
             </div>
@@ -803,6 +807,7 @@ function SuggestionsClotureBloc({ C, exerciceId, onAppliquees }) {
 }
 
 function AnnexesManuellesForm({ C, exerciceId, onSaved }) {
+  const { t } = useTranslation();
   const [data, setData] = useState({});
   const [loading, setLoading] = useState(true);
   const [savingType, setSavingType] = useState(null);
@@ -824,10 +829,10 @@ function AnnexesManuellesForm({ C, exerciceId, onSaved }) {
     setSavingType(type);
     try {
       await api.put(`/dsf/${exerciceId}/annexes-manuelles/${type}`, { contenu: data[type] || {} });
-      toast.success('Annexe enregistrée');
+      toast.success(t('dsf.saved'));
       onSaved && onSaved();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur');
+      toast.error(err.response?.data?.message || t('dsf.error_generic'));
     } finally {
       setSavingType(null);
     }
@@ -856,7 +861,7 @@ function AnnexesManuellesForm({ C, exerciceId, onSaved }) {
     });
   };
 
-  if (loading) return <div style={{ padding: 40, color: C.muted, textAlign: 'center' }}>Chargement…</div>;
+  if (loading) return <div style={{ padding: 40, color: C.muted, textAlign: 'center' }}>{t('dsf.loading_short')}</div>;
 
   const inp = {
     padding: '8px 10px', borderRadius: 8,
@@ -879,118 +884,118 @@ function AnnexesManuellesForm({ C, exerciceId, onSaved }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ padding: 14, background: `${C.warning}10`, border: `1px solid ${C.warning}40`, borderRadius: 10, fontSize: 11.5, color: C.sub, lineHeight: 1.5 }}>
-        Ces annexes ne sont pas calculables depuis la compta. Renseignez-les manuellement pour qu'elles apparaissent dans le PDF et le CSV exportés.
+        {t('dsf.manuelles_intro')}
       </div>
 
       {/* Commissaires aux comptes */}
-      <SectionAnnexe C={C} icon={FileSignature} titre="N°15 — Commissaires aux comptes">
+      <SectionAnnexe C={C} icon={FileSignature} titre={t('dsf.annexe_commissaires')}>
         <div style={{ padding: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div style={{ gridColumn: '1 / -1' }}>
-            <label style={lbl}>Cabinet / Identité</label>
+            <label style={lbl}>{t('dsf.field_cabinet')}</label>
             <input value={data.commissaires_aux_comptes?.noms || ''} onChange={e => setField('commissaires_aux_comptes', 'noms', e.target.value)}
-              placeholder="ex: Cabinet X & Associés" style={inp} />
+              placeholder={t('dsf.ph_cabinet')} style={inp} />
           </div>
           <div>
-            <label style={lbl}>Mission</label>
+            <label style={lbl}>{t('dsf.field_mission')}</label>
             <input value={data.commissaires_aux_comptes?.mission || ''} onChange={e => setField('commissaires_aux_comptes', 'mission', e.target.value)}
-              placeholder="ex: Commissariat aux comptes" style={inp} />
+              placeholder={t('dsf.ph_mission')} style={inp} />
           </div>
           <div>
-            <label style={lbl}>Honoraires (FCFA)</label>
+            <label style={lbl}>{t('dsf.field_honoraires')}</label>
             <input type="number" value={data.commissaires_aux_comptes?.honoraires || ''} onChange={e => setField('commissaires_aux_comptes', 'honoraires', Number(e.target.value))}
               placeholder="0" style={inp} />
           </div>
         </div>
         <div style={{ padding: '0 14px 14px', textAlign: 'right' }}>
           <button onClick={() => save('commissaires_aux_comptes')} disabled={savingType === 'commissaires_aux_comptes'} style={btnPrim(savingType === 'commissaires_aux_comptes')}>
-            <Check size={12} /> {savingType === 'commissaires_aux_comptes' ? 'Enregistrement…' : 'Enregistrer'}
+            <Check size={12} /> {savingType === 'commissaires_aux_comptes' ? t('dsf.saving') : t('dsf.save')}
           </button>
         </div>
       </SectionAnnexe>
 
       {/* Crédit-bail */}
-      <SectionAnnexe C={C} icon={Briefcase} titre="N°5 — Crédit-bail / Location-acquisition">
+      <SectionAnnexe C={C} icon={Briefcase} titre={t('dsf.annexe_credit_bail')}>
         <div style={{ padding: 14 }}>
           {(data.credit_bail?.contrats || []).map((c, i) => (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
-              <input value={c.designation || ''} onChange={e => setArrayItem('credit_bail', 'contrats', i, { ...c, designation: e.target.value })} placeholder="Désignation" style={inp} />
-              <input type="number" value={c.duree || ''} onChange={e => setArrayItem('credit_bail', 'contrats', i, { ...c, duree: Number(e.target.value) })} placeholder="Durée (mois)" style={inp} />
-              <input type="number" value={c.mensualite || ''} onChange={e => setArrayItem('credit_bail', 'contrats', i, { ...c, mensualite: Number(e.target.value) })} placeholder="Mensualité" style={inp} />
-              <input type="number" value={c.restant || ''} onChange={e => setArrayItem('credit_bail', 'contrats', i, { ...c, restant: Number(e.target.value) })} placeholder="Restant (mois)" style={inp} />
-              <input type="number" value={c.valeur_residuelle || ''} onChange={e => setArrayItem('credit_bail', 'contrats', i, { ...c, valeur_residuelle: Number(e.target.value) })} placeholder="Val. résiduelle" style={inp} />
+              <input value={c.designation || ''} onChange={e => setArrayItem('credit_bail', 'contrats', i, { ...c, designation: e.target.value })} placeholder={t('dsf.ph_designation')} style={inp} />
+              <input type="number" value={c.duree || ''} onChange={e => setArrayItem('credit_bail', 'contrats', i, { ...c, duree: Number(e.target.value) })} placeholder={t('dsf.ph_duree')} style={inp} />
+              <input type="number" value={c.mensualite || ''} onChange={e => setArrayItem('credit_bail', 'contrats', i, { ...c, mensualite: Number(e.target.value) })} placeholder={t('dsf.ph_mensualite')} style={inp} />
+              <input type="number" value={c.restant || ''} onChange={e => setArrayItem('credit_bail', 'contrats', i, { ...c, restant: Number(e.target.value) })} placeholder={t('dsf.ph_restant')} style={inp} />
+              <input type="number" value={c.valeur_residuelle || ''} onChange={e => setArrayItem('credit_bail', 'contrats', i, { ...c, valeur_residuelle: Number(e.target.value) })} placeholder={t('dsf.ph_valeur_residuelle')} style={inp} />
               <button onClick={() => removeArrayItem('credit_bail', 'contrats', i)} style={{ ...btnGhost, color: C.danger }}>×</button>
             </div>
           ))}
-          <button onClick={() => addArrayItem('credit_bail', 'contrats', { designation: '', duree: 0, mensualite: 0, restant: 0, valeur_residuelle: 0 })} style={{ ...btnGhost, marginTop: 8 }}>+ Ajouter un contrat</button>
+          <button onClick={() => addArrayItem('credit_bail', 'contrats', { designation: '', duree: 0, mensualite: 0, restant: 0, valeur_residuelle: 0 })} style={{ ...btnGhost, marginTop: 8 }}>{t('dsf.add_contrat')}</button>
         </div>
         <div style={{ padding: '0 14px 14px', textAlign: 'right' }}>
           <button onClick={() => save('credit_bail')} disabled={savingType === 'credit_bail'} style={btnPrim(savingType === 'credit_bail')}>
-            <Check size={12} /> Enregistrer
+            <Check size={12} /> {t('dsf.save')}
           </button>
         </div>
       </SectionAnnexe>
 
       {/* Engagements hors bilan */}
-      <SectionAnnexe C={C} icon={AlertTriangle} titre="N°27 — Engagements hors bilan">
+      <SectionAnnexe C={C} icon={AlertTriangle} titre={t('dsf.annexe_engagements')}>
         <div style={{ padding: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div>
-            <label style={lbl}>Avals, cautions, garanties données (FCFA)</label>
+            <label style={lbl}>{t('dsf.field_avals_donnees')}</label>
             <input type="number" value={data.engagements_hors_bilan?.avals_cautions_garanties_donnees || ''} onChange={e => setField('engagements_hors_bilan', 'avals_cautions_garanties_donnees', Number(e.target.value))} style={inp} />
           </div>
           <div>
-            <label style={lbl}>Avals, cautions, garanties reçues (FCFA)</label>
+            <label style={lbl}>{t('dsf.field_avals_recues')}</label>
             <input type="number" value={data.engagements_hors_bilan?.avals_cautions_garanties_recues || ''} onChange={e => setField('engagements_hors_bilan', 'avals_cautions_garanties_recues', Number(e.target.value))} style={inp} />
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
-            <label style={lbl}>Autres engagements (description libre)</label>
+            <label style={lbl}>{t('dsf.field_autres_engagements')}</label>
             <textarea value={data.engagements_hors_bilan?.autres || ''} onChange={e => setField('engagements_hors_bilan', 'autres', e.target.value)}
-              rows={3} style={{ ...inp, resize: 'vertical' }} placeholder="ex: nantissement, sûretés réelles, contrats en cours…" />
+              rows={3} style={{ ...inp, resize: 'vertical' }} placeholder={t('dsf.ph_autres_engagements')} />
           </div>
         </div>
         <div style={{ padding: '0 14px 14px', textAlign: 'right' }}>
           <button onClick={() => save('engagements_hors_bilan')} disabled={savingType === 'engagements_hors_bilan'} style={btnPrim(savingType === 'engagements_hors_bilan')}>
-            <Check size={12} /> Enregistrer
+            <Check size={12} /> {t('dsf.save')}
           </button>
         </div>
       </SectionAnnexe>
 
       {/* Litiges */}
-      <SectionAnnexe C={C} icon={AlertTriangle} titre="N°32 — Litiges et risques">
+      <SectionAnnexe C={C} icon={AlertTriangle} titre={t('dsf.annexe_litiges')}>
         <div style={{ padding: 14 }}>
           {(data.litiges?.litiges || []).map((l, i) => (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
-              <input value={l.partie || ''} onChange={e => setArrayItem('litiges', 'litiges', i, { ...l, partie: e.target.value })} placeholder="Partie adverse" style={inp} />
-              <input value={l.nature || ''} onChange={e => setArrayItem('litiges', 'litiges', i, { ...l, nature: e.target.value })} placeholder="Nature du litige" style={inp} />
-              <input type="number" value={l.montant_demande || ''} onChange={e => setArrayItem('litiges', 'litiges', i, { ...l, montant_demande: Number(e.target.value) })} placeholder="Montant demandé" style={inp} />
-              <input type="number" value={l.provision || ''} onChange={e => setArrayItem('litiges', 'litiges', i, { ...l, provision: Number(e.target.value) })} placeholder="Provision constituée" style={inp} />
+              <input value={l.partie || ''} onChange={e => setArrayItem('litiges', 'litiges', i, { ...l, partie: e.target.value })} placeholder={t('dsf.ph_partie')} style={inp} />
+              <input value={l.nature || ''} onChange={e => setArrayItem('litiges', 'litiges', i, { ...l, nature: e.target.value })} placeholder={t('dsf.ph_nature')} style={inp} />
+              <input type="number" value={l.montant_demande || ''} onChange={e => setArrayItem('litiges', 'litiges', i, { ...l, montant_demande: Number(e.target.value) })} placeholder={t('dsf.ph_montant_demande')} style={inp} />
+              <input type="number" value={l.provision || ''} onChange={e => setArrayItem('litiges', 'litiges', i, { ...l, provision: Number(e.target.value) })} placeholder={t('dsf.ph_provision')} style={inp} />
               <button onClick={() => removeArrayItem('litiges', 'litiges', i)} style={{ ...btnGhost, color: C.danger }}>×</button>
             </div>
           ))}
-          <button onClick={() => addArrayItem('litiges', 'litiges', { partie: '', nature: '', montant_demande: 0, provision: 0 })} style={{ ...btnGhost, marginTop: 8 }}>+ Ajouter un litige</button>
+          <button onClick={() => addArrayItem('litiges', 'litiges', { partie: '', nature: '', montant_demande: 0, provision: 0 })} style={{ ...btnGhost, marginTop: 8 }}>{t('dsf.add_litige')}</button>
         </div>
         <div style={{ padding: '0 14px 14px', textAlign: 'right' }}>
           <button onClick={() => save('litiges')} disabled={savingType === 'litiges'} style={btnPrim(savingType === 'litiges')}>
-            <Check size={12} /> Enregistrer
+            <Check size={12} /> {t('dsf.save')}
           </button>
         </div>
       </SectionAnnexe>
 
       {/* CA par activité */}
-      <SectionAnnexe C={C} icon={TrendingUp} titre="N°23 — Ventilation du CA par activité">
+      <SectionAnnexe C={C} icon={TrendingUp} titre={t('dsf.annexe_ca')}>
         <div style={{ padding: 14 }}>
           {(data.ca_par_activite?.activites || []).map((a, i) => (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 80px auto', gap: 8, marginBottom: 8, alignItems: 'end' }}>
-              <input value={a.libelle || ''} onChange={e => setArrayItem('ca_par_activite', 'activites', i, { ...a, libelle: e.target.value })} placeholder="ex: Vente marchandises" style={inp} />
-              <input type="number" value={a.montant || ''} onChange={e => setArrayItem('ca_par_activite', 'activites', i, { ...a, montant: Number(e.target.value) })} placeholder="CA (FCFA)" style={inp} />
+              <input value={a.libelle || ''} onChange={e => setArrayItem('ca_par_activite', 'activites', i, { ...a, libelle: e.target.value })} placeholder={t('dsf.ph_activite')} style={inp} />
+              <input type="number" value={a.montant || ''} onChange={e => setArrayItem('ca_par_activite', 'activites', i, { ...a, montant: Number(e.target.value) })} placeholder={t('dsf.ph_ca')} style={inp} />
               <input type="number" value={a.pct || ''} onChange={e => setArrayItem('ca_par_activite', 'activites', i, { ...a, pct: Number(e.target.value) })} placeholder="%" style={inp} />
               <button onClick={() => removeArrayItem('ca_par_activite', 'activites', i)} style={{ ...btnGhost, color: C.danger }}>×</button>
             </div>
           ))}
-          <button onClick={() => addArrayItem('ca_par_activite', 'activites', { libelle: '', montant: 0, pct: 0 })} style={{ ...btnGhost, marginTop: 8 }}>+ Ajouter une activité</button>
+          <button onClick={() => addArrayItem('ca_par_activite', 'activites', { libelle: '', montant: 0, pct: 0 })} style={{ ...btnGhost, marginTop: 8 }}>{t('dsf.add_activite')}</button>
         </div>
         <div style={{ padding: '0 14px 14px', textAlign: 'right' }}>
           <button onClick={() => save('ca_par_activite')} disabled={savingType === 'ca_par_activite'} style={btnPrim(savingType === 'ca_par_activite')}>
-            <Check size={12} /> Enregistrer
+            <Check size={12} /> {t('dsf.save')}
           </button>
         </div>
       </SectionAnnexe>
@@ -999,24 +1004,25 @@ function AnnexesManuellesForm({ C, exerciceId, onSaved }) {
 }
 
 function TableauAnnexes({ C, annexes }) {
+  const { t } = useTranslation();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
       {/* N°3A — Immobilisations */}
-      <SectionAnnexe C={C} icon={Package} titre="N°3A — Immobilisations (mouvements bruts)">
+      <SectionAnnexe C={C} icon={Package} titre={t('dsf.annexe_immo')}>
         {annexes.immobilisations.lignes.length === 0 ? (
-          <EmptyAnnexe C={C} text="Aucune immobilisation enregistrée" />
+          <EmptyAnnexe C={C} text={t('dsf.empty_immo')} />
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', minWidth: 680, borderCollapse: 'collapse', fontSize: 12.5, fontFamily: fontUI }}>
               <thead>
                 <tr style={{ background: `${C.accent}10` }}>
-                  <th style={thStyle(C)}>Réf.</th>
-                  <th style={thStyle(C)}>Catégorie</th>
-                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Brut ouverture</th>
-                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Acquisitions</th>
-                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Cessions</th>
-                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Brut clôture</th>
+                  <th style={thStyle(C)}>{t('dsf.col_ref')}</th>
+                  <th style={thStyle(C)}>{t('dsf.col_categorie')}</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_brut_ouverture')}</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_acquisitions')}</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_cessions')}</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_brut_cloture')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1031,7 +1037,7 @@ function TableauAnnexes({ C, annexes }) {
                   </tr>
                 ))}
                 <tr style={{ background: `${C.warning}14` }}>
-                  <td style={{ ...tdStyle(C), fontWeight: 800, color: C.total }} colSpan={2}>TOTAL</td>
+                  <td style={{ ...tdStyle(C), fontWeight: 800, color: C.total }} colSpan={2}>{t('dsf.total')}</td>
                   <td style={{ ...tdStyleN(C), fontWeight: 800 }}>{fmt(annexes.immobilisations.totaux.brut_ouverture)}</td>
                   <td style={{ ...tdStyleN(C), fontWeight: 800, color: C.accent }}>{fmt(annexes.immobilisations.totaux.acquisitions)}</td>
                   <td style={{ ...tdStyleN(C), fontWeight: 800, color: C.danger }}>{fmt(annexes.immobilisations.totaux.cessions)}</td>
@@ -1044,20 +1050,20 @@ function TableauAnnexes({ C, annexes }) {
       </SectionAnnexe>
 
       {/* N°3B — Amortissements */}
-      <SectionAnnexe C={C} icon={Calendar} titre="N°3B — Amortissements (mouvements cumulés)">
+      <SectionAnnexe C={C} icon={Calendar} titre={t('dsf.annexe_amort')}>
         {annexes.amortissements.lignes.length === 0 ? (
-          <EmptyAnnexe C={C} text="Aucun amortissement enregistré" />
+          <EmptyAnnexe C={C} text={t('dsf.empty_amort')} />
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', minWidth: 680, borderCollapse: 'collapse', fontSize: 12.5, fontFamily: fontUI }}>
               <thead>
                 <tr style={{ background: `${C.accent}10` }}>
-                  <th style={thStyle(C)}>Réf.</th>
-                  <th style={thStyle(C)}>Catégorie</th>
-                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Cumul N-1</th>
-                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Dotations</th>
-                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Reprises</th>
-                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Cumul N</th>
+                  <th style={thStyle(C)}>{t('dsf.col_ref')}</th>
+                  <th style={thStyle(C)}>{t('dsf.col_categorie')}</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_cumul_n1')}</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_dotations')}</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_reprises')}</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_cumul_n')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1072,7 +1078,7 @@ function TableauAnnexes({ C, annexes }) {
                   </tr>
                 ))}
                 <tr style={{ background: `${C.warning}14` }}>
-                  <td style={{ ...tdStyle(C), fontWeight: 800, color: C.total }} colSpan={2}>TOTAL</td>
+                  <td style={{ ...tdStyle(C), fontWeight: 800, color: C.total }} colSpan={2}>{t('dsf.total')}</td>
                   <td style={{ ...tdStyleN(C), fontWeight: 800 }}>{fmt(annexes.amortissements.totaux.cumul_ouverture)}</td>
                   <td style={{ ...tdStyleN(C), fontWeight: 800, color: C.danger }}>{fmt(annexes.amortissements.totaux.dotations)}</td>
                   <td style={{ ...tdStyleN(C), fontWeight: 800, color: C.accent }}>{fmt(annexes.amortissements.totaux.reprises)}</td>
@@ -1085,34 +1091,34 @@ function TableauAnnexes({ C, annexes }) {
       </SectionAnnexe>
 
       {/* N°4 — Effectifs */}
-      <SectionAnnexe C={C} icon={Users} titre="N°4 — Effectifs">
+      <SectionAnnexe C={C} icon={Users} titre={t('dsf.annexe_effectifs')}>
         {annexes.effectifs ? (
           <div style={{ padding: 20, display: 'flex', alignItems: 'center', gap: 16 }}>
             <div style={{ width: 56, height: 56, borderRadius: 14, background: `${C.accent}20`, color: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: fontDisplay, fontWeight: 800, fontSize: 24 }}>
               {annexes.effectifs.total_fin_exercice}
             </div>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Salariés actifs en fin d'exercice</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{t('dsf.effectifs_label')}</div>
               <div style={{ fontSize: 11.5, color: C.sub, marginTop: 4 }}>{annexes.effectifs.details}</div>
             </div>
           </div>
         ) : (
-          <EmptyAnnexe C={C} text="Module Paie non utilisé — effectif à compléter manuellement sur la DSF DGI" />
+          <EmptyAnnexe C={C} text={t('dsf.empty_effectifs')} />
         )}
       </SectionAnnexe>
 
       {/* N°10 — Emprunts */}
-      <SectionAnnexe C={C} icon={Briefcase} titre="N°10 — Emprunts et dettes financières">
+      <SectionAnnexe C={C} icon={Briefcase} titre={t('dsf.annexe_emprunts')}>
         {annexes.emprunts.lignes.length === 0 ? (
-          <EmptyAnnexe C={C} text="Aucun emprunt en cours" />
+          <EmptyAnnexe C={C} text={t('dsf.empty_emprunts')} />
         ) : (
           <div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, fontFamily: fontUI }}>
               <thead>
                 <tr style={{ background: `${C.accent}10` }}>
-                  <th style={thStyle(C)}>Compte</th>
-                  <th style={thStyle(C)}>Libellé</th>
-                  <th style={{ ...thStyle(C), textAlign: 'right' }}>Solde restant</th>
+                  <th style={thStyle(C)}>{t('dsf.col_compte')}</th>
+                  <th style={thStyle(C)}>{t('dsf.col_libelle')}</th>
+                  <th style={{ ...thStyle(C), textAlign: 'right' }}>{t('dsf.col_solde_restant')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1124,7 +1130,7 @@ function TableauAnnexes({ C, annexes }) {
                   </tr>
                 ))}
                 <tr style={{ background: `${C.warning}14` }}>
-                  <td style={{ ...tdStyle(C), fontWeight: 800, color: C.total }} colSpan={2}>TOTAL</td>
+                  <td style={{ ...tdStyle(C), fontWeight: 800, color: C.total }} colSpan={2}>{t('dsf.total')}</td>
                   <td style={{ ...tdStyleN(C), fontWeight: 800 }}>{fmt(annexes.emprunts.total)}</td>
                 </tr>
               </tbody>
@@ -1134,15 +1140,15 @@ function TableauAnnexes({ C, annexes }) {
       </SectionAnnexe>
 
       {/* N°12 — Créances et dettes */}
-      <SectionAnnexe C={C} icon={FileText} titre="N°12 — État des créances et dettes">
+      <SectionAnnexe C={C} icon={FileText} titre={t('dsf.annexe_creances')}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, padding: 14 }}>
           {[
-            { l: 'Créances clients (41)', v: annexes.creances_dettes.creances_clients, c: C.accent },
-            { l: 'Autres créances (42-48)', v: annexes.creances_dettes.autres_creances, c: C.accent },
-            { l: 'Dettes fournisseurs (40)', v: annexes.creances_dettes.dettes_fournisseurs, c: C.danger },
-            { l: 'Dettes fiscales (44)', v: annexes.creances_dettes.dettes_fiscales, c: C.danger },
-            { l: 'Dettes sociales (42-43)', v: annexes.creances_dettes.dettes_sociales, c: C.danger },
-            { l: 'Autres dettes (45-47)', v: annexes.creances_dettes.autres_dettes, c: C.danger },
+            { l: t('dsf.cd_creances_clients'), v: annexes.creances_dettes.creances_clients, c: C.accent },
+            { l: t('dsf.cd_autres_creances'), v: annexes.creances_dettes.autres_creances, c: C.accent },
+            { l: t('dsf.cd_dettes_fournisseurs'), v: annexes.creances_dettes.dettes_fournisseurs, c: C.danger },
+            { l: t('dsf.cd_dettes_fiscales'), v: annexes.creances_dettes.dettes_fiscales, c: C.danger },
+            { l: t('dsf.cd_dettes_sociales'), v: annexes.creances_dettes.dettes_sociales, c: C.danger },
+            { l: t('dsf.cd_autres_dettes'), v: annexes.creances_dettes.autres_dettes, c: C.danger },
           ].map((item, i) => (
             <div key={i} style={{
               padding: 12, borderRadius: 10,
@@ -1157,11 +1163,8 @@ function TableauAnnexes({ C, annexes }) {
         </div>
       </SectionAnnexe>
 
-      <div style={{ padding: 14, background: `${C.warning}10`, border: `1px solid ${C.warning}40`, borderRadius: 10, fontSize: 11.5, color: C.sub, lineHeight: 1.5 }}>
-        <strong style={{ color: C.text }}>Annexes manuelles non incluses :</strong> commissaires aux comptes,
-        crédit-bail, engagements hors bilan, litiges, ventilation CA par activité.
-        Elles devront être complétées directement dans la DSF officielle DGI.
-      </div>
+      <div style={{ padding: 14, background: `${C.warning}10`, border: `1px solid ${C.warning}40`, borderRadius: 10, fontSize: 11.5, color: C.sub, lineHeight: 1.5 }}
+        dangerouslySetInnerHTML={{ __html: t('dsf.manuelles_note_html') }} />
     </div>
   );
 }
