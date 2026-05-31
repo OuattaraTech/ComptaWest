@@ -466,7 +466,18 @@
     "auth2_back_text": "Sign in to get back to your dashboard and your data.",
     "auth2_back_cta": "Sign in",
     "auth2_no_account": "No account yet? Sign up",
-    "auth2_have_account": "Already have an account? Sign in"
+    "auth2_have_account": "Already have an account? Sign in",
+    "pricing2_title": "Simple pricing, in FCFA",
+    "pricing2_subtitle": "No commitment. Try it free, switch or cancel in two clicks from your account.",
+    "pricing2_monthly": "Monthly",
+    "pricing2_annual": "Annual",
+    "pricing2_save": "2 months free",
+    "pricing2_permonth": "/ mo",
+    "pricing2_billed": "i.e. {{total}} FCFA billed yearly",
+    "pricing2_free": "Free",
+    "pricing2_cta_free": "Start for free",
+    "pricing2_cta": "Choose this plan",
+    "pricing2_limited": "Launch offer"
   },
   "imports": {
     "btn_import": "Import from Excel",

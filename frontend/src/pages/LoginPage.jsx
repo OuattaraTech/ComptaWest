@@ -1116,6 +1116,234 @@ function HowVisual({ C, dark }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Section TARIFS — bande TOUJOURS sombre, premium (façon référence
+// fournie) : titre centré, bascule Mensuel/Annuel, 3 cartes dont
+// celle du milieu (Starter) mise en avant avec icône flottante,
+// checklist à pastilles et CTA. Affichée DANS la landing (plus de
+// page /tarifs dédiée). Prix en dur (alignés sur backend/quotas.js).
+// ─────────────────────────────────────────────────────────────
+function PricingSection({ t, C, dark, fontDisplay, fontUI, fontMono, onChoose }) {
+  const [periode, setPeriode] = useState('mensuel');
+  const annuel = periode === 'annuel';
+
+  const D = {
+    bg: '#0B0D11', card: '#11161D', cardHi: '#161E29',
+    border: 'rgba(255,255,255,0.09)',
+    text: '#E8EAE3', sub: '#A9B1BC', muted: '#7A8492',
+  };
+  const accentBright = '#43D9B4'; // émeraude plus lumineux pour le prix mis en avant
+
+  const PLANS = [
+    { code: 'decouverte', m: 0,     y: 0,      icon: Sparkles,  featured: false, feats: 'plan_demo' },
+    { code: 'starter',    m: 10000, y: 100000, icon: Zap,       featured: true,  feats: 'plan_pme'  },
+    { code: 'pro',        m: 25000, y: 240000, icon: Briefcase, featured: false, feats: 'plan_pro'  },
+  ];
+
+  const fmt = (n) => n.toLocaleString('fr-FR');
+
+  const Toggle = () => (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4, padding: 4,
+      background: D.card, border: `1px solid ${D.border}`, borderRadius: 100,
+      position: 'relative',
+    }}>
+      {[['mensuel', t('login.pricing2_monthly')], ['annuel', t('login.pricing2_annual')]].map(([key, label]) => (
+        <button key={key} type="button" onClick={() => setPeriode(key)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '9px 20px', borderRadius: 100, border: 'none', cursor: 'pointer',
+            background: periode === key ? C.accent : 'transparent',
+            color: periode === key ? C.accentInk : D.sub,
+            fontFamily: fontUI, fontSize: 13.5, fontWeight: 700,
+            letterSpacing: '0.02em', transition: 'background 0.2s, color 0.2s',
+          }}>
+          {label}
+          {key === 'annuel' && (
+            <span style={{
+              fontSize: 10, fontWeight: 800, letterSpacing: '0.04em',
+              padding: '2px 7px', borderRadius: 100,
+              background: periode === key ? 'rgba(10,20,17,0.18)' : `${C.accent}22`,
+              color: periode === key ? C.accentInk : accentBright,
+              textTransform: 'uppercase',
+            }}>
+              {t('login.pricing2_save')}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <section id="tarifs" className="cw-section" style={{
+      position: 'relative', padding: '120px clamp(20px, 5vw, 96px)',
+      background: D.bg, borderTop: `1px solid ${C.border}`, overflow: 'hidden',
+    }}>
+      {/* Lueur radiale décorative derrière les cartes */}
+      <div aria-hidden style={{
+        position: 'absolute', top: 120, left: '50%', transform: 'translateX(-50%)',
+        width: 760, height: 420, borderRadius: '50%',
+        background: `radial-gradient(circle, ${C.accent}14, transparent 70%)`,
+        filter: 'blur(80px)', pointerEvents: 'none',
+      }} />
+
+      <div style={{ position: 'relative', maxWidth: 1080, margin: '0 auto' }}>
+        {/* En-tête centré */}
+        <div style={{ textAlign: 'center', marginBottom: 36 }}>
+          <h2 style={{
+            fontFamily: fontDisplay, fontSize: 'clamp(2rem, 4vw, 3rem)',
+            fontWeight: 700, letterSpacing: '-0.03em', color: D.text,
+            margin: '0 auto 14px', lineHeight: 1.08, maxWidth: '18ch',
+          }}>
+            {t('login.pricing2_title')}
+          </h2>
+          <p style={{ fontSize: 16, color: D.sub, lineHeight: 1.6, margin: '0 auto 30px', maxWidth: '52ch' }}>
+            {t('login.pricing2_subtitle')}
+          </p>
+          <Toggle />
+        </div>
+
+        {/* Grille des 3 cartes */}
+        <div className="cw-pricing2-grid" style={{
+          display: 'grid', gridTemplateColumns: '1fr 1.08fr 1fr',
+          gap: 18, alignItems: 'stretch', marginTop: 64,
+        }}>
+          {PLANS.map(({ code, m, y, icon: Icon, featured, feats }) => {
+            const prixMois = annuel ? Math.round(y / 12) : m;
+            const gratuit = m === 0;
+            const featLines = [1, 2, 3, 4, 5].map((i) => t(`login.${feats}_feat${i}`));
+            return (
+              <div key={code} className="cw-pricing2-card" style={{
+                position: 'relative',
+                background: featured ? D.cardHi : D.card,
+                border: `1px solid ${featured ? C.accent : D.border}`,
+                borderRadius: 22, padding: featured ? '48px 26px 30px' : '44px 24px 28px',
+                marginTop: featured ? -24 : 0,
+                boxShadow: featured
+                  ? `0 0 0 1px ${C.accent}40, 0 30px 70px -24px ${C.accent}55`
+                  : '0 20px 50px -30px rgba(0,0,0,0.6)',
+                display: 'flex', flexDirection: 'column',
+              }}>
+                {/* Icône flottante */}
+                <div style={{
+                  position: 'absolute', top: -26, left: '50%', transform: 'translateX(-50%)',
+                  width: 56, height: 56, borderRadius: 16,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: featured
+                    ? `linear-gradient(135deg, ${C.accent}, #0F8A6E)`
+                    : D.card,
+                  border: featured ? 'none' : `1px solid ${D.border}`,
+                  color: featured ? '#fff' : C.accent,
+                  boxShadow: featured ? `0 10px 26px ${C.accent}55` : '0 8px 20px rgba(0,0,0,0.4)',
+                }}>
+                  <Icon size={24} strokeWidth={2} />
+                </div>
+
+                {/* Badge palier */}
+                <div style={{ textAlign: 'center', marginBottom: 14 }}>
+                  <span style={{
+                    display: 'inline-block', padding: '4px 14px', borderRadius: 100,
+                    border: `1px solid ${featured ? C.accent : D.border}`,
+                    fontFamily: fontMono, fontSize: 11, fontWeight: 600,
+                    letterSpacing: '0.14em', textTransform: 'uppercase',
+                    color: featured ? accentBright : D.sub,
+                  }}>
+                    {t(`tarifs.palier_${code}`)}
+                  </span>
+                </div>
+
+                {/* Prix */}
+                <div style={{ textAlign: 'center', marginBottom: 6 }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4 }}>
+                    <span style={{
+                      fontFamily: fontDisplay, fontSize: gratuit ? 34 : 46, fontWeight: 800,
+                      letterSpacing: '-0.04em', lineHeight: 1,
+                      color: featured ? accentBright : D.text,
+                    }}>
+                      {gratuit ? t('login.pricing2_free') : fmt(prixMois)}
+                    </span>
+                    {!gratuit && (
+                      <span style={{ fontSize: 13, color: D.muted, fontWeight: 600, fontFamily: fontUI }}>
+                        FCFA <span style={{ fontSize: 12 }}>{t('login.pricing2_permonth')}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {/* Sous-ligne : facturation annuelle ou tagline */}
+                <div style={{ textAlign: 'center', minHeight: 20, marginBottom: 22, fontSize: 12.5, color: D.muted, fontFamily: fontUI }}>
+                  {annuel && !gratuit
+                    ? t('login.pricing2_billed', { total: fmt(y) })
+                    : t(`tarifs.palier_${code}_tagline`)}
+                </div>
+
+                <div style={{ height: 1, background: D.border, margin: '0 -2px 22px' }} />
+
+                {/* Checklist */}
+                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 26px', display: 'flex', flexDirection: 'column', gap: 13, flex: 1 }}>
+                  {featLines.map((line, i) => (
+                    <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 11 }}>
+                      <span style={{
+                        flexShrink: 0, width: 20, height: 20, borderRadius: '50%',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        background: `${C.accent}1F`, color: accentBright, marginTop: 1,
+                      }}>
+                        <CheckCircle2 size={13} strokeWidth={2.4} />
+                      </span>
+                      <span style={{ fontSize: 13.5, color: D.sub, lineHeight: 1.45 }}>{line}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* CTA */}
+                <button type="button" onClick={() => onChoose(code)}
+                  style={{
+                    width: '100%', padding: '13px 0', borderRadius: 12,
+                    border: featured ? 'none' : `1px solid ${D.border}`,
+                    background: featured ? C.accent : 'transparent',
+                    color: featured ? C.accentInk : D.text,
+                    fontFamily: fontUI, fontSize: 14, fontWeight: 700,
+                    letterSpacing: '0.02em', cursor: 'pointer',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    transition: 'background 0.2s, border-color 0.2s, transform 0.15s',
+                    boxShadow: featured ? `0 10px 26px ${C.accent}40` : 'none',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    if (!featured) e.currentTarget.style.borderColor = C.accent;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    if (!featured) e.currentTarget.style.borderColor = D.border;
+                  }}>
+                  {gratuit ? t('login.pricing2_cta_free') : t('login.pricing2_cta')}
+                  <ArrowRight size={15} strokeWidth={2} />
+                </button>
+
+                {/* Mention offre limitée sous la carte mise en avant */}
+                {featured && (
+                  <div style={{
+                    position: 'absolute', bottom: -28, left: 0, right: 0, textAlign: 'center',
+                    fontSize: 11.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                    color: accentBright, fontFamily: fontUI,
+                  }}>
+                    — {t('login.pricing2_limited')} —
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Note de paiement */}
+        <div style={{ textAlign: 'center', marginTop: 64, fontSize: 13, color: D.muted, fontFamily: fontUI, lineHeight: 1.6 }}>
+          {t('login.pricing_note')}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Carte d'authentification à double panneau coulissant (style
 // « sliding sign-in / sign-up » popularisé par Florin Pop), adaptée
 // à ApeX : panneau « blob » émeraude qui glisse, bascule Connexion ⇄
@@ -1503,7 +1731,7 @@ function SiteFooter({ C, dark, t, lang, navigate, fontDisplay, fontMono, fontUI,
             <p style={colTitle}>{t('login.ft_col_product')}</p>
             <FootLink href="#modules">{t('login.ft_product_features')}</FootLink>
             <FootLink href="#atouts">{t('login.ft_product_diff')}</FootLink>
-            <FootLink onClick={() => navigate('/tarifs')}>{t('login.ft_product_pricing')}</FootLink>
+            <FootLink href="#tarifs">{t('login.ft_product_pricing')}</FootLink>
             <FootLink onClick={onDemo}>{t('login.ft_product_demo')}</FootLink>
           </div>
 
@@ -1740,7 +1968,29 @@ export default function LoginPage() {
     }
   }, [planChoisi]);
 
+  // Arrivée avec une ancre (#tarifs depuis l'ancienne route /tarifs, ou un
+  // lien de nav) → scroll vers la section correspondante après le rendu.
+  useEffect(() => {
+    const hash = window.location.hash?.replace('#', '');
+    if (!hash) return;
+    const id = setTimeout(() => {
+      document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 200);
+    return () => clearTimeout(id);
+  }, []);
+
   const set = key => e => setForm(f => ({ ...f, [key]: e.target.value }));
+
+  // Choix d'un palier depuis la grille tarifaire (sur la landing même) :
+  // pré-sélectionne le palier, bascule le formulaire en inscription et
+  // scrolle jusqu'à la carte d'auth. Le palier est appliqué au register.
+  const choisirPalier = (code) => {
+    setPlanChoisi(code && code !== 'decouverte' ? code : null);
+    setMode('register');
+    setTimeout(() => {
+      document.getElementById('cw-auth-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 60);
+  };
 
   const handleDemoLogin = async () => {
     setLoading(true);
@@ -2035,7 +2285,7 @@ export default function LoginPage() {
                 {loading ? t('login.demo_connecting') : t('login.cta_primary')}
                 <ArrowRight size={17} strokeWidth={2} />
               </button>
-              <button onClick={() => navigate('/tarifs')}
+              <button onClick={() => document.getElementById('tarifs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.color = C.accent; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = C.borderStrong; e.currentTarget.style.color = C.text; }}
                 style={{
@@ -2764,153 +3014,15 @@ export default function LoginPage() {
       </section>
 
       {/* ─────────────────────────────────────────────────────────────
-          TARIFICATION — 4 paliers en grille de largeurs inégales
-          (1.1fr 0.9fr 1.2fr 0.9fr) pour casser la symétrie « 4 cartes »
+          TARIFS — section premium sombre (refonte façon référence),
+          affichée DANS la landing. Bascule Mensuel/Annuel, carte du
+          milieu mise en avant. Voir le composant PricingSection.
           ───────────────────────────────────────────────────────────── */}
-      <section className="cw-section" style={{
-        padding: '128px clamp(28px, 6vw, 96px)',
-        background: dark ? '#0B0D11' : '#F1F2EC',
-        borderTop: `1px solid ${C.border}`,
-      }}>
-        <div style={{ maxWidth: 1320, margin: '0 auto' }}>
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr',
-            gap: 48, alignItems: 'flex-end', marginBottom: 72,
-          }} className="cw-pricing-head">
-            <h2 style={{
-              fontFamily: fontDisplay,
-              fontSize: 'clamp(2rem, 3.4vw, 2.8rem)',
-              fontWeight: 700, letterSpacing: '-0.025em',
-              color: C.text, margin: 0, lineHeight: 1.05,
-              maxWidth: '16ch',
-            }}>
-              {t('login.pricing_title')}
-            </h2>
-            <p style={{
-              fontSize: 16, color: C.sub, lineHeight: 1.6,
-              margin: 0, maxWidth: '46ch', justifySelf: 'end',
-            }}>
-              {t('login.pricing_subtitle')}
-            </p>
-          </div>
-
-          <div className="cw-pricing-grid" style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1.15fr',
-            gap: 16, alignItems: 'stretch',
-          }}>
-            {[
-              { code: 'decouverte', prix: 0,     highlight: false },
-              { code: 'starter',    prix: 10000, highlight: false },
-              { code: 'pro',        prix: 25000, highlight: true  },
-            ].map(({ code, prix, highlight }) => (
-              <div key={code} style={{
-                background: highlight
-                  ? (dark ? C.surface : '#FFFFFF')
-                  : 'transparent',
-                border: highlight
-                  ? `1px solid ${C.accent}`
-                  : `1px solid ${C.border}`,
-                borderRadius: 16, padding: '28px 22px',
-                position: 'relative',
-                boxShadow: highlight
-                  ? (dark
-                      ? `inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 24px rgba(0,0,0,0.30)`
-                      : `inset 0 1px 0 rgba(255,255,255,0.7), 0 6px 18px rgba(14,17,22,0.06)`)
-                  : 'none',
-                display: 'flex', flexDirection: 'column',
-              }}>
-                {highlight && (
-                  <div style={{
-                    position: 'absolute', top: -1, right: -1,
-                    padding: '5px 11px',
-                    background: C.accent, color: C.accentInk,
-                    fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase',
-                    whiteSpace: 'nowrap', borderRadius: '0 16px 0 12px',
-                    fontFamily: fontUI,
-                  }}>
-                    {t('tarifs.palier_pro_badge')}
-                  </div>
-                )}
-
-                <div style={{
-                  fontFamily: fontMono,
-                  fontSize: 12, fontWeight: 500, color: highlight ? C.accent : C.muted,
-                  letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8,
-                }}>
-                  / {t(`tarifs.palier_${code}`)}
-                </div>
-                <div style={{ fontSize: 13.5, color: C.muted, marginBottom: 24, lineHeight: 1.5, minHeight: 40 }}>
-                  {t(`tarifs.palier_${code}_tagline`)}
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 22 }}>
-                  <span style={{
-                    fontFamily: fontDisplay,
-                    fontSize: 36, fontWeight: 700, color: C.text,
-                    letterSpacing: '-0.035em', lineHeight: 1,
-                  }}>
-                    {prix === 0 ? '0' : prix.toLocaleString('fr-FR')}
-                  </span>
-                  <span style={{ fontSize: 13, color: C.muted, fontWeight: 600, fontFamily: fontUI }}>
-                    {t('tarifs.currency_suffix')}
-                  </span>
-                  {prix > 0 && (
-                    <span style={{ fontSize: 12.5, color: C.muted, marginLeft: 2 }}>
-                      {t('tarifs.per_month')}
-                    </span>
-                  )}
-                </div>
-
-                <button
-                  onClick={() => navigate('/tarifs')}
-                  style={{
-                    marginTop: 'auto', padding: '12px 16px', borderRadius: 10,
-                    border: highlight ? 'none' : `1px solid ${C.borderStrong}`,
-                    background: highlight ? C.accent : 'transparent',
-                    color: highlight ? C.accentInk : C.text,
-                    fontFamily: fontUI, fontSize: 14, fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
-                    transition: 'background 0.2s, border-color 0.2s',
-                  }}
-                  onMouseEnter={e => {
-                    if (!highlight) e.currentTarget.style.borderColor = C.accent;
-                  }}
-                  onMouseLeave={e => {
-                    if (!highlight) e.currentTarget.style.borderColor = C.borderStrong;
-                  }}>
-                  {t('tarifs.cta_choose')} <ArrowRight size={14} strokeWidth={2} />
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div style={{
-            marginTop: 36, paddingTop: 24,
-            borderTop: `1px solid ${C.border}`,
-            display: 'grid', gridTemplateColumns: '1fr auto', gap: 24,
-            alignItems: 'center',
-          }} className="cw-pricing-foot">
-            <div style={{ fontSize: 13.5, color: C.muted, lineHeight: 1.6 }}>
-              {t('login.pricing_note')}
-            </div>
-            <button onClick={() => navigate('/tarifs')} style={{
-              padding: '13px 24px', borderRadius: 11,
-              border: `1px solid ${C.borderStrong}`, background: 'transparent',
-              color: C.text, fontFamily: fontUI, fontSize: 14, fontWeight: 600,
-              cursor: 'pointer',
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-              whiteSpace: 'nowrap',
-              transition: 'border-color 0.2s, color 0.2s',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.color = C.accent; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = C.borderStrong; e.currentTarget.style.color = C.text; }}>
-              {t('tarifs.faq_title')} & {t('tarifs.page_subtitle').split('.')[0]} <ArrowRight size={14} strokeWidth={2} />
-            </button>
-          </div>
-        </div>
-      </section>
+      <PricingSection
+        t={t} C={C} dark={dark}
+        fontDisplay={fontDisplay} fontUI={fontUI} fontMono={fontMono}
+        onChoose={choisirPalier}
+      />
 
       {/* ─────────────────────────────────────────────────────────────
           POURQUOI APEX — bande TOUJOURS sombre (contraste fort, façon
@@ -3224,8 +3336,14 @@ export default function LoginPage() {
 
         /* Décalage du scroll vers les ancres pour ne pas passer sous
            la barre de navigation fixe. */
-        #parcours, #atouts, #equipe, #modules, #cw-auth-form {
+        #parcours, #atouts, #equipe, #modules, #cw-auth-form, #tarifs {
           scroll-margin-top: 100px;
+        }
+
+        /* Grille tarifaire : empilement + reset de la carte surélevée en mobile */
+        @media (max-width: 900px) {
+          .cw-pricing2-grid { grid-template-columns: 1fr !important; gap: 52px !important; max-width: 420px; margin-left: auto; margin-right: auto; }
+          .cw-pricing2-card { margin-top: 0 !important; }
         }
 
         /* ── Carte d'auth coulissante (double panneau « blob ») ───────── */

@@ -466,7 +466,18 @@
     "auth2_back_text": "Connectez-vous pour retrouver votre tableau de bord et vos données.",
     "auth2_back_cta": "Se connecter",
     "auth2_no_account": "Pas encore de compte ? S'inscrire",
-    "auth2_have_account": "Déjà un compte ? Se connecter"
+    "auth2_have_account": "Déjà un compte ? Se connecter",
+    "pricing2_title": "Une tarification simple, en FCFA",
+    "pricing2_subtitle": "Sans engagement. Testez gratuitement, changez ou résiliez en deux clics depuis votre espace.",
+    "pricing2_monthly": "Mensuel",
+    "pricing2_annual": "Annuel",
+    "pricing2_save": "2 mois offerts",
+    "pricing2_permonth": "/ mois",
+    "pricing2_billed": "soit {{total}} FCFA facturés par an",
+    "pricing2_free": "Gratuit",
+    "pricing2_cta_free": "Commencer gratuitement",
+    "pricing2_cta": "Choisir cette formule",
+    "pricing2_limited": "Offre de lancement"
   },
   "imports": {
     "btn_import": "Importer Excel",
