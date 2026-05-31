@@ -1,24 +1,19 @@
 /**
- * Abstraction des fournisseurs de paiement (PSP) pour les abonnements ApeX.
+ * Intégration CinetPay pour le checkout d'abonnement ApeX.
  *
- * Quatre moyens supportés :
- *   - wave    → Wave Business Checkout (API hosted)
- *   - orange  → Orange Money Web Payment (OMC2P)
- *   - stripe  → Stripe Checkout Session (cartes bancaires internationales)
- *   - mock    → simulation locale (aucun appel réseau, succès en 3 secondes)
+ * CinetPay est un agrégateur de paiement ivoirien qui expose Wave,
+ * Orange Money, MTN MoMo, Moov et les cartes bancaires Visa/Mastercard
+ * via une seule API. Avantages par rapport à des intégrations directes :
+ *   - 1 seul contrat commercial et 1 seul jeu de clés à gérer
+ *   - Payouts FCFA directs sur le compte bancaire CI d'ApeX
+ *   - Dashboard en français, support local
+ *   - Pas de conversion EUR ↔ FCFA (économise les frais de change)
  *
- * Comportement du mode mock :
- *   - utilisé automatiquement si PAYMENT_MODE=mock OU si la clé API du
- *     fournisseur cible est absente
- *   - retourne une URL vers /checkout/mock/:id qui simule l'attente puis
- *     déclenche le webhook interne après 3 secondes
+ * Mode `mock` : si PAYMENT_MODE=mock OU si les clés CinetPay sont absentes,
+ * on bascule sur une simulation locale (page front /checkout/mock/:id qui
+ * attend 3,5 s puis active l'abonnement) — utile en dev et pour les démos.
  *
- * Chaque fonction expose la même signature :
- *   await creerSessionXxx({ paiement, baseUrl, retourUrl, annulationUrl })
- *     → { reference_externe, url_redirection, metadata }
- *
- * Aucune ne lance jamais d'exception fatale : en cas d'erreur réseau ou
- * de clé absente, on bascule sur le mock et on logge.
+ * Doc CinetPay : https://docs.cinetpay.com/api/1.0-fr/
  */
 'use strict';
 
@@ -26,12 +21,10 @@ const crypto = require('crypto');
 
 const PAYMENT_MODE = process.env.PAYMENT_MODE || 'mock';
 
+const CINETPAY_BASE = 'https://api-checkout.cinetpay.com/v2';
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-/**
- * Calcule le montant à débiter selon palier et périodicité, depuis les
- * QUOTAS du backend (source unique de vérité).
- */
 function calculerMontant(palier, periodicite) {
   const { QUOTAS } = require('./quotas');
   const q = QUOTAS[palier];
@@ -39,173 +32,127 @@ function calculerMontant(palier, periodicite) {
   return periodicite === 'annuel' ? q.prix_annuel : q.prix_mensuel;
 }
 
-/**
- * Génère une référence interne unique pour traçage (sert de fallback
- * si le PSP ne retourne pas d'id de session).
- */
 function refInterne(prefix) {
   return `${prefix}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 }
 
-// ─── 1. WAVE BUSINESS CHECKOUT ─────────────────────────────────────────────
-// Doc : https://developer.wave.com/api/checkout-sessions/
-// Endpoint : POST https://api.wave.com/v1/checkout/sessions
-//   Authorization: Bearer <WAVE_API_KEY>
-//   Body : { amount, currency: "XOF", success_url, error_url, client_reference }
-
-async function creerSessionWave({ paiement, retourUrl, annulationUrl }) {
-  if (!process.env.WAVE_API_KEY) {
-    return fallbackMock(paiement, 'wave', 'WAVE_API_KEY absente, bascule sur mock');
-  }
-  try {
-    const body = {
-      amount: String(paiement.montant_fcfa),
-      currency: 'XOF',
-      success_url: retourUrl,
-      error_url: annulationUrl,
-      client_reference: paiement.id,
-    };
-    const r = await fetch('https://api.wave.com/v1/checkout/sessions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.WAVE_API_KEY}`,
-        'Content-Type': 'application/json',
-        'Idempotency-Key': paiement.id,
-      },
-      body: JSON.stringify(body),
-    });
-    if (!r.ok) throw new Error(`Wave HTTP ${r.status} : ${await r.text()}`);
-    const data = await r.json();
-    return {
-      reference_externe: data.id,
-      url_redirection: data.wave_launch_url,
-      metadata: { wave_session: data },
-    };
-  } catch (err) {
-    console.error('[checkout][wave]', err.message);
-    return fallbackMock(paiement, 'wave', err.message);
+/**
+ * Mapping du moyen choisi par l'utilisateur (Wave / Orange / Carte) vers
+ * le `channels` CinetPay (CinetPay ne propose pas de granularité fine
+ * par opérateur Mobile Money — l'utilisateur choisit son opérateur sur
+ * la page CinetPay une fois redirigé).
+ *   wave, orange, mtn, mock → MOBILE_MONEY (Wave + Orange + MTN + Moov visibles)
+ *   stripe                  → CREDIT_CARD (Visa + Mastercard)
+ *   cinetpay (générique)    → ALL (tous les moyens visibles)
+ */
+function moyenToChannels(moyen) {
+  switch (moyen) {
+    case 'wave':
+    case 'orange':
+    case 'mtn':
+      return 'MOBILE_MONEY';
+    case 'stripe':
+      return 'CREDIT_CARD';
+    case 'cinetpay':
+    default:
+      return 'ALL';
   }
 }
 
-// ─── 2. ORANGE MONEY WEB PAYMENT (OMC2P) ──────────────────────────────────
-// Doc : https://developer.orange.com/apis/web-payment-cdi
-// Flux : 1) auth OAuth → access_token  2) POST /webpayment → pay_token + payment_url
+// ─── 1. SESSION CINETPAY ───────────────────────────────────────────────────
+// POST https://api-checkout.cinetpay.com/v2/payment
+//   { apikey, site_id, transaction_id, amount, currency, description,
+//     notify_url, return_url, channels, lang, metadata }
+//   → { code: "201", data: { payment_url, payment_token } }
 
-async function creerSessionOrange({ paiement, retourUrl, annulationUrl }) {
-  const id = process.env.ORANGE_CLIENT_ID;
-  const secret = process.env.ORANGE_CLIENT_SECRET;
-  const merchantKey = process.env.ORANGE_MERCHANT_KEY;
-  if (!id || !secret || !merchantKey) {
-    return fallbackMock(paiement, 'orange', 'Clés Orange Money absentes, bascule sur mock');
+async function creerSessionCinetPay({ paiement, moyen, retourUrl }) {
+  const apikey = process.env.CINETPAY_API_KEY;
+  const siteId = process.env.CINETPAY_SITE_ID;
+  if (!apikey || !siteId) {
+    return fallbackMock(paiement, 'cinetpay', 'CINETPAY_API_KEY ou CINETPAY_SITE_ID absente, bascule sur mock');
   }
   try {
-    // 1. Auth OAuth client_credentials
-    const basic = Buffer.from(`${id}:${secret}`).toString('base64');
-    const tokenRes = await fetch('https://api.orange.com/oauth/v3/token', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${basic}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: 'grant_type=client_credentials',
-    });
-    if (!tokenRes.ok) throw new Error(`Orange OAuth HTTP ${tokenRes.status}`);
-    const { access_token } = await tokenRes.json();
+    const transactionId = `apex_${paiement.id.slice(0, 8)}_${Date.now()}`;
+    const notifyUrl = `${(process.env.BACKEND_BASE_URL || '').replace(/\/+$/, '')}/api/webhooks/abonnement/cinetpay`;
 
-    // 2. Création de la session web payment
-    const orderId = refInterne('apex');
     const body = {
-      merchant_key: merchantKey,
-      currency: 'OUV',                  // OUV = code Orange pour XOF/FCFA en sandbox ; à vérifier en prod
-      order_id: orderId,
+      apikey,
+      site_id: siteId,
+      transaction_id: transactionId,
       amount: paiement.montant_fcfa,
+      currency: 'XOF',
+      description: `ApeX — Abonnement ${paiement.palier} ${paiement.periodicite}`,
+      notify_url: notifyUrl,
       return_url: retourUrl,
-      cancel_url: annulationUrl,
-      notif_url: `${process.env.BACKEND_BASE_URL || ''}/api/webhooks/orange`,
-      lang: 'fr',
-      reference: paiement.id,
+      channels: moyenToChannels(moyen),
+      lang: 'FR',
+      metadata: JSON.stringify({
+        paiement_id: paiement.id,
+        entreprise_id: paiement.entreprise_id,
+        palier: paiement.palier,
+        periodicite: paiement.periodicite,
+        moyen_choisi: moyen,
+      }),
     };
-    const r = await fetch('https://api.orange.com/orange-money-webpay/cdi/v1/webpayment', {
+
+    const r = await fetch(`${CINETPAY_BASE}/payment`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${access_token}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!r.ok) throw new Error(`Orange Webpay HTTP ${r.status} : ${await r.text()}`);
     const data = await r.json();
+    if (!r.ok || data.code !== '201') {
+      throw new Error(`CinetPay HTTP ${r.status} code=${data.code} : ${data.message || 'erreur inconnue'} ${JSON.stringify(data.description || {})}`);
+    }
     return {
-      reference_externe: data.pay_token || orderId,
-      url_redirection: data.payment_url,
-      metadata: { orange_session: data, order_id: orderId },
+      reference_externe: transactionId,
+      url_redirection: data.data.payment_url,
+      metadata: {
+        cinetpay_session: data.data,
+        moyen_choisi: moyen,
+        channels: body.channels,
+        transaction_id: transactionId,
+      },
     };
   } catch (err) {
-    console.error('[checkout][orange]', err.message);
-    return fallbackMock(paiement, 'orange', err.message);
+    console.error('[checkout][cinetpay]', err.message);
+    return fallbackMock(paiement, 'cinetpay', err.message);
   }
 }
 
-// ─── 3. STRIPE CHECKOUT SESSION ────────────────────────────────────────────
-// Doc : https://docs.stripe.com/api/checkout/sessions/create
-// Stripe accepte les cartes bancaires internationales (Visa, Mastercard, Amex).
-// On crée la session via fetch direct pour éviter d'ajouter le SDK officiel
-// (qui pèse 5 Mo). En production, considérer require('stripe')(SECRET).
+// ─── 2. VÉRIFICATION DU STATUT (anti-spoofing webhook) ────────────────────
+// POST https://api-checkout.cinetpay.com/v2/payment/check
+//   { apikey, site_id, transaction_id }
+//   → { code: "00", data: { status: "ACCEPTED" | "REFUSED" | ..., amount, ... } }
 
-async function creerSessionStripe({ paiement, retourUrl, annulationUrl }) {
-  const secret = process.env.STRIPE_SECRET_KEY;
-  if (!secret) {
-    return fallbackMock(paiement, 'stripe', 'STRIPE_SECRET_KEY absente, bascule sur mock');
+async function verifierStatutCinetPay(transactionId) {
+  const apikey = process.env.CINETPAY_API_KEY;
+  const siteId = process.env.CINETPAY_SITE_ID;
+  if (!apikey || !siteId) {
+    return { ok: false, status: 'no_credentials', raw: null };
   }
   try {
-    // FCFA n'est pas accepté par Stripe pour le checkout (juin 2024).
-    // On débite en EUR au taux de change fixe BCEAO : 1 EUR = 655,957 XOF.
-    const eurAmount = Math.round((paiement.montant_fcfa / 655.957) * 100); // en cents
-    const params = new URLSearchParams();
-    params.append('mode', 'payment');
-    params.append('success_url', retourUrl + '?session_id={CHECKOUT_SESSION_ID}');
-    params.append('cancel_url', annulationUrl);
-    params.append('client_reference_id', paiement.id);
-    params.append('line_items[0][price_data][currency]', 'eur');
-    params.append('line_items[0][price_data][product_data][name]',
-      `ApeX — Abonnement ${paiement.palier} ${paiement.periodicite}`);
-    params.append('line_items[0][price_data][unit_amount]', String(eurAmount));
-    params.append('line_items[0][quantity]', '1');
-    params.append('metadata[paiement_id]', paiement.id);
-    params.append('metadata[palier]', paiement.palier);
-    params.append('metadata[periodicite]', paiement.periodicite);
-
-    const r = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+    const r = await fetch(`${CINETPAY_BASE}/payment/check`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${secret}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Idempotency-Key': paiement.id,
-      },
-      body: params.toString(),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apikey, site_id: siteId, transaction_id: transactionId }),
     });
-    if (!r.ok) throw new Error(`Stripe HTTP ${r.status} : ${await r.text()}`);
     const data = await r.json();
-    return {
-      reference_externe: data.id,
-      url_redirection: data.url,
-      metadata: { stripe_session: data, eur_amount_cents: eurAmount },
-    };
+    if (data.code !== '00') {
+      return { ok: false, status: data.message || data.code, raw: data };
+    }
+    return { ok: true, status: data.data?.status || 'UNKNOWN', amount: data.data?.amount, raw: data };
   } catch (err) {
-    console.error('[checkout][stripe]', err.message);
-    return fallbackMock(paiement, 'stripe', err.message);
+    console.error('[checkout][cinetpay][check]', err.message);
+    return { ok: false, status: 'error', error: err.message, raw: null };
   }
 }
 
-// ─── 4. MOCK — simulation locale ───────────────────────────────────────────
-// Crée une référence interne, renvoie vers /checkout/mock/:id du SPA.
-// Cette page front simule l'attente puis appelle l'endpoint interne
-// /api/abonnement/checkout/:id/mock-success qui déclenche l'activation.
+// ─── 3. MOCK — simulation locale ───────────────────────────────────────────
 
 function creerSessionMock({ paiement, baseUrl }) {
-  const ref = refInterne('mock');
   return {
-    reference_externe: ref,
+    reference_externe: refInterne('mock'),
     url_redirection: `${baseUrl}/checkout/mock/${paiement.id}`,
     metadata: { mode: 'mock', message: 'Paiement simulé en environnement de test' },
   };
@@ -226,51 +173,38 @@ function fallbackMock(paiement, moyen_initial, raison) {
  * Crée une session de paiement et retourne :
  *   { reference_externe, url_redirection, metadata }
  *
- * Si PAYMENT_MODE === 'mock', force le mock quel que soit le `moyen` demandé.
+ * Si PAYMENT_MODE === 'mock', force le mock quel que soit le `moyen`.
+ * Sinon route TOUT vers CinetPay (avec le `channels` adapté au moyen choisi).
  */
-async function creerSessionPaiement({ paiement, moyen, baseUrl, retourUrl, annulationUrl }) {
+async function creerSessionPaiement({ paiement, moyen, baseUrl, retourUrl }) {
   if (PAYMENT_MODE === 'mock' || moyen === 'mock') {
     return creerSessionMock({ paiement, baseUrl });
   }
-  switch (moyen) {
-    case 'wave':   return creerSessionWave({ paiement, retourUrl, annulationUrl });
-    case 'orange': return creerSessionOrange({ paiement, retourUrl, annulationUrl });
-    case 'stripe': return creerSessionStripe({ paiement, retourUrl, annulationUrl });
-    default:       throw new Error(`Moyen de paiement inconnu : ${moyen}`);
-  }
+  return creerSessionCinetPay({ paiement, moyen, retourUrl });
 }
 
-// ─── Vérification de signature de webhook ─────────────────────────────────
+// ─── Vérification de signature de webhook CinetPay ────────────────────────
+// CinetPay envoie un header `x-token` = HMAC-SHA256 d'une concaténation des
+// champs du body (cpm_site_id, cpm_trans_id, cpm_trans_date, cpm_amount,
+// cpm_currency, signature, payment_method, cel_phone_num, cpm_phone_prefixe,
+// cpm_language, cpm_version, cpm_payment_config, cpm_page_action, cpm_custom,
+// cpm_designation, cpm_error_message) signée avec CINETPAY_SECRET_KEY.
 
-/** Wave : header `Wave-Signature` = HMAC-SHA256 du body avec WAVE_WEBHOOK_SECRET. */
-function verifierSignatureWave(rawBody, signature) {
-  if (!process.env.WAVE_WEBHOOK_SECRET) return PAYMENT_MODE === 'mock';
-  const expected = crypto.createHmac('sha256', process.env.WAVE_WEBHOOK_SECRET)
-    .update(rawBody).digest('hex');
-  return safeCompare(signature, expected);
-}
-
-/** Orange : header `X-Orange-Signature` (à valider selon doc OMC2P). */
-function verifierSignatureOrange(rawBody, signature) {
-  if (!process.env.ORANGE_WEBHOOK_SECRET) return PAYMENT_MODE === 'mock';
-  const expected = crypto.createHmac('sha256', process.env.ORANGE_WEBHOOK_SECRET)
-    .update(rawBody).digest('hex');
-  return safeCompare(signature, expected);
-}
-
-/** Stripe : header `Stripe-Signature` (format t=...,v1=...,v0=...). */
-function verifierSignatureStripe(rawBody, signature) {
-  if (!process.env.STRIPE_WEBHOOK_SECRET) return PAYMENT_MODE === 'mock';
+function verifierSignatureCinetPay(body, headerToken) {
+  const secret = process.env.CINETPAY_SECRET_KEY;
+  if (!secret) return PAYMENT_MODE === 'mock';
+  if (!headerToken) return false;
   try {
-    const elements = signature.split(',').reduce((acc, e) => {
-      const [k, v] = e.split('=');
-      acc[k] = v;
-      return acc;
-    }, {});
-    const payload = `${elements.t}.${rawBody}`;
-    const expected = crypto.createHmac('sha256', process.env.STRIPE_WEBHOOK_SECRET)
-      .update(payload).digest('hex');
-    return safeCompare(elements.v1, expected);
+    const fields = [
+      'cpm_site_id', 'cpm_trans_id', 'cpm_trans_date', 'cpm_amount',
+      'cpm_currency', 'signature', 'payment_method', 'cel_phone_num',
+      'cpm_phone_prefixe', 'cpm_language', 'cpm_version',
+      'cpm_payment_config', 'cpm_page_action', 'cpm_custom',
+      'cpm_designation', 'cpm_error_message',
+    ];
+    const concat = fields.map(f => body?.[f] || '').join('');
+    const expected = crypto.createHmac('sha256', secret).update(concat).digest('hex');
+    return safeCompare(headerToken, expected);
   } catch (_) {
     return false;
   }
@@ -278,14 +212,14 @@ function verifierSignatureStripe(rawBody, signature) {
 
 function safeCompare(a, b) {
   if (!a || !b || a.length !== b.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  try { return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b)); }
+  catch (_) { return false; }
 }
 
 module.exports = {
   PAYMENT_MODE,
   calculerMontant,
   creerSessionPaiement,
-  verifierSignatureWave,
-  verifierSignatureOrange,
-  verifierSignatureStripe,
+  verifierStatutCinetPay,
+  verifierSignatureCinetPay,
 };

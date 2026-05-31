@@ -10,7 +10,7 @@ const checkQuota = require('../middleware/checkQuota');
 const { idempotent } = require('../middleware/idempotency');
 const { getAbonnement, putAbonnement } = require('../controllers/abonnementController');
 const { creerCheckout, statutCheckout, mockSuccess } = require('../controllers/checkoutController');
-const { webhookWave: webhookAbonnementWave, webhookOrange: webhookAbonnementOrange, webhookStripe: webhookAbonnementStripe } = require('../controllers/webhooksController');
+const { webhookCinetPay } = require('../controllers/webhooksController');
 
 // Raccourci : can('factures', 'create') === requirePermission('factures', 'create')
 // La matrice complète vit dans utils/permissions.js.
@@ -331,13 +331,12 @@ router.post('/abonnement/checkout',                   auth, can(MODULES.ENTREPRI
 router.get ('/abonnement/checkout/:id/status',        auth, can(MODULES.ENTREPRISE, ACTIONS.READ),   statutCheckout);
 router.post('/abonnement/checkout/:id/mock-success',  auth, can(MODULES.ENTREPRISE, ACTIONS.UPDATE), mockSuccess);
 
-// ─── WEBHOOKS de confirmation PSP (publics, signés) ──────────────────────
-// Reçoivent les notifications de Wave, Orange Money et Stripe quand un
-// paiement d'abonnement est confirmé. Vérification de signature HMAC
-// obligatoire dans chaque handler. Pas d'authentification utilisateur.
-router.post('/webhooks/abonnement/wave',   webhookAbonnementWave);
-router.post('/webhooks/abonnement/orange', webhookAbonnementOrange);
-router.post('/webhooks/abonnement/stripe', webhookAbonnementStripe);
+// ─── WEBHOOK de confirmation CinetPay (public, signé) ────────────────────
+// Reçoit la notification CinetPay quand un paiement d'abonnement est confirmé.
+// CinetPay agrège Wave / Orange / MTN / cartes bancaires derrière une seule
+// API → un seul endpoint suffit. Double vérification dans le handler :
+// signature HMAC du payload + re-check du statut auprès de l'API CinetPay.
+router.post('/webhooks/abonnement/cinetpay', webhookCinetPay);
 
 // ─── TAXES ─────────────────────────────────────────────────────────────────
 router.get('/taxes/tableau-de-bord', auth, can(MODULES.TAXES, ACTIONS.READ), getTableauBordTaxes);

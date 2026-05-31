@@ -1,17 +1,13 @@
 /**
- * Webhooks de confirmation des PSP de paiement d'abonnement ApeX.
+ * Webhook unique CinetPay pour la confirmation des paiements d'abonnement.
  *
- * Routes (toutes publiques, vérification par signature obligatoire) :
- *   POST /api/webhooks/wave    → Wave Business
- *   POST /api/webhooks/orange  → Orange Money Web Payment
- *   POST /api/webhooks/stripe  → Stripe Checkout Session
+ * Route : POST /api/webhooks/abonnement/cinetpay   (publique, signée)
  *
- * Sécurité :
- *   - Chaque endpoint vérifie la signature du PSP avant d'activer
- *     l'abonnement. Une signature invalide retourne 400 sans accuser
- *     réception (Stripe et Wave retentent automatiquement).
- *   - Le body brut (raw) est nécessaire pour la vérification HMAC.
- *     Les routes correspondantes utilisent express.raw().
+ * Sécurité en 2 couches :
+ *   1. Vérification HMAC du header `x-token` avec CINETPAY_SECRET_KEY.
+ *   2. Re-vérification auprès de CinetPay via POST /v2/payment/check
+ *      (anti-spoofing supplémentaire : on ne fait confiance qu'à ce que
+ *      l'API CinetPay confirme directement comme `status=ACCEPTED`).
  *
  * Idempotence : `activerAbonnement` est idempotent — un webhook livré
  * plusieurs fois ne crée pas de doublon.
@@ -21,12 +17,10 @@
 const pool = require('../../config/database');
 const { activerAbonnement } = require('./checkoutController');
 const {
-  verifierSignatureWave,
-  verifierSignatureOrange,
-  verifierSignatureStripe,
+  verifierSignatureCinetPay,
+  verifierStatutCinetPay,
 } = require('../utils/checkout-psp');
 
-// Trouve le paiement à partir de la référence externe renvoyée par le PSP.
 async function trouverPaiementParReference(reference) {
   const r = await pool.query(
     `SELECT id FROM paiements_abonnement WHERE reference_externe = $1 LIMIT 1`,
@@ -35,89 +29,63 @@ async function trouverPaiementParReference(reference) {
   return r.rows[0]?.id || null;
 }
 
-// ─── POST /api/webhooks/wave ───────────────────────────────────────────────
-async function webhookWave(req, res) {
+// ─── POST /api/webhooks/abonnement/cinetpay ────────────────────────────────
+async function webhookCinetPay(req, res) {
   try {
-    const raw = req.rawBody?.toString('utf8') || JSON.stringify(req.body);
-    const signature = req.headers['wave-signature'];
-    if (!verifierSignatureWave(raw, signature)) {
+    const signature = req.headers['x-token'];
+    const body = req.body || {};
+
+    // Étape 1 : vérification de la signature HMAC du payload
+    if (!verifierSignatureCinetPay(body, signature)) {
+      console.warn('[webhook][cinetpay] signature invalide');
       return res.status(400).json({ ok: false, error: 'signature_invalide' });
     }
-    const event = req.body;
-    if (event.type !== 'checkout.session.completed') {
-      return res.json({ ok: true, ignored: event.type });
-    }
-    const session = event.data || {};
-    const paiementId = session.client_reference || await trouverPaiementParReference(session.id);
-    if (!paiementId) return res.status(404).json({ ok: false, error: 'paiement_introuvable' });
 
-    const result = await activerAbonnement(paiementId, { source: 'webhook_wave' });
-    if (!result.ok) return res.status(500).json({ ok: false, error: result.message });
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('[webhook][wave]', err.message);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-}
-
-// ─── POST /api/webhooks/orange ─────────────────────────────────────────────
-async function webhookOrange(req, res) {
-  try {
-    const raw = req.rawBody?.toString('utf8') || JSON.stringify(req.body);
-    const signature = req.headers['x-orange-signature'];
-    if (!verifierSignatureOrange(raw, signature)) {
-      return res.status(400).json({ ok: false, error: 'signature_invalide' });
+    // Étape 2 : récupère la transaction_id pour aller revérifier le statut
+    const transactionId = body.cpm_trans_id;
+    if (!transactionId) {
+      return res.status(400).json({ ok: false, error: 'cpm_trans_id manquant' });
     }
-    const event = req.body;
-    if (event.status !== 'SUCCESS') {
-      // Marque en failed si le PSP nous dit FAILED ou EXPIRED
-      if (event.status === 'FAILED' || event.status === 'EXPIRED') {
-        const paiementId = await trouverPaiementParReference(event.pay_token || event.order_id);
-        if (paiementId) {
-          await pool.query(
-            `UPDATE paiements_abonnement SET statut = $1, completed_at = NOW(), erreur = $2 WHERE id = $3`,
-            [event.status.toLowerCase(), `Orange ${event.status}`, paiementId]
-          );
-        }
+
+    // Étape 3 : appelle l'API CinetPay pour vérifier le statut réel
+    const verif = await verifierStatutCinetPay(transactionId);
+    if (!verif.ok || verif.status !== 'ACCEPTED') {
+      // On marque le paiement failed/refused mais on retourne 200 pour que
+      // CinetPay ne re-tente pas indéfiniment.
+      const paiementId = await trouverPaiementParReference(transactionId);
+      if (paiementId) {
+        await pool.query(
+          `UPDATE paiements_abonnement
+              SET statut = $1, completed_at = NOW(), erreur = $2,
+                  metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+            WHERE id = $4 AND statut = 'pending'`,
+          [
+            verif.status === 'REFUSED' ? 'failed' : 'failed',
+            `CinetPay status=${verif.status}`,
+            JSON.stringify({ webhook_check: verif }),
+            paiementId,
+          ]
+        );
       }
-      return res.json({ ok: true, ignored: event.status });
+      return res.json({ ok: true, ignored: verif.status });
     }
-    const paiementId = await trouverPaiementParReference(event.pay_token || event.order_id);
-    if (!paiementId) return res.status(404).json({ ok: false, error: 'paiement_introuvable' });
-    const result = await activerAbonnement(paiementId, { source: 'webhook_orange' });
-    if (!result.ok) return res.status(500).json({ ok: false, error: result.message });
+
+    // Étape 4 : statut ACCEPTED confirmé → active l'abonnement
+    const paiementId = await trouverPaiementParReference(transactionId);
+    if (!paiementId) {
+      console.warn(`[webhook][cinetpay] paiement introuvable pour transaction_id=${transactionId}`);
+      return res.status(404).json({ ok: false, error: 'paiement_introuvable' });
+    }
+
+    const result = await activerAbonnement(paiementId, { source: 'webhook_cinetpay' });
+    if (!result.ok) {
+      return res.status(500).json({ ok: false, error: result.message });
+    }
     res.json({ ok: true });
   } catch (err) {
-    console.error('[webhook][orange]', err.message);
+    console.error('[webhook][cinetpay]', err.message);
     res.status(500).json({ ok: false, error: err.message });
   }
 }
 
-// ─── POST /api/webhooks/stripe ─────────────────────────────────────────────
-async function webhookStripe(req, res) {
-  try {
-    const raw = req.rawBody?.toString('utf8') || JSON.stringify(req.body);
-    const signature = req.headers['stripe-signature'];
-    if (!verifierSignatureStripe(raw, signature)) {
-      return res.status(400).json({ ok: false, error: 'signature_invalide' });
-    }
-    const event = req.body;
-    if (event.type !== 'checkout.session.completed' && event.type !== 'checkout.session.async_payment_succeeded') {
-      return res.json({ ok: true, ignored: event.type });
-    }
-    const session = event.data?.object || {};
-    const paiementId = session.client_reference_id
-      || session.metadata?.paiement_id
-      || await trouverPaiementParReference(session.id);
-    if (!paiementId) return res.status(404).json({ ok: false, error: 'paiement_introuvable' });
-
-    const result = await activerAbonnement(paiementId, { source: 'webhook_stripe' });
-    if (!result.ok) return res.status(500).json({ ok: false, error: result.message });
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('[webhook][stripe]', err.message);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-}
-
-module.exports = { webhookWave, webhookOrange, webhookStripe };
+module.exports = { webhookCinetPay };

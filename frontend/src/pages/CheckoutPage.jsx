@@ -22,10 +22,14 @@ const PALIERS = {
   pro:     { libelle: 'Pro',     prix_mensuel: 25000, prix_annuel: 240000, accent: '#10B981' },
 };
 
+// Les 3 boutons utilisateur. Tous routés vers CinetPay côté backend, qui
+// pré-sélectionne la catégorie correspondante (Mobile Money / Carte) sur
+// sa page hébergée. Le « moyen » est conservé en BDD pour la traçabilité
+// du choix utilisateur (analytics : « 60 % choisissent Wave »).
 const MOYENS = [
-  { code: 'wave',   libelle: 'Wave',           fournisseur: 'wave',         hint: 'Paiement instantané · 0 % de frais pour vous' },
+  { code: 'wave',   libelle: 'Wave',           fournisseur: 'wave',         hint: 'Paiement instantané · le plus populaire en CI' },
   { code: 'orange', libelle: 'Orange Money',   fournisseur: 'orange_money', hint: 'Paiement instantané · USSD ou QR' },
-  { code: 'stripe', libelle: 'Carte bancaire', fournisseur: 'stripe',       hint: 'Visa, Mastercard, Amex · sécurisé Stripe' },
+  { code: 'stripe', libelle: 'Carte bancaire', fournisseur: 'stripe',       hint: 'Visa, Mastercard · paiement sécurisé' },
 ];
 
 const formatFcfa = (n) => n.toLocaleString('fr-FR') + ' FCFA';
