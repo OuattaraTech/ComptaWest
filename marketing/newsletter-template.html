@@ -1,0 +1,134 @@
+<!--
+  ═══════════════════════════════════════════════════════════════════════
+  Gabarit d'email newsletter ApeX — à coller dans Resend → Broadcasts
+  (mode HTML / « </> Code »).
+
+  Comment l'utiliser :
+   1. Resend → Broadcasts → Create Broadcast → choisis ton audience.
+   2. From : ApeX <newsletter@useapex.ci>  ·  Reply-To : support@useapex.ci
+   3. Bascule l'éditeur en mode HTML et colle TOUT ce fichier.
+   4. Remplace les zones marquées  <!-- ✏️ ... -->  par ton contenu.
+   5. Le lien de désinscription {{{RESEND_UNSUBSCRIBE_URL}}} est OBLIGATOIRE
+      (déjà en pied de page) — ne le retire pas.
+   6. « Send test » pour te l'envoyer, puis « Send ».
+
+  Notes techniques :
+   - Layout en <table> + styles inline = compatible Gmail/Outlook/Apple Mail.
+   - Polices système (les webfonts ne se chargent pas en email).
+   - Logo en URL absolue : https://useapex.ci/logos/apex.png
+   - Accent émeraude ApeX : #0F8A6E (foncé) / #2DBF9C (clair).
+  ═══════════════════════════════════════════════════════════════════════
+-->
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <title>ApeX</title>
+</head>
+<body style="margin:0; padding:0; background:#F3F4F6;">
+
+  <!-- Pré-en-tête : texte d'aperçu affiché dans la boîte de réception (caché dans le corps) -->
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0; font-size:1px; line-height:1px; color:#F3F4F6;">
+    <!-- ✏️ TEXTE D'APERÇU (1 phrase) --> Vos conseils de gestion et les nouveautés ApeX du mois.
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F3F4F6;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0"
+               style="width:600px; max-width:100%; background:#FFFFFF; border-radius:16px; overflow:hidden; border:1px solid #E5E7EB;">
+
+          <!-- ── EN-TÊTE : logo + filet émeraude ───────────────────────── -->
+          <tr>
+            <td align="center" style="padding:28px 32px 0 32px;">
+              <img src="https://useapex.ci/logos/apex.png" alt="ApeX" width="132"
+                   style="display:block; width:132px; height:auto; border:0;">
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:18px 32px 0 32px;">
+              <div style="height:3px; width:48px; background:linear-gradient(90deg,#2DBF9C,#0F8A6E); border-radius:3px;"></div>
+            </td>
+          </tr>
+
+          <!-- ── CORPS ──────────────────────────────────────────────────── -->
+          <tr>
+            <td style="padding:24px 32px 8px 32px; font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+
+              <!-- ✏️ TITRE -->
+              <h1 style="margin:0 0 14px 0; font-size:24px; line-height:1.25; font-weight:800; color:#0E1116; letter-spacing:-0.02em;">
+                Le titre de votre newsletter
+              </h1>
+
+              <!-- ✏️ CORPS DU MESSAGE -->
+              <p style="margin:0 0 16px 0; font-size:15.5px; line-height:1.65; color:#3C4250;">
+                Bonjour,
+              </p>
+              <p style="margin:0 0 16px 0; font-size:15.5px; line-height:1.65; color:#3C4250;">
+                Voici votre point du mois : un conseil de gestion concret pour les PME
+                ivoiriennes, et les nouveautés d'ApeX. Remplacez ce texte par votre contenu.
+              </p>
+
+              <!-- ✏️ Exemple de liste à puces (optionnel) -->
+              <ul style="margin:0 0 16px 0; padding-left:18px; font-size:15.5px; line-height:1.7; color:#3C4250;">
+                <li>Premier point clé du mois</li>
+                <li>Deuxième point</li>
+                <li>Troisième point</li>
+              </ul>
+
+              <!-- ── BOUTON CTA (émeraude) ──────────────────────────────── -->
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 4px 0;">
+                <tr>
+                  <td align="center" bgcolor="#0F8A6E" style="border-radius:10px;">
+                    <!-- ✏️ LIEN + LIBELLÉ du bouton -->
+                    <a href="https://useapex.ci/login"
+                       style="display:inline-block; padding:13px 26px; font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; font-weight:700; color:#FFFFFF; text-decoration:none; border-radius:10px;">
+                      Découvrir ApeX
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- ── SÉPARATEUR ─────────────────────────────────────────────── -->
+          <tr>
+            <td style="padding:24px 32px 0 32px;">
+              <div style="height:1px; background:#E5E7EB;"></div>
+            </td>
+          </tr>
+
+          <!-- ── PIED DE PAGE ───────────────────────────────────────────── -->
+          <tr>
+            <td style="padding:20px 32px 28px 32px; font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+              <p style="margin:0 0 10px 0; font-size:12.5px; line-height:1.6; color:#6B7280;">
+                <strong style="color:#0E1116;">ApeX</strong> — la comptabilité SYSCOHADA des PME ivoiriennes 🇨🇮<br>
+                Facturation · Mobile Money · Certification DGI, réunis dans une seule application.
+              </p>
+              <p style="margin:0 0 12px 0; font-size:12.5px; line-height:1.6; color:#6B7280;">
+                <a href="https://useapex.ci" style="color:#0F8A6E; text-decoration:none;">useapex.ci</a> &nbsp;·&nbsp;
+                <a href="https://useapex.ci/tarifs" style="color:#0F8A6E; text-decoration:none;">Tarifs</a> &nbsp;·&nbsp;
+                <a href="https://useapex.ci/cgu" style="color:#0F8A6E; text-decoration:none;">CGU</a> &nbsp;·&nbsp;
+                <a href="https://useapex.ci/confidentialite" style="color:#0F8A6E; text-decoration:none;">Confidentialité</a> &nbsp;·&nbsp;
+                <a href="mailto:support@useapex.ci" style="color:#0F8A6E; text-decoration:none;">support@useapex.ci</a>
+              </p>
+              <p style="margin:0; font-size:11.5px; line-height:1.6; color:#9CA3AF;">
+                Vous recevez cet email car vous êtes abonné·e à la lettre ApeX.
+                <a href="{{{RESEND_UNSUBSCRIBE_URL}}}" style="color:#9CA3AF; text-decoration:underline;">Se désabonner</a>.
+                · Conçu à Abidjan, pour les PME de Côte d'Ivoire.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
