@@ -1,7 +1,10 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { body } = require('express-validator');
 const pool = require('../../config/database');
+const { envoyerEmail } = require('../utils/email');
+const { reinitialisationMotDePasse } = require('../utils/emailTemplates');
 const { PERMISSIONS, VISIBILITY, ALL_ROLES } = require('../utils/permissions');
 const {
   creerCategoriesDefaut, creerPlanComptableSyscohada,
@@ -201,8 +204,7 @@ const updateLangue = async (req, res) => {
 //
 // Fallback rétrocompat : si la migration 028 n'a pas encore été appliquée
 // (colonne is_demo absente), on retombe sur le comportement legacy avec
-// le compte partagé — l'app ne casse pas.
-const crypto = require('crypto');
+// le compte partagé — l'app ne casse pas. (crypto est importé en tête.)
 
 const loginDemo = async (req, res) => {
   const client = await pool.connect();
@@ -715,9 +717,94 @@ const getMesPermissions = async (req, res) => {
   }
 };
 
+// ── MOT DE PASSE OUBLIÉ ─────────────────────────────────────────────────────
+const RESET_TTL_MIN = 60; // durée de validité du lien, en minutes
+
+const forgotRules = [
+  body('email').isEmail().withMessage('Email invalide').normalizeEmail(),
+];
+const resetRules = [
+  body('token').isString().isLength({ min: 20, max: 200 }).withMessage('Jeton invalide'),
+  body('mot_de_passe').isLength({ min: 8 }).withMessage('Mot de passe : 8 caractères minimum'),
+];
+
+const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
+
+// POST /api/auth/forgot-password — génère un jeton et envoie le lien par email.
+// Réponse TOUJOURS identique (anti-énumération : ne révèle pas si l'email existe).
+const forgotPassword = async (req, res) => {
+  const email = req.body.email;
+  const reponseNeutre = {
+    success: true,
+    message: 'Si un compte existe pour cet email, un lien de réinitialisation vient d\'être envoyé.',
+  };
+  try {
+    const r = await pool.query(
+      `SELECT id, nom, email FROM utilisateurs
+        WHERE email = $1 AND actif = TRUE AND COALESCE(is_demo, FALSE) = FALSE`,
+      [email]
+    );
+    const user = r.rows[0];
+    if (!user) return res.json(reponseNeutre); // pas de fuite d'information
+
+    // Jeton aléatoire envoyé par email ; seul son SHA-256 est stocké en base.
+    const token = crypto.randomBytes(32).toString('hex');
+    const expire = new Date(Date.now() + RESET_TTL_MIN * 60 * 1000);
+    await pool.query(
+      `UPDATE utilisateurs SET reset_token_hash = $1, reset_token_expire = $2, updated_at = NOW()
+        WHERE id = $3`,
+      [sha256(token), expire, user.id]
+    );
+
+    const base = (process.env.FRONTEND_URL || 'https://app.useapex.ci').replace(/\/+$/, '');
+    const lien = `${base}/reset-password?token=${token}`;
+    const { subject, html, text } = reinitialisationMotDePasse({ nom: user.nom, lien, duree_minutes: RESET_TTL_MIN });
+    envoyerEmail({ to: user.email, subject, html, text, tags: { type: 'password_reset' } })
+      .catch(() => { /* fire-and-forget : ne bloque pas la réponse */ });
+
+    logAudit(req, 'PASSWORD_RESET_REQUEST', 'auth', user.id, { email });
+    return res.json(reponseNeutre);
+  } catch (err) {
+    console.error('[forgotPassword]', err.message);
+    // Même en cas d'erreur, on renvoie la réponse neutre (pas de fuite).
+    return res.json(reponseNeutre);
+  }
+};
+
+// POST /api/auth/reset-password — vérifie le jeton et applique le nouveau mdp.
+const resetPassword = async (req, res) => {
+  const { token, mot_de_passe } = req.body;
+  try {
+    const r = await pool.query(
+      `SELECT id, email FROM utilisateurs
+        WHERE reset_token_hash = $1 AND reset_token_expire > NOW() AND actif = TRUE`,
+      [sha256(token)]
+    );
+    const user = r.rows[0];
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'Lien invalide ou expiré. Refaites une demande.' });
+    }
+
+    const hash = await bcrypt.hash(mot_de_passe, 12);
+    await pool.query(
+      `UPDATE utilisateurs
+          SET mot_de_passe = $1, reset_token_hash = NULL, reset_token_expire = NULL, updated_at = NOW()
+        WHERE id = $2`,
+      [hash, user.id]
+    );
+
+    logAudit(req, 'PASSWORD_RESET_SUCCESS', 'auth', user.id, { email: user.email });
+    return res.json({ success: true, message: 'Mot de passe réinitialisé. Vous pouvez vous connecter.' });
+  } catch (err) {
+    console.error('[resetPassword]', err.message);
+    return res.status(500).json({ success: false, message: 'Réinitialisation impossible pour l\'instant.' });
+  }
+};
+
 module.exports = {
   register, login, me, updateLangue, loginDemo, getInvitation, accepterInvitation,
   getMesPermissions,
-  registerRules, loginRules,
+  forgotPassword, resetPassword,
+  registerRules, loginRules, forgotRules, resetRules,
   nettoyerComptesDemoExpires,
 };

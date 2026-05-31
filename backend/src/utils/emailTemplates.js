@@ -496,4 +496,58 @@ ${lien_desabo ? `\nSe désabonner : ${lien_desabo}` : ''}
   return { subject, html, text };
 }
 
-module.exports = { invitationPme, relanceInvitationPme, activationCabinet, invitationDirecteCabinet, confirmationPaiement, bienvenueNewsletter };
+// ─── Réinitialisation de mot de passe ─────────────────────────────────────
+function reinitialisationMotDePasse({ nom, lien, duree_minutes = 60 }) {
+  const civilite = nom ? ` ${nom}` : '';
+  const subject = `[ApeX] Réinitialisation de votre mot de passe`;
+  const preheader = `Lien valable ${duree_minutes} minutes. Ignorez cet email si vous n'êtes pas à l'origine de la demande.`;
+
+  const html = wrap(preheader, 'Mot de passe oublié ?', 'Réinitialisez votre accès ApeX', `
+    <p>Bonjour${civilite},</p>
+
+    <p>Vous avez demandé à réinitialiser le mot de passe de votre compte ApeX.
+    Cliquez sur le bouton ci-dessous pour en choisir un nouveau :</p>
+
+    <div class="button-wrap">
+      <a href="${lien}" class="button">Choisir un nouveau mot de passe</a>
+    </div>
+
+    <p class="small">Ce lien est valable <strong>${duree_minutes} minutes</strong> et
+    ne peut être utilisé qu'une seule fois.</p>
+
+    <p class="small">Si le bouton ne fonctionne pas, copiez-collez ce lien dans votre navigateur :<br>
+    <a href="${lien}" style="color:#10B981; word-break:break-all;">${lien}</a></p>
+
+    <div class="benefits">
+      <strong>Vous n'êtes pas à l'origine de cette demande ?</strong>
+      <ul>
+        <li>Ignorez simplement cet email — votre mot de passe reste inchangé.</li>
+        <li>Par précaution, vous pouvez écrire à notre support ci-dessous.</li>
+      </ul>
+    </div>
+
+    <div class="signature">
+      L'équipe ApeX<br>
+      <span class="small">Support&nbsp;: <a href="mailto:${SUPPORT_EMAIL()}" style="color:#10B981;">${SUPPORT_EMAIL()}</a></span>
+    </div>
+  `, `Cet email a été envoyé suite à une demande de réinitialisation de mot de passe.`);
+
+  const text = `Bonjour${civilite},
+
+Vous avez demandé à réinitialiser le mot de passe de votre compte ApeX.
+Ouvrez ce lien pour en choisir un nouveau (valable ${duree_minutes} minutes,
+usage unique) :
+
+${lien}
+
+Si vous n'êtes pas à l'origine de cette demande, ignorez cet email : votre
+mot de passe reste inchangé.
+
+— L'équipe ApeX
+Support : ${SUPPORT_EMAIL()}
+${PUBLIC_URL()}
+`;
+  return { subject, html, text };
+}
+
+module.exports = { invitationPme, relanceInvitationPme, activationCabinet, invitationDirecteCabinet, confirmationPaiement, bienvenueNewsletter, reinitialisationMotDePasse };

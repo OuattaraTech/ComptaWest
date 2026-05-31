@@ -15,6 +15,8 @@ import LoginPage from './pages/LoginPage.jsx';
 import InvitationPage from './pages/InvitationPage.jsx';
 import TarifsPage from './pages/TarifsPage.jsx';
 import RejoindreCabinetPage from './pages/RejoindreCabinetPage.jsx';
+import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
+import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
 import CheckoutPage from './pages/CheckoutPage.jsx';
 import CheckoutMockPage from './pages/CheckoutMockPage.jsx';
 import CheckoutSuccessPage from './pages/CheckoutSuccessPage.jsx';
@@ -86,6 +88,9 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Public><LoginPage /></Public>} />
+      {/* Mot de passe oublié — pages publiques (l'utilisateur n'est pas connecté) */}
+      <Route path="/mot-de-passe-oublie" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/invitation/:token" element={<InvitationPage />} />
       {/* /tarifs accessible publiquement (acquisition) ET en mode connecté
           (consultation/upgrade depuis l'app). Pas de wrapper Public car on

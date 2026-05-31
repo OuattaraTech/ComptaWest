@@ -1498,6 +1498,17 @@ function SlidingAuthCard({
             placeholder={t('login.password')} style={inputStyle}
             onFocus={onFocus} onBlur={onBlur} />
 
+          {/* Lien « mot de passe oublié » — aligné à droite sous le champ */}
+          <div style={{ width: '100%', textAlign: 'right', marginTop: 4 }}>
+            <a href="/mot-de-passe-oublie" style={{
+              fontSize: 12.5, color: C.muted, textDecoration: 'none', fontFamily: fontUI,
+            }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = C.accent; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = C.muted; }}>
+              {t('login.forgot_link')}
+            </a>
+          </div>
+
           <button type="submit" disabled={loading} style={solidBtn}
             onMouseEnter={(e) => { if (!loading) e.currentTarget.style.transform = 'translateY(-1px)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}>

@@ -17,7 +17,7 @@ const { subscribe: newsletterSubscribe, subscribeRules: newsletterRules, desabon
 // La matrice complète vit dans utils/permissions.js.
 const can = (module, action) => requirePermission(module, action);
 
-const { register, login, me, updateLangue, loginDemo, getInvitation, accepterInvitation, getMesPermissions, registerRules, loginRules } = require('../controllers/authController');
+const { register, login, me, updateLangue, loginDemo, getInvitation, accepterInvitation, getMesPermissions, registerRules, loginRules, forgotPassword, resetPassword, forgotRules, resetRules } = require('../controllers/authController');
 const entrepriseAccess = require('../middleware/entreprise');
 const {
   getMesEntreprises, createEntreprise, updateEntreprise,
@@ -143,6 +143,9 @@ router.get('/newsletter/desabonnement/:token', newsletterDesabonner);
 // ─── AUTH ──────────────────────────────────────────────────────────────────
 router.post('/auth/register', authLimiter, registerRules, validate, register);
 router.post('/auth/login',    authLimiter, loginRules,    validate, login);
+// Mot de passe oublié (public, rate-limité comme l'auth).
+router.post('/auth/forgot-password', authLimiter, forgotRules, validate, forgotPassword);
+router.post('/auth/reset-password',  authLimiter, resetRules,  validate, resetPassword);
 router.post('/auth/demo',     demoLimiter, loginDemo);
 router.get('/auth/me', auth, me);
 router.put('/auth/me/langue', auth, updateLangue);
