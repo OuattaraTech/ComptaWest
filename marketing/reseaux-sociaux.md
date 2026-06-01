@@ -16,23 +16,23 @@ sans superlatifs. URLs **useapex.ci** uniquement.
 **Type :** Société privée · **Site web :** https://useapex.ci
 
 **À propos (description) :**
-> ApeX est le logiciel de gestion et de comptabilité conçu pour les PME de
-> Côte d'Ivoire. De la facturation au bilan SYSCOHADA, en passant par la paie
-> CNPS, les dépenses, la trésorerie et les immobilisations, tout est réuni
-> dans une seule application — pensée pour le terrain ivoirien.
->
-> Ce qui distingue ApeX :
-> • Encaissement Mobile Money en production — Wave, Orange Money et MTN MoMo —
->   avec lien de paiement envoyé par WhatsApp.
-> • Scanner OCR des factures et reçus : la saisie devient une simple photo.
-> • Certification fiscale DGI / FNE intégrée.
-> • Comptabilité SYSCOHADA automatique : chaque opération génère son écriture,
->   jusqu'à la liasse fiscale DSF.
->
-> Dirigeant de PME, comptable ou cabinet d'expertise : tenez une comptabilité
-> conforme, sans tableur et sans complexité, à partir de 10 000 FCFA par mois.
->
-> Testez gratuitement sur useapex.ci.
+ApeX est le logiciel de gestion et de comptabilité conçu pour les PME de
+Côte d'Ivoire. De la facturation au bilan SYSCOHADA, en passant par la paie
+CNPS, les dépenses, la trésorerie et les immobilisations, tout est réuni
+dans une seule application — pensée pour le terrain ivoirien.
+
+Ce qui distingue ApeX :
+ • Encaissement Mobile Money en production — Wave, Orange Money et MTN MoMo —
+avec lien de paiement envoyé par WhatsApp.
+ • Scanner OCR des factures et reçus : la saisie devient une simple photo.
+ • Certification fiscale DGI / FNE intégrée.
+ • Comptabilité SYSCOHADA automatique : chaque opération génère son écriture,
+jusqu'à la liasse fiscale DSF.
+
+Dirigeant de PME, comptable ou cabinet d'expertise : tenez une comptabilité
+conforme, sans tableur et sans complexité, à partir de 10 000 FCFA par mois.
+
+Testez gratuitement sur useapex.ci.
 
 **Spécialités (mots-clés) :**
 Comptabilité SYSCOHADA, Logiciel de gestion PME, Facturation, Mobile Money,
