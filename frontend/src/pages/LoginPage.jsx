@@ -1758,7 +1758,7 @@ function SiteFooter({ C, dark, t, lang, navigate, fontDisplay, fontMono, fontUI,
               {t('login.ft_tagline')}
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
-              {social(Facebook, 'https://www.facebook.com/useapex', 'Facebook')}
+              {social(Facebook, 'https://www.facebook.com/profile.php?id=61590464494173', 'Facebook')}
               {social(Linkedin, 'https://www.linkedin.com/company/useapex', 'LinkedIn')}
               {social(Mail, 'mailto:contact@useapex.ci', 'Email')}
             </div>
