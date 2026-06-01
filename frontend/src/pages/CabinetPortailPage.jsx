@@ -4,7 +4,7 @@ import {
   Award, Copy, Check, X, Building2, Users, Mail, MessageCircle,
   RefreshCw, UserPlus, Send, ExternalLink, Search,
   Sparkles, Activity, Trash2, ArrowRight, Edit3, Tag, Calendar, AlertTriangle, Clock,
-  AlertCircle, LayoutList, LayoutGrid, Filter, Download, Bell,
+  AlertCircle, LayoutList, LayoutGrid, Filter, Download, Bell, Plus, FileText,
 } from 'lucide-react';
 import api from '../utils/api.jsx';
 import toast from 'react-hot-toast';
@@ -1003,6 +1003,8 @@ export default function CabinetPortailPage() {
               {!actionLoading && <Check size={14} />}
             </button>
           </div>
+
+          <DocumentsCabinet pmeId={clientEnEdition.pme_id} C={C} />
         </Modal>
       )}
 
@@ -1651,6 +1653,132 @@ function Avatar({ C, nom, size = 40 }) {
       color: '#FFF', fontSize: size * 0.42,
       boxShadow: `0 4px 12px rgba(0, 0, 0, 0.25)`,
     }}>{initiale(nom)}</div>
+  );
+}
+
+// Panneau de collecte de documents pour une PME (dans le modal client).
+function DocumentsCabinet({ pmeId, C }) {
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [libelle, setLibelle] = useState('');
+  const [categorie, setCategorie] = useState('banque');
+  const [periode, setPeriode] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const charger = useCallback(() => {
+    setLoading(true);
+    api.get(`/cabinets/clients/${pmeId}/documents`)
+      .then(r => setList(r.data.data || [])).catch(() => setList([])).finally(() => setLoading(false));
+  }, [pmeId]);
+  useEffect(() => { charger(); }, [charger]);
+
+  const ajouter = async () => {
+    if (!libelle.trim()) return;
+    setBusy(true);
+    try {
+      await api.post(`/cabinets/clients/${pmeId}/documents`, { libelle, categorie, periode: periode || null });
+      setLibelle(''); setPeriode(''); charger(); toast.success('Demande ajoutée');
+    } catch (e) { toast.error(e?.response?.data?.message || 'Erreur'); } finally { setBusy(false); }
+  };
+  const majStatut = async (id, statut) => { try { await api.patch(`/cabinets/documents/${id}`, { statut }); charger(); } catch { toast.error('Erreur'); } };
+  const supprimer = async (id) => { try { await api.delete(`/cabinets/documents/${id}`); charger(); } catch { toast.error('Erreur'); } };
+  const relancer = async () => {
+    setBusy(true);
+    try { const r = await api.post(`/cabinets/clients/${pmeId}/documents/relance`); toast.success(r.data.message || 'Relance envoyée'); }
+    catch (e) { toast.error(e?.response?.data?.message || 'Erreur'); } finally { setBusy(false); }
+  };
+  const telecharger = async (f) => {
+    try {
+      const res = await api.get(`/documents/fichiers/${f.id}`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a'); a.href = url; a.download = f.nom_fichier;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch { toast.error('Téléchargement impossible'); }
+  };
+
+  const STAT = {
+    demande: { l: 'En attente', c: C.warning }, fourni: { l: 'À valider', c: C.cabinet },
+    valide: { l: 'Validé', c: C.accent }, refuse: { l: 'Refusé', c: C.danger },
+  };
+  const enAttente = list.filter(d => d.statut === 'demande').length;
+
+  const champ = { padding: '9px 11px', borderRadius: 9, background: C.cardElev, border: `1px solid ${C.border}`, color: C.text, fontFamily: fontUI, fontSize: 13, outline: 'none', boxSizing: 'border-box' };
+
+  return (
+    <div style={{ marginTop: 24, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <h3 style={{ fontFamily: fontDisplay, fontSize: 16, fontWeight: 800, margin: 0, color: C.text }}>
+          Collecte de documents
+        </h3>
+        <button onClick={relancer} disabled={busy || enAttente === 0} style={{
+          ...btnSecondary(C), opacity: enAttente === 0 ? 0.5 : 1, fontSize: 12.5,
+        }} title={enAttente === 0 ? 'Aucune pièce en attente' : 'Relancer la PME par email'}>
+          <Bell size={13} /> Relancer{enAttente > 0 ? ` (${enAttente})` : ''}
+        </button>
+      </div>
+
+      {/* Formulaire d'ajout */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 130px 110px auto', gap: 8, marginBottom: 14, alignItems: 'center' }}>
+        <input value={libelle} onChange={(e) => setLibelle(e.target.value)} placeholder="ex : Relevé bancaire mars" style={champ}
+          onKeyDown={(e) => { if (e.key === 'Enter') ajouter(); }} />
+        <select value={categorie} onChange={(e) => setCategorie(e.target.value)} style={{ ...champ, cursor: 'pointer' }}>
+          <option value="banque">Banque</option>
+          <option value="facture">Facture</option>
+          <option value="contrat">Contrat</option>
+          <option value="fiscal">Fiscal</option>
+          <option value="social">Social</option>
+          <option value="autre">Autre</option>
+        </select>
+        <input value={periode} onChange={(e) => setPeriode(e.target.value)} placeholder="Période" style={champ} />
+        <button onClick={ajouter} disabled={busy || !libelle.trim()} style={{ ...btnPrimary(C), padding: '9px 14px', opacity: !libelle.trim() ? 0.6 : 1 }}>
+          <Plus size={14} /> Demander
+        </button>
+      </div>
+
+      {/* Liste */}
+      {loading ? (
+        <div style={{ padding: 16, color: C.muted, fontSize: 13 }}>Chargement…</div>
+      ) : list.length === 0 ? (
+        <div style={{ padding: '16px 0', color: C.muted, fontSize: 12.5 }}>Aucune pièce demandée pour ce client.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {list.map((d) => {
+            const s = STAT[d.statut] || STAT.demande;
+            return (
+              <div key={d.id} style={{ padding: 12, background: C.cardElev, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ flex: 1, minWidth: 160, fontSize: 13.5, fontWeight: 600, color: C.text }}>
+                    {d.libelle} {d.periode && <span style={{ fontFamily: fontMono, fontSize: 11, color: C.muted }}>· {d.periode}</span>}
+                  </span>
+                  <span style={{ padding: '3px 9px', borderRadius: 100, background: `${s.c}1A`, color: s.c, fontSize: 11, fontWeight: 700 }}>{s.l}</span>
+                  <button onClick={() => supprimer(d.id)} style={{ ...iconBtn(C), color: C.danger }} title="Supprimer"><Trash2 size={13} /></button>
+                </div>
+
+                {(d.fichiers || []).length > 0 && (
+                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {d.fichiers.map((f) => (
+                      <button key={f.id} onClick={() => telecharger(f)} style={{
+                        display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', background: C.card,
+                        border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', color: C.text, fontSize: 12, textAlign: 'left',
+                      }}>
+                        <FileText size={13} color={C.muted} /><span style={{ flex: 1 }}>{f.nom_fichier}</span><Download size={13} color={C.accent} />
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {d.statut === 'fourni' && (
+                  <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                    <button onClick={() => majStatut(d.id, 'valide')} style={{ ...btnSecondary(C), fontSize: 12, color: C.accent, borderColor: `${C.accent}55` }}><Check size={12} /> Valider</button>
+                    <button onClick={() => majStatut(d.id, 'refuse')} style={{ ...btnSecondary(C), fontSize: 12, color: C.danger, borderColor: `${C.danger}55` }}><X size={12} /> Refuser</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

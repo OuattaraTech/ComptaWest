@@ -550,4 +550,53 @@ ${PUBLIC_URL()}
   return { subject, html, text };
 }
 
-module.exports = { invitationPme, relanceInvitationPme, activationCabinet, invitationDirecteCabinet, confirmationPaiement, bienvenueNewsletter, reinitialisationMotDePasse };
+// ─── Relance : pièces manquantes demandées par le cabinet ─────────────────
+function relanceDocuments({ cabinet_nom, pme_nom, nom, documents = [] }) {
+  const civilite = nom ? ` ${nom}` : '';
+  const subject = `[ApeX] ${cabinet_nom} attend ${documents.length} document(s)`;
+  const preheader = `${cabinet_nom} a besoin de pièces pour tenir votre comptabilité à jour.`;
+  const liste = documents.map(d => `<li>${d}</li>`).join('');
+  const listeTxt = documents.map(d => `  • ${d}`).join('\n');
+
+  const html = wrap(preheader, 'Pièces à fournir', `${cabinet_nom} attend vos documents`, `
+    <p>Bonjour${civilite},</p>
+
+    <p>Votre cabinet <strong>${cabinet_nom}</strong> a besoin des pièces suivantes pour
+    tenir la comptabilité de <strong>${pme_nom}</strong> à jour :</p>
+
+    <div class="benefits">
+      <strong>Documents en attente :</strong>
+      <ul>${liste}</ul>
+    </div>
+
+    <p>Déposez-les en quelques secondes depuis votre espace ApeX (rubrique
+    <strong>Documents</strong>) — un glisser-déposer suffit.</p>
+
+    <div class="button-wrap">
+      <a href="${APP_URL()}/documents" class="button">Déposer mes documents</a>
+    </div>
+
+    <div class="signature">
+      L'équipe ApeX<br>
+      <span class="small">Support&nbsp;: <a href="mailto:${SUPPORT_EMAIL()}" style="color:#10B981;">${SUPPORT_EMAIL()}</a></span>
+    </div>
+  `, `Cet email vous est envoyé à la demande de votre cabinet comptable via ApeX.`);
+
+  const text = `Bonjour${civilite},
+
+Votre cabinet ${cabinet_nom} a besoin des pièces suivantes pour tenir la
+comptabilité de ${pme_nom} à jour :
+
+${listeTxt}
+
+Déposez-les depuis votre espace ApeX, rubrique « Documents » :
+${APP_URL()}/documents
+
+— L'équipe ApeX
+Support : ${SUPPORT_EMAIL()}
+${PUBLIC_URL()}
+`;
+  return { subject, html, text };
+}
+
+module.exports = { invitationPme, relanceInvitationPme, activationCabinet, invitationDirecteCabinet, confirmationPaiement, bienvenueNewsletter, reinitialisationMotDePasse, relanceDocuments };

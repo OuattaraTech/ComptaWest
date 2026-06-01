@@ -13,7 +13,7 @@ import {
   LayoutDashboard, Users, FileText, BarChart3, LogOut,
   Settings, ChevronRight, Receipt, Calculator, Plus,
   ChevronDown, Building2, Check, Sun, Moon, Shield, BookMarked, Wallet, UserCheck, Package, Box, Truck,
-  FileSignature, Award, Briefcase, Calendar, Send,
+  FileSignature, Award, Briefcase, Calendar, Send, FolderOpen,
 } from 'lucide-react';
 import { Link as RouterLink } from 'react-router-dom';
 
@@ -32,6 +32,9 @@ const navItems = [
   { to: '/devis',           icon: FileSignature,   i18nKey: 'nav.devis',            label: 'Devis & Proformas', module: 'devis' },
   { to: '/factures',        icon: FileText,        i18nKey: 'nav.factures',         label: 'Factures',          module: 'factures' },
   { to: '/depenses',        icon: Receipt,         i18nKey: 'nav.depenses',         label: 'Dépenses',          module: 'depenses' },
+  // Documents demandés par le cabinet — visible pour toute PME (always),
+  // car non lié à une permission métier ; l'état vide explique s'il n'y a rien.
+  { to: '/documents',       icon: FolderOpen,      i18nKey: 'nav.documents',        label: 'Documents',         always: true },
   { to: '/tresorerie',      icon: Wallet,          i18nKey: 'nav.tresorerie',       label: 'Trésorerie',        module: 'tresorerie' },
   { to: '/immobilisations', icon: Package,         i18nKey: 'nav.immobilisations',  label: 'Immobilisations',   module: 'immobilisations' },
   { to: '/paie',            icon: UserCheck,       i18nKey: 'nav.paie',             label: 'Paie & RH',         module: 'paie' },
@@ -167,6 +170,7 @@ export default function Sidebar({ mobileOpen = false, onCloseMobile, isMobile = 
   // En mode cabinet : on retire les modules métier PME (les modules
   // « cabinet_*  » resteraient ici s'ils existaient).
   const navVisibles = modeCabinet ? [] : navItems.filter(item => {
+    if (item.always) return true;
     const candidats = item.modules || [item.module];
     return candidats.some(m => can(m, 'read'));
   });

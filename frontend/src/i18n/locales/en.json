@@ -558,6 +558,7 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "documents": "Documents",
     "clients": "Customers",
     "fournisseurs": "Suppliers",
     "produits": "Products & Inventory",
@@ -1242,6 +1243,24 @@
     "result_total_expenses": "Total expenses",
     "result_taxes_paid": "Taxes paid",
     "result_net": "Net profit"
+  },
+  "documents": {
+    "title": "Documents",
+    "subtitle": "The files requested by your accounting firm.",
+    "en_attente": "{{count}} file(s) awaiting your action",
+    "loading": "Loading…",
+    "vide_titre": "No document requested",
+    "vide_texte": "When your firm asks for documents (statements, invoices…), they'll show up here and you can upload them in one click.",
+    "statut_demande": "To provide",
+    "statut_fourni": "Sent",
+    "statut_valide": "Validated",
+    "statut_refuse": "Redo",
+    "demande_par": "Requested by {{cabinet}}",
+    "deposer": "Upload a file",
+    "upload_en_cours": "Uploading…",
+    "upload_ok": "File uploaded",
+    "upload_err": "Upload failed",
+    "download_err": "Download failed"
   },
   "dsf": {
     "loading": "Loading DSF return…",

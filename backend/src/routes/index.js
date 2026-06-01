@@ -12,6 +12,7 @@ const { getAbonnement, putAbonnement } = require('../controllers/abonnementContr
 const { creerCheckout, statutCheckout, mockSuccess } = require('../controllers/checkoutController');
 const { webhookCinetPay } = require('../controllers/webhooksController');
 const { subscribe: newsletterSubscribe, subscribeRules: newsletterRules, desabonner: newsletterDesabonner } = require('../controllers/newsletterController');
+const docs = require('../controllers/documentsController');
 
 // Raccourci : can('factures', 'create') === requirePermission('factures', 'create')
 // La matrice complète vit dans utils/permissions.js.
@@ -180,6 +181,18 @@ router.get('/cabinets/invitations',          auth, entrepriseAccess(), getInvita
 router.delete('/cabinets/invitations/:id',   auth, entrepriseAccess(), revoquerInvitation);
 router.patch('/cabinets/connections/:id',    auth, entrepriseAccess(), mettreAJourConnection);
 router.delete('/cabinets/connections/:id',   auth, entrepriseAccess(), revoquerConnection);
+
+// ─── COLLECTE DE DOCUMENTS (migration 042) ──────────────────────────────────
+// Côté cabinet : demandes/validation/relance sur une PME connectée.
+router.get('/cabinets/clients/:pmeId/documents',          auth, entrepriseAccess(), docs.listePourCabinet);
+router.post('/cabinets/clients/:pmeId/documents',         auth, entrepriseAccess(), docs.demandeRules, validate, docs.creerDemande);
+router.post('/cabinets/clients/:pmeId/documents/relance', auth, entrepriseAccess(), docs.relancer);
+router.patch('/cabinets/documents/:id',                   auth, entrepriseAccess(), docs.majStatut);
+router.delete('/cabinets/documents/:id',                  auth, entrepriseAccess(), docs.supprimerDemande);
+// Côté PME : voir ses demandes, téléverser, télécharger.
+router.get('/documents/demandes',                auth, entrepriseAccess(), docs.listePourPme);
+router.post('/documents/demandes/:id/fichier',   auth, entrepriseAccess(), docs.televerser);
+router.get('/documents/fichiers/:id',            auth, entrepriseAccess(), docs.telecharger);
 
 // Routes PUBLIQUES (acceptation par la PME prospecte, pas encore inscrite)
 router.get('/invitations/cabinet/:token',           getInvitationPublic);

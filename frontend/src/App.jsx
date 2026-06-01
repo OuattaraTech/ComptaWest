@@ -17,6 +17,7 @@ import TarifsPage from './pages/TarifsPage.jsx';
 import RejoindreCabinetPage from './pages/RejoindreCabinetPage.jsx';
 import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
 import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
+import DocumentsPage from './pages/DocumentsPage.jsx';
 import CheckoutPage from './pages/CheckoutPage.jsx';
 import CheckoutMockPage from './pages/CheckoutMockPage.jsx';
 import CheckoutSuccessPage from './pages/CheckoutSuccessPage.jsx';
@@ -124,6 +125,7 @@ function AppRoutes() {
         <Route path="devis" element={<PermissionGate module="devis"><DevisPage /></PermissionGate>} />
         <Route path="factures" element={<PermissionGate module="factures"><FacturesPage /></PermissionGate>} />
         <Route path="depenses" element={<PermissionGate module="depenses"><DepensesPage /></PermissionGate>} />
+        <Route path="documents" element={<DocumentsPage />} />
         <Route path="tresorerie" element={<PermissionGate module="tresorerie"><TresoreriePage /></PermissionGate>} />
         {/* QuotaGate après PermissionGate : on autorise d'abord par rôle,
             puis on bascule en lecture seule si la formule ne l'inclut pas.

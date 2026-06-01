@@ -558,6 +558,7 @@
   },
   "nav": {
     "dashboard": "Tableau de bord",
+    "documents": "Documents",
     "clients": "Clients",
     "fournisseurs": "Fournisseurs",
     "produits": "Produits & Stocks",
@@ -1242,6 +1243,24 @@
     "result_total_expenses": "Charges totales",
     "result_taxes_paid": "Taxes payées",
     "result_net": "Résultat net"
+  },
+  "documents": {
+    "title": "Documents",
+    "subtitle": "Les pièces demandées par votre cabinet comptable.",
+    "en_attente": "{{count}} pièce(s) en attente de votre part",
+    "loading": "Chargement…",
+    "vide_titre": "Aucun document demandé",
+    "vide_texte": "Quand votre cabinet vous réclamera des pièces (relevés, factures…), elles apparaîtront ici et vous pourrez les déposer en un clic.",
+    "statut_demande": "À fournir",
+    "statut_fourni": "Envoyé",
+    "statut_valide": "Validé",
+    "statut_refuse": "À refaire",
+    "demande_par": "Demandé par {{cabinet}}",
+    "deposer": "Déposer un fichier",
+    "upload_en_cours": "Envoi…",
+    "upload_ok": "Fichier envoyé",
+    "upload_err": "Envoi impossible",
+    "download_err": "Téléchargement impossible"
   },
   "dsf": {
     "loading": "Chargement de la liasse DSF…",
